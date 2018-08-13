@@ -103,6 +103,7 @@ type BraftNode struct {
 
 	signedResultChan  chan *pb.SignedResult //处理sign结果
 	signedResultCache sync.Map
+	pubsub            *pubServer
 }
 
 func getFederationAddress() cluster.MultiSigInfo {
@@ -1115,6 +1116,12 @@ func (bn *BraftNode) changeFederationAddrs(latest cluster.MultiSigInfo, multiSig
 		bn.btcWatcher.ChangeFederationAddress(latest.BtcAddress, latest.BtcRedeemScript)
 		bn.bchWatcher.ChangeFederationAddress(latest.BchAddress, latest.BchRedeemScript)
 	}
+}
+
+//订阅business
+func (bn *BraftNode) SubScribe(business string) chan PushEvent {
+	ch := bn.pubsub.subScribe(business)
+	return ch
 }
 
 // RunNew 启动server
