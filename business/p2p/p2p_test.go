@@ -46,7 +46,7 @@ func initCuster(tmpDir string) {
 	viper.Set("BCH.rpc_password", "hahaha")
 	viper.Set("BCH.confirm_block_num", 1)
 	viper.Set("BCH.coinbase_confirm_block_num", 100)
-	viper.Set("DGW.start_mode", 3)
+	viper.Set("DGW.start_mode", 4)
 	cluster.Init()
 }
 
@@ -61,12 +61,14 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 func TestProcess(t *testing.T) {
-	node := node.NewBraftNode(cluster.NodeInfo{
-		Id:       0,
-		Name:     "server0",
-		Url:      "127.0.0.1:10000",
-		IsNormal: true,
-	})
-	p2p := NewP2P(node)
+	_, noderun := node.RunNew(0, nil)
+	p2p := NewP2P(noderun)
+	go func() {
+		p2p.ch <- &node.WatchedEvent{}
+		p2p.ch <- &node.SignedEvent{}
+		p2p.ch <- &node.ConfirmEvent{}
+		p2p.ch <- &node.CommitedEvent{}
+		close(p2p.ch)
+	}()
 	p2p.processEvent()
 }

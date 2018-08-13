@@ -158,7 +158,7 @@ func NewBraftNode(localNodeInfo cluster.NodeInfo) *BraftNode {
 		ethWatcher *ew.Client
 		err        error
 	)
-	if startMode != cluster.ModeWatch {
+	if startMode != cluster.ModeWatch && startMode != cluster.ModeTest {
 		utxoLockTime := viper.GetInt("DGW.utxo_lock_time")
 		if utxoLockTime == 0 {
 			utxoLockTime = defaultUtxoLockTime

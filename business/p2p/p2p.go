@@ -1,8 +1,6 @@
 package p2p
 
 import (
-	"fmt"
-
 	"github.com/ofgp/ofgp-core/log"
 
 	"github.com/ofgp/ofgp-core/business"
@@ -78,8 +76,8 @@ type confirmHandler struct {
 func (ch *confirmHandler) HandleEvent(event node.BusinessEvent) {
 	if _, ok := event.(*node.ConfirmEvent); ok {
 		p2pLogger.Info("handle confirm")
-	} else {
-		p2pLogger.Error("could not handle event", "event", event.GetData())
+	} else if ch.Successor != nil {
+		ch.Successor.HandleEvent(event)
 	}
 }
 
@@ -89,8 +87,8 @@ type commitHandler struct {
 
 func (ch *commitHandler) HandleEvent(event node.BusinessEvent) {
 	if _, ok := event.(*node.CommitedEvent); ok {
-		fmt.Println("handle Commited")
-	} else if ch.Successor != nil {
-		ch.Successor.HandleEvent(event)
+		p2pLogger.Info("handle Commited")
+	} else {
+		p2pLogger.Error("could not handle event", "event", event.GetData())
 	}
 }
