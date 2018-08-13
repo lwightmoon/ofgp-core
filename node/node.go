@@ -1119,7 +1119,7 @@ func (bn *BraftNode) changeFederationAddrs(latest cluster.MultiSigInfo, multiSig
 }
 
 //订阅business
-func (bn *BraftNode) SubScribe(business string) chan PushEvent {
+func (bn *BraftNode) SubScribe(business string) chan BusinessEvent {
 	ch := bn.pubsub.subScribe(business)
 	return ch
 }
