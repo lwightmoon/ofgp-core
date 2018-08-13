@@ -218,6 +218,7 @@ func NewBraftNode(localNodeInfo cluster.NodeInfo) *BraftNode {
 		isInReconfig:         false,
 
 		signedResultChan: make(chan *pb.SignedResult),
+		pubsub:           newPubServer(1),
 	}
 	//重新添加监听列表
 	if len(multiSigList) > 0 {
