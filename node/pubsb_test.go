@@ -8,7 +8,7 @@ type testEvent struct {
 func (e *testEvent) GetBusiness() string {
 	return "p2p"
 }
-func (e *testEvent) GetMethod() uint8 {
+func (e *testEvent) GetEventType() uint8 {
 	return 0
 }
 func (e *testEvent) GetFrom() uint8 {

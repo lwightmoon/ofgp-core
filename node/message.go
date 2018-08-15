@@ -3,7 +3,7 @@ package node
 //watcher交互event
 type PushEvent interface {
 	GetBusiness() string
-	GetMethod() uint8
+	GetEventType() uint8 //0 初始监听到 1 被确认
 	GetFrom() uint8
 	GetTo() uint8
 	GetData() []byte
@@ -56,30 +56,10 @@ func (se *SignedEvent) GetErr() error {
 	return se.err
 }
 
-// SendedData 发送数据
-type SendedData struct {
-	Chain string //链
-	TxID  string //签名后的id
-}
-
-// SendedEvent 已发送事件
-type SendedEvent struct {
-	business string
-	data     SendedData
-	err      error //发送交易失败
-}
-
-// 交易被确认
-type ConfirmData struct {
-	Chain    string //链
-	TxID     string //最终被确认的交易id
-	Confirms int    //确认数
-}
-
 // 交易已确认
 type ConfirmEvent struct {
 	business string
-	data     ConfirmData
+	data     PushEvent
 	err      error //等待交易确认超时
 }
 

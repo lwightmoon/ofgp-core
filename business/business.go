@@ -17,3 +17,7 @@ func (h *Handler) SetSuccessor(i IHandler) {
 	}
 	h.Successor = i
 }
+
+type Message interface {
+	Decode([]byte)
+}
