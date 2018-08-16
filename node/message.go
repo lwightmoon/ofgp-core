@@ -3,9 +3,10 @@ package node
 //watcher交互event
 type PushEvent interface {
 	GetBusiness() string
-	GetEventType() uint8 //0 初始监听到 1 被确认
-	GetFrom() uint8
-	GetTo() uint8
+	GetEventType() uint32 //0 初始监听到 1 被确认
+	GetTxID() string
+	GetFrom() uint32
+	GetTo() uint32
 	GetData() []byte
 }
 

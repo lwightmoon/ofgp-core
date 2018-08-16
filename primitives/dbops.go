@@ -305,6 +305,24 @@ func GetSignMsg(db *dgwdb.LDBDatabase, msgId string) *pb.SignTxRequest {
 	return pb.UnmarshalSignTxRequest(data)
 }
 
+// SetSignReq 保存签名请求
+func SetSignReq(db *dgwdb.LDBDatabase, req *pb.SignRequest, scTxID string) {
+	bytes, err := proto.Marshal(req)
+	assert.ErrorIsNil(err)
+	k := append(keySignMsgPrefix, []byte(scTxID)...)
+	db.Put(k, bytes)
+}
+
+// GetSignReq 获取签名请求
+func GetSignReq(db *dgwdb.LDBDatabase, scTxID string) *pb.SignRequest {
+	k := append(keySignMsgPrefix, []byte(scTxID)...)
+	data, err := db.Get(k)
+	if err != nil {
+		return nil
+	}
+	return pb.UnMarshalSignRequest(data)
+}
+
 // DeleteSignMsg 清理签名信息
 func DeleteSignMsg(db *dgwdb.LDBDatabase, msgId string) {
 	k := append(keySignMsgPrefix, []byte(msgId)...)

@@ -1,6 +1,7 @@
 package proto
 
 import (
+	"bytes"
 	"fmt"
 	"log"
 	"strings"
@@ -836,7 +837,20 @@ func MakeSignedResult(code CodeType, nodeId int32, txId string, data [][]byte,
 	msg.Sig = sig
 	return msg, nil
 }
-
+func MakeSignResult(business string, code CodeType, nodeId int32,
+	txID string, data [][]byte, to uint32,
+	term int64, signer *crypto.SecureSigner) (*SignResult, error) {
+	msg := &SignResult{
+		Business: business,
+		Code:     code,
+		NodeID:   nodeId,
+		ScTxID:   txID,
+		To:       to,
+		Term:     term,
+		Data:     data,
+	}
+	return msg, nil
+}
 func MakeSignedStatistic(msgId string, nodeId int32, code CodeType) *SignedStatistic {
 	return &SignedStatistic{
 		SignedMsgId: msgId,
@@ -982,6 +996,28 @@ func (msg *ChainTxIdMsg) Id() *crypto.Digest256 {
 	return hasher.Sum(nil)
 }
 
+// MakeSignReqMsg 创建签名请求
+func MakeSignReqMsg(term int64, nodeID int32, event *WatchedEvent, newlyTx *NewlyTx,
+	multisigAddress string, signer *crypto.SecureSigner) (*SignRequest, error) {
+
+	msg := &SignRequest{
+		Term:            term,
+		NodeId:          nodeID,
+		MultisigAddress: multisigAddress,
+		WatchedEvent:    event,
+		NewlyTx:         newlyTx,
+		Time:            time.Now().Unix(),
+	}
+	return msg, nil
+}
+
+func UnMarshalSignRequest(bytes []byte) *SignRequest {
+	rst := new(SignRequest)
+	err := proto.Unmarshal(bytes, rst)
+	assert.ErrorIsNil(err)
+	return rst
+}
+
 func MakeChainTxIdMsg(txId string, signMsgId string, signer *crypto.SecureSigner) (*ChainTxIdMsg, error) {
 	msg := &ChainTxIdMsg{
 		TxId:      txId,
@@ -1056,4 +1092,17 @@ func (nl NodeList) GetPubkeys() []string {
 		}
 	}
 	return pubkeys
+}
+
+func (event *WatchedEvent) Equal(we *WatchedEvent) bool {
+	return event.GetBusiness() == we.GetBusiness() &&
+		event.GetEventType() == we.GetEventType() &&
+		bytes.Equal(event.GetData(), we.GetData()) &&
+		event.GetFrom() == we.GetFrom() &&
+		event.GetTo() == we.GetTo() &&
+		event.GetTxID() == we.GetTxID()
+}
+
+func (event *WatchedEvent) IsTransferEvent() bool {
+	return event.From == event.To && strings.HasPrefix(event.GetTxID(), "TransferTx")
 }

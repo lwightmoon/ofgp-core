@@ -70,6 +70,15 @@ message AddressInfo {
     int64 amount = 2;
 }
 
+// watcher监听到的event
+message WatchedEvent{
+    string business = 1;
+    uint32 event_type = 2;
+    string tx_i_d = 3;
+    uint32 from = 4;
+    uint32 to = 5;
+    bytes data = 6;
+}
 // watcher监测到的主/侧链交易信息
 message WatchedTxInfo {
     string txid = 1;
@@ -223,6 +232,30 @@ message SignTxRequest {
     NewlyTx newly_tx = 5;
     bytes sig = 6;
     int64 time = 7;
+}
+
+//签名请求
+message SignRequest{
+    int64 term = 1;
+    int32 node_id = 2;
+    string multisig_address = 3;
+    WatchedEvent watched_event = 4;
+    NewlyTx newly_tx = 5;
+    bytes sig = 6;
+    string business =7;
+    int64 time = 8;
+}
+
+// 签名结果
+message SignResult{
+    string business = 1;
+    CodeType code = 2;
+    int32 node_i_d = 3;
+    string sc_tx_i_d = 4;
+    uint32 to = 5;
+    int64 term = 6;
+    repeated bytes data = 7;
+    bytes sig = 8;
 }
 
 enum CodeType {

@@ -15,6 +15,7 @@ import (
 	"github.com/ofgp/ofgp-core/crypto"
 	"github.com/ofgp/ofgp-core/dgwdb"
 	"github.com/ofgp/ofgp-core/log"
+	"github.com/ofgp/ofgp-core/message"
 	pb "github.com/ofgp/ofgp-core/proto"
 	"github.com/ofgp/ofgp-core/util"
 	"github.com/ofgp/ofgp-core/util/assert"
@@ -65,6 +66,7 @@ type BlockStore struct {
 	StrongAccuseProcessedEvent *util.Event
 	SignedTxEvent              *util.Event
 	SignHandledEvent           *util.Event
+	BroadcastSignResEvent      *util.Event //广播签名结果
 	OnJoinEvent                *util.Event
 	JoinedEvent                *util.Event
 	JoinCancelEvent            *util.Event
@@ -100,6 +102,7 @@ func NewBlockStore(db *dgwdb.LDBDatabase, ts *TxStore, btcWatcher *btcwatcher.Mo
 		StrongAccuseProcessedEvent: util.NewEvent(),
 		SignedTxEvent:              util.NewEvent(),
 		SignHandledEvent:           util.NewEvent(),
+		BroadcastSignResEvent:      util.NewEvent(),
 		OnJoinEvent:                util.NewEvent(),
 		JoinedEvent:                util.NewEvent(),
 		JoinCancelEvent:            util.NewEvent(),
@@ -688,6 +691,102 @@ func (bs *BlockStore) handleSignTx(tasks *task.Queue, msg *pb.SignTxRequest) {
 	}
 }
 
+// handleSignReq 处理签名请求
+func (bs *BlockStore) handleSignReq(tasks *task.Queue, msg *pb.SignRequest) {
+	bsLogger.Debug("begin handle sign tx msg")
+	var signResult *pb.SignResult
+	var err error
+	targetChain := msg.GetWatchedEvent().GetTo()
+	nodeTerm := GetNodeTerm(bs.db)
+
+	switch {
+	case msg.Term > nodeTerm:
+		tasks.Add(func() { bs.NeedSyncUpEvent.Emit(msg.NodeId) })
+		if targetChain == message.Bch || targetChain == message.Btc {
+			signResult, err = pb.MakeSignResult(msg.WatchedEvent.GetBusiness(), pb.CodeType_NEEDSYNC, bs.localNodeId,
+				msg.GetWatchedEvent().GetTxID(), nil, targetChain, nodeTerm, bs.signer)
+
+			SetSignReq(bs.db, msg, msg.GetWatchedEvent().GetTxID())
+			if err != nil {
+				bsLogger.Error("sync make signedRes err", "err", err)
+				return
+			}
+			tasks.Add(func() { bs.BroadcastSignResEvent.Emit(signResult) })
+		}
+	case msg.Term == nodeTerm:
+		bsLogger.Debug("begin sign tx", "sctxid", msg.GetWatchedEvent().GetTxID())
+		if targetChain == message.Bch || targetChain == message.Btc {
+			var watcher *btcwatcher.MortgageWatcher
+			if targetChain == message.Bch {
+				watcher = bs.bchWatcher
+			} else {
+				watcher = bs.btcWatcher
+			}
+
+			//源链txID
+			scTxID := msg.GetWatchedEvent().GetTxID()
+			//所属业务
+			business := msg.GetWatchedEvent().GetBusiness()
+
+			buf := bytes.NewBuffer(msg.NewlyTx.Data)
+			newlyTx := new(wire.MsgTx)
+			newlyTx.Deserialize(buf)
+
+			validateResult := bs.validateBtcSignReq(msg, newlyTx)
+			if validateResult != validatePass {
+				if validateResult == wrongInputOutput {
+					bsLogger.Error("validate sign tx failed", "sctxid", scTxID)
+					tasks.Add(func() { bs.NewWeakAccuseEvent.Emit(msg.Term) })
+				} else {
+					bsLogger.Debug("tx already signed", "sctxid", scTxID)
+				}
+				SetSignReq(bs.db, msg, scTxID)
+				signResult, err = pb.MakeSignResult(business, pb.CodeType_REJECT, bs.localNodeId,
+					scTxID, nil, targetChain, nodeTerm, bs.signer)
+				if err != nil {
+					bsLogger.Error("validatesign make signedResult err", "err", err)
+					return
+				}
+				tasks.Add(func() { bs.BroadcastSignResEvent.Emit(signResult) })
+				return
+			}
+
+			//签名前txID
+			newlyTxId := newlyTx.TxHash().String()
+
+			signStart := time.Now().UnixNano()
+			sig, ok := watcher.SignTx(newlyTx, bs.signer.PubkeyHash)
+			signEnd := time.Now().UnixNano()
+
+			bsLogger.Debug("signtime", "scTxID", scTxID, "time", (signEnd-signStart)/1e6)
+			if ok != 0 {
+				bsLogger.Error("sign tx failed", "code", ok, "sctxid", scTxID)
+				SetSignReq(bs.db, msg, scTxID)
+				signResult, err = pb.MakeSignResult(business, pb.CodeType_REJECT, bs.localNodeId,
+					scTxID, nil, targetChain, nodeTerm, bs.signer)
+				if err != nil {
+					bsLogger.Debug("sign fail make signedResult err", "err", err, "scTxID", scTxID)
+					return
+				}
+				tasks.Add(func() { bs.BroadcastSignResEvent.Emit(signResult) })
+				return
+			}
+			bsLogger.Debug("sign bch tx done", "sctxid", scTxID, "newlyTxid", newlyTxId)
+
+			SetSignReq(bs.db, msg, scTxID)
+
+			signResult, err := pb.MakeSignResult(business, pb.CodeType_SIGNED, bs.localNodeId,
+				scTxID, sig, targetChain, nodeTerm, bs.signer)
+			if err != nil {
+				bsLogger.Debug("sign suc make signedResult err", "err", err, "scTxID", scTxID)
+				return
+			}
+			tasks.Add(func() { bs.BroadcastSignResEvent.Emit(signResult) })
+		}
+	}
+
+}
+
 func (bs *BlockStore) handleJoinRequest(tasks *task.Queue, msg *pb.JoinRequest) {
 	// 保存Join信息
 	SetJoinNodeInfo(bs.db, msg)
@@ -1136,6 +1235,88 @@ func (bs *BlockStore) validateWatchedTx(tx *pb.WatchedTxInfo) bool {
 		// 临时去链上获取的，可以马上存到缓存里面
 		bs.ts.AddWatchedTx(newTx)
 		return newTx.EqualTo(tx)
+	default:
+		return false
+	}
+}
+
+func (bs *BlockStore) validateBtcSignReq(req *pb.SignRequest, newlyTx *wire.MsgTx) int {
+	if req.GetWatchedEvent().IsTransferEvent() {
+		return bs.validateTransferSignReq(req, newlyTx)
+	}
+	baseCheckResult := bs.baseCheckSignReq(req)
+	if baseCheckResult != validatePass {
+		return baseCheckResult
+	}
+
+	return validatePass
+}
+
+func (bs *BlockStore) validateTransferSignReq(req *pb.SignRequest, newlyTx *wire.MsgTx) int {
+	if len(newlyTx.TxOut) != 1 || len(req.MultisigAddress) == 0 {
+		bsLogger.Warn("txout check failed", "count", len(newlyTx.TxOut))
+		return wrongInputOutput
+	}
+
+	var watcher *btcwatcher.MortgageWatcher
+	to := req.GetWatchedEvent().GetTo()
+	var coinType string
+	if to == message.Btc {
+		coinType = "btc"
+		watcher = bs.btcWatcher
+	} else {
+		coinType = "bch"
+		watcher = bs.bchWatcher
+	}
+	for _, txIn := range newlyTx.TxIn {
+		utxoID := strings.Join([]string{txIn.PreviousOutPoint.Hash.String(), strconv.Itoa(int(txIn.PreviousOutPoint.Index))}, "_")
+		utxoInfo := watcher.GetUtxoInfoByID(utxoID)
+		if utxoInfo == nil || utxoInfo.Address != req.MultisigAddress {
+			bsLogger.Error("txin check failed", "utxo", utxoInfo)
+			return wrongInputOutput
+		}
+	}
+
+	outAddress := btcfunc.ExtractPkScriptAddr(newlyTx.TxOut[0].PkScript, coinType)
+	if to == message.Btc {
+		if outAddress == cluster.CurrMultiSig.BtcAddress {
+			return validatePass
+		}
+		return wrongInputOutput
+	}
+	if outAddress == cluster.CurrMultiSig.BchAddress {
+		return validatePass
+	}
+	return wrongInputOutput
+}
+
+func (bs *BlockStore) baseCheckSignReq(req *pb.SignRequest) int {
+	if !bs.validateWatchedEvent(req.GetWatchedEvent()) {
+		bsLogger.Warn("watched event invalid", "scTxID", req.GetWatchedEvent().GetTxID())
+		return wrongInputOutput
+	}
+	scTxID := req.GetWatchedEvent().GetTxID()
+	//todo 已达成共识check
+	signReq := GetSignReq(bs.db, scTxID)
+	if signReq != nil {
+		bsLogger.Warn("request has been signed in this term", "scTxID", scTxID)
+		return alreadySigned
+	}
+	return validatePass
+}
+
+// validateWatchedEvent 校验监听到的event
+func (bs *BlockStore) validateWatchedEvent(event *pb.WatchedEvent) bool {
+	var newEvent *pb.WatchedEvent
+	validateRes := bs.ts.ValidateWatchedEvent(event)
+	switch validateRes {
+	case Valid:
+		return true
+	case Invalid:
+		return false
+	case NotExist:
+		//todo
+		return event.Equal(newEvent)
 	default:
 		return false
 	}

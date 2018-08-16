@@ -22,21 +22,22 @@ func read(r io.Reader, length int) []byte {
 }
 
 func readInt(r io.Reader, element interface{}) error {
+	var err error
 	switch e := element.(type) {
 	case *uint8:
 		buf := make([]byte, 1)
-		io.ReadFull(r, buf)
+		_, err = io.ReadFull(r, buf)
 		*e = buf[0]
 	case *uint32:
 		buf := make([]byte, 4)
-		io.ReadFull(r, buf)
+		_, err = io.ReadFull(r, buf)
 		*e = bigEndian.Uint32(buf)
 	case *uint64:
 		buf := make([]byte, 8)
-		io.ReadFull(r, buf)
+		_, err = io.ReadFull(r, buf)
 		*e = bigEndian.Uint64(buf)
 	}
-	return nil
+	return err
 }
 
 //GetEventtype()==0 监听到

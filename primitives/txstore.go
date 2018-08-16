@@ -8,6 +8,7 @@ import (
 
 	"github.com/ofgp/ofgp-core/crypto"
 	"github.com/ofgp/ofgp-core/dgwdb"
+	"github.com/ofgp/ofgp-core/message"
 	pb "github.com/ofgp/ofgp-core/proto"
 	"github.com/ofgp/ofgp-core/util"
 	"github.com/ofgp/ofgp-core/util/assert"
@@ -137,8 +138,14 @@ type TxStore struct {
 	newCommitChan    chan blockCommitted
 	fetchTxsChan     chan txsFetcher
 	addTxsChan       chan addTxsRequest
-	addWatchedTxChan chan *pb.WatchedTxInfo
-	addFreshChan     chan *pb.WatchedTxInfo
+	addWatchedTxChan chan *pb.WatchedTxInfo //todo del
+
+	addFreshChan chan *pb.WatchedTxInfo
+
+	watchedTxEvent     sync.Map //监听到的event
+	addWatchedEventCh  chan *pb.WatchedEvent
+	waitingSignTx      sync.Map //等待被签名交易
+	addWaitingSignTxCh chan *message.WaitSignMsg
 	//queryTxsChan   chan txsQuery
 	heartbeatTimer *time.Timer
 	sync.RWMutex
@@ -193,6 +200,7 @@ func (ts *TxStore) Run(ctx context.Context) {
 				ts.freshWatchedTxInfo[watchedTx.Txid] = wtx
 			}
 			ts.Unlock()
+
 		case watchedTx := <-ts.addFreshChan:
 
 			wtx := &WatchedTxInfo{
@@ -206,6 +214,12 @@ func (ts *TxStore) Run(ctx context.Context) {
 			ts.Unlock()
 		case term := <-ts.newTermChan:
 			ts.currTerm = term
+		case watchedEvent := <-ts.addWatchedEventCh: //添加监听到的event
+			bsLogger.Debug("add watched event to mempool", "business", watchedEvent.GetBusiness(), "scTxID", watchedEvent.GetTxID())
+			ts.watchedTxEvent.Store(watchedEvent.GetTxID(), watchedEvent)
+		case waitSignTx := <-ts.addWaitingSignTxCh: //添加待签名交易
+			bsLogger.Debug("add waitingSign tx", "business", waitSignTx.Business, "scTxID", waitSignTx.ScTxID)
+			ts.waitingSignTx.Store(waitSignTx.ScTxID, waitSignTx)
 		case <-ctx.Done():
 			return
 		}
@@ -286,6 +300,21 @@ func (ts *TxStore) GetFreshWatchedTxs() []*WatchedTxInfo {
 	ts.freshWatchedTxInfo = make(map[string]*WatchedTxInfo)
 	ts.Unlock()
 	return rst
+}
+
+// GetWaitingSignTxs 获取待签名交易
+func (ts *TxStore) GetWaitingSignTxs() []*message.WaitSignMsg {
+
+	var txs []*message.WaitSignMsg
+	ts.waitingSignTx.Range(func(k, v interface{}) bool {
+		tx, ok := v.(*message.WaitSignMsg)
+		if ok {
+			txs = append(txs, tx)
+		}
+		return true
+	})
+	ts.waitingSignTx = sync.Map{}
+	return txs
 }
 
 // HasFreshWatchedTx 是否还有未处理的公链交易
@@ -579,5 +608,19 @@ func (ts *TxStore) ValidateWatchedTx(tx *pb.WatchedTxInfo) int {
 	if tx.EqualTo(memTx.Tx) {
 		return Valid
 	}
+	return Invalid
+}
+
+// ValidateWatchedEvent 验证leader传过来的PushEvent是否与本节点一致
+func (ts *TxStore) ValidateWatchedEvent(event *pb.WatchedEvent) int {
+	val, exist := ts.watchedTxEvent.Load(event.GetTxID())
+	if !exist {
+		return NotExist
+	}
+	watchedEvent := val.(*pb.WatchedEvent)
+	if watchedEvent.Equal(event) {
+		return Valid
+	}
+	bsLogger.Error("watched event validate fail", "business", event.GetBusiness(), "scTxID", event.GetTxID())
 	return Invalid
 }

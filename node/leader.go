@@ -447,6 +447,29 @@ func (ld *Leader) createTransaction(ctx context.Context) {
 	}
 }
 
+//集群内广播签名请求
+func (ld *Leader) createSignReq(ctx context.Context) {
+	tick := time.Tick(3 * time.Minute)
+	for {
+		select {
+		case <-tick:
+			if ld.isInCharge() {
+				txs := ld.txStore.GetWaitingSignTxs()
+				if len(txs) > 0 {
+					leaderLogger.Debug("get waiting sign tx", "cnt", len(txs))
+				}
+				for _, tx := range txs {
+					req, _ := pb.MakeSignReqMsg(ld.blockStore.GetNodeTerm(), ld.nodeInfo.Id, nil, tx.Tx, "", ld.signer)
+					//todo
+					leaderLogger.Debug("broadcast sign", "business", req.GetBusiness(), "scTxID", req.GetWatchedEvent().GetTxID())
+				}
+			}
+		case <-ctx.Done():
+		}
+	}
+}
+
+// createTransferTx 创建内部多签地址转账交易
 func (ld *Leader) createTransferTx(watcher *btcwatcher.MortgageWatcher, address string,
 	snapshot *cluster.Snapshot) *pb.NewlyTx {
 	leaderLogger.Debug("transfer param", "quorum", snapshot.QuorumN, "clusterSize", snapshot.ClusterSize)
@@ -519,6 +542,20 @@ func (ld *Leader) broadcastSign(msg *pb.SignTxRequest, nodes []cluster.NodeInfo,
 	for _, node := range nodes {
 		if node.IsNormal {
 			go ld.pm.NotifySignTx(node.Id, msg)
+		}
+	}
+}
+
+func (ld *Leader) broadcastSignReq(msg *pb.SignRequest, nodes []cluster.NodeInfo, quorumN int) {
+	//对QuorumnN个节点可用才发送sign请求
+	for availableCnt := ld.pm.GetTxConnAvailableCnt(nodes); availableCnt < quorumN; {
+		leaderLogger.Debug("txConn is not available")
+		time.Sleep(100 * time.Millisecond)
+		availableCnt = ld.pm.GetTxConnAvailableCnt(nodes)
+	}
+	for _, node := range nodes {
+		if node.IsNormal {
+			go ld.pm.NotifySignTx(node.Id, nil)
 		}
 	}
 }

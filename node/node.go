@@ -20,6 +20,7 @@ import (
 	"github.com/ofgp/ofgp-core/crypto"
 	"github.com/ofgp/ofgp-core/dgwdb"
 	"github.com/ofgp/ofgp-core/log"
+	"github.com/ofgp/ofgp-core/message"
 	"github.com/ofgp/ofgp-core/primitives"
 	pb "github.com/ofgp/ofgp-core/proto"
 	"github.com/ofgp/ofgp-core/util"
@@ -323,6 +324,10 @@ func NewBraftNode(localNodeInfo cluster.NodeInfo) *BraftNode {
 	bs.SignHandledEvent.Subscribe(func(msg *pb.SignedResult) {
 		ts.DeleteFresh(msg.TxId)
 		pm.Broadcast(msg, false, false)
+	})
+
+	bs.BroadcastSignResEvent.Subscribe(func(msg *pb.SignResult) {
+
 	})
 
 	bs.OnJoinEvent.Subscribe(func(host string) {
@@ -1123,6 +1128,11 @@ func (bn *BraftNode) changeFederationAddrs(latest cluster.MultiSigInfo, multiSig
 func (bn *BraftNode) SubScribe(business string) chan BusinessEvent {
 	ch := bn.pubsub.subScribe(business)
 	return ch
+}
+
+//braftNode对业务提供的服务
+func (bn *BraftNode) addWaitSignTx(tx *message.WaitSignMsg) {
+
 }
 
 // RunNew 启动server
