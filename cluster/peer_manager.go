@@ -234,9 +234,9 @@ func (pm *PeerManager) Broadcast(msg interface{}, excludeSelf bool, selectSome b
 		case *pb.SignTxRequest:
 			pmLogger.Debug("Broadcast sign tx request", "nodeId", nodeId)
 			go func() { pm.NotifySignTx(nodeId, msg) }()
-		case *pb.SignedResult:
+		case *pb.SignResult:
 			pmLogger.Debug("Broadcast signed result", "nodeId", nodeId)
-			go func() { pm.NotifySignedResult(nodeId, msg) }()
+			go func() { pm.NotifySignResult(nodeId, msg) }()
 		case *pb.LeaveRequest:
 			// leave是最后发送的消息，需要确认发送完成才能退出
 			pmLogger.Debug("Broadcast leave request", "nodeId", nodeId)
@@ -360,13 +360,13 @@ func (pm *PeerManager) NotifySignTx(nodeId int32, msg *pb.SignTxRequest) (*pb.Si
 }
 
 // NotifySignedResult 向nodeid节点发送SignedResult消息
-func (pm *PeerManager) NotifySignedResult(nodeId int32, msg *pb.SignedResult) (*pb.Void, error) {
+func (pm *PeerManager) NotifySignResult(nodeId int32, msg *pb.SignResult) (*pb.Void, error) {
 	node := pm.GetNode(nodeId)
 	if node == nil {
 		return nil, errInvalidNode
 	}
 	rsp := new(pb.Void)
-	err := node.invokeRPC("/proto.Braft/NotifySignedResult", msg, rsp)
+	err := node.invokeRPC("/proto.Braft/NotifySignResult", msg, rsp)
 	return rsp, err
 }
 

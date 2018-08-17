@@ -124,12 +124,13 @@ func (bn *BraftNode) NotifySignTx(ctx context.Context, msg *pb.SignTxRequest) (*
 	return new(pb.Void), nil
 }
 
-func (bn *BraftNode) NotifySignedResult(ctx context.Context, msg *pb.SignedResult) (*pb.Void, error) {
-	nodeLogger.Debug("Received notify signed result", "fromId", msg.NodeId)
-	if !checkSignedResult(msg) {
-		nodeLogger.Error(errInvalidRequest.Error())
-		return nil, errInvalidRequest
-	}
+func (bn *BraftNode) NotifySignResult(ctx context.Context, msg *pb.SignResult) (*pb.Void, error) {
+	nodeLogger.Debug("Received notify signed result", "fromId", msg.NodeID)
+	// todo signResult check
+	// if !checkSignedResult(msg) {
+	// 	nodeLogger.Error(errInvalidRequest.Error())
+	// 	return nil, errInvalidRequest
+	// }
 	bn.SaveSignedResult(msg)
 	return new(pb.Void), nil
 }

@@ -193,6 +193,16 @@ func (bs *BlockStore) DeleteSignReqMsg(txId string) {
 	DeleteSignMsg(bs.db, txId)
 }
 
+// GetSignReqMsg 获取缓存的签名源请求
+func (bs *BlockStore) GetSignReq(txId string) *pb.SignRequest {
+	return GetSignReq(bs.db, txId)
+}
+
+// DeleteSignReqMsg 删除缓存的签名请求
+func (bs *BlockStore) DeleteSignReq(txId string) {
+	DeleteSignMsg(bs.db, txId)
+}
+
 // MarkFailedSignRecord 标记此term下的签名是否已经确认失败，需要重签
 func (bs *BlockStore) MarkFailedSignRecord(txId string, term int64) {
 	MarkFailedSignRecord(bs.db, txId, term)

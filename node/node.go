@@ -102,7 +102,7 @@ type BraftNode struct {
 	quit                 context.CancelFunc
 	isInReconfig         bool
 
-	signedResultChan  chan *pb.SignedResult //处理sign结果
+	signedResultChan  chan *pb.SignResult //处理sign结果
 	signedResultCache sync.Map
 	pubsub            *pubServer
 }
@@ -218,7 +218,7 @@ func NewBraftNode(localNodeInfo cluster.NodeInfo) *BraftNode {
 		waitingConfirmTxs:    make(map[string]*waitingConfirmTx),
 		isInReconfig:         false,
 
-		signedResultChan: make(chan *pb.SignedResult),
+		signedResultChan: make(chan *pb.SignResult),
 		pubsub:           newPubServer(1),
 	}
 	//重新添加监听列表
@@ -327,7 +327,8 @@ func NewBraftNode(localNodeInfo cluster.NodeInfo) *BraftNode {
 	})
 
 	bs.BroadcastSignResEvent.Subscribe(func(msg *pb.SignResult) {
-
+		//todo delete waiting to sign
+		pm.Broadcast(msg, false, false)
 	})
 
 	bs.OnJoinEvent.Subscribe(func(host string) {
@@ -728,7 +729,7 @@ func (bn *BraftNode) checkTxOnChain(tx *waitingConfirmTx, wg *sync.WaitGroup) {
 	if tx.isTimeout() && !tx.inMem {
 		nodeLogger.Debug("has timeout tx", "sctxid", tx.msgId)
 		bn.deleteFromWaiting(tx.msgId)
-		signReqMsg := bn.blockStore.GetSignReqMsg(hash)
+		signReqMsg := bn.blockStore.GetSignReq(hash)
 		if signReqMsg != nil {
 			bn.clearOnFail(signReqMsg)
 		}

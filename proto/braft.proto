@@ -24,7 +24,7 @@ service Braft {
     rpc NotifyLeave(LeaveRequest) returns (Void);
     rpc GetClusterNodes(Void) returns (NodeList);
     rpc WatchSyncUp(SyncUpRequest) returns (SyncUpResponse);
-    rpc NotifySignedResult(SignedResult) returns (Void);
+    rpc NotifySignResult(SignResult) returns (Void);
     //rpc NotifyChainTxIdMsg(ChainTxIdMsg) returns (Void);
     rpc IsCommited(crypto.Digest256) returns(IsCommitedResponse);
     //获取节点运行中的info,监听的区块的高度和成为主节点的次数

@@ -8,6 +8,7 @@ import (
 	btcwatcher "github.com/ofgp/bitcoinWatcher/mortgagewatcher"
 
 	"github.com/ofgp/ofgp-core/cluster"
+	"github.com/ofgp/ofgp-core/message"
 	pb "github.com/ofgp/ofgp-core/proto"
 	"github.com/ofgp/ofgp-core/util/assert"
 
@@ -24,7 +25,7 @@ var checkSignInterval time.Duration //checkSign是否达成共识的周期
 
 //统计sign suc的节点数
 type SignedResultCache struct {
-	cache       map[int32]*pb.SignedResult
+	cache       map[int32]*pb.SignResult
 	totalCount  int32
 	signedCount int32
 	errCnt      int32
@@ -50,12 +51,12 @@ func (cache *SignedResultCache) addSignedCount() {
 func (cache *SignedResultCache) addErrCnt() {
 	atomic.AddInt32(&cache.errCnt, 1)
 }
-func (cache *SignedResultCache) addCache(nodeID int32, signRes *pb.SignedResult) {
+func (cache *SignedResultCache) addCache(nodeID int32, signRes *pb.SignResult) {
 	cache.Lock()
 	defer cache.Unlock()
 	cache.cache[nodeID] = signRes
 }
-func (cache *SignedResultCache) getCache(nodeID int32) (*pb.SignedResult, bool) {
+func (cache *SignedResultCache) getCache(nodeID int32) (*pb.SignResult, bool) {
 	cache.RLock()
 	defer cache.RUnlock()
 	res, ok := cache.cache[nodeID]
@@ -76,18 +77,20 @@ func (cache *SignedResultCache) getErrCnt() int32 {
 	return atomic.LoadInt32(&cache.errCnt)
 }
 
-func (node *BraftNode) clearOnFail(signReq *pb.SignTxRequest) {
-	leaderLogger.Debug("clear on fail", "sctxid", signReq.WatchedTx.Txid)
-	node.blockStore.MarkFailedSignRecord(signReq.WatchedTx.Txid, signReq.Term)
+func (node *BraftNode) clearOnFail(signReq *pb.SignRequest) {
+	scTxID := signReq.GetWatchedEvent().GetTxID()
+	leaderLogger.Debug("clear on fail", "sctxid", scTxID)
+	node.blockStore.MarkFailedSignRecord(scTxID, signReq.Term)
 
-	node.signedResultCache.Delete(signReq.WatchedTx.Txid)
-	node.blockStore.DeleteSignReqMsg(signReq.WatchedTx.Txid)
+	node.signedResultCache.Delete(scTxID)
+	node.blockStore.DeleteSignReqMsg(scTxID)
 
-	if !signReq.WatchedTx.IsTransferTx() && !node.hasTxInWaitting(signReq.WatchedTx.Txid) {
-		node.txStore.AddFreshWatchedTx(signReq.WatchedTx)
-	} else {
-		node.txStore.DeleteWatchedTx(signReq.WatchedTx.Txid)
-	}
+	//todo waitingConfirm 如何处理
+	// if !signReq.GetWatchedEvent().IsTransferEvent() && !node.hasTxInWaitting(scTxID) {
+	// 	node.txStore.AddFreshWatchedTx(signReq.WatchedTx)
+	// } else {
+	// 	node.txStore.DeleteWatchedTx(signReq.WatchedTx.Txid)
+	// }
 }
 
 func (node *BraftNode) sendTxToChain(newlyTx *wire.MsgTx, watcher *btcwatcher.MortgageWatcher,
@@ -98,7 +101,7 @@ func (node *BraftNode) sendTxToChain(newlyTx *wire.MsgTx, watcher *btcwatcher.Mo
 	ok := watcher.MergeSignTx(newlyTx, sigs)
 	if !ok {
 		leaderLogger.Error("merge sign tx failed", "sctxid", signResult.TxId)
-		node.clearOnFail(signReq)
+		// node.clearOnFail(signReq) todo merge 失败clearOnFail 处理
 		return
 	}
 	start := time.Now().UnixNano()
@@ -111,16 +114,16 @@ func (node *BraftNode) sendTxToChain(newlyTx *wire.MsgTx, watcher *btcwatcher.Mo
 	node.blockStore.SignedTxEvent.Emit(newlyTxHash, signResult.TxId, signResult.To, signReq.WatchedTx.TokenTo)
 }
 
-func (node *BraftNode) doSave(msg *pb.SignedResult) {
+func (node *BraftNode) doSave(msg *pb.SignResult) {
 	var watcher *btcwatcher.MortgageWatcher
-
-	if node.blockStore.IsSignFailed(msg.TxId, msg.Term) {
-		leaderLogger.Debug("signmsg is failed in this term", "sctxid", msg.TxId, "term", msg.Term)
+	scTxID := msg.GetScTxID()
+	if node.blockStore.IsSignFailed(scTxID, msg.Term) {
+		leaderLogger.Debug("signmsg is failed in this term", "sctxid", scTxID, "term", msg.Term)
 		return
 	}
-	signReqMsg := node.blockStore.GetSignReqMsg(msg.TxId)
-	cacheTemp, loaded := node.signedResultCache.LoadOrStore(msg.TxId, &SignedResultCache{
-		cache:       make(map[int32]*pb.SignedResult),
+	signReq := node.blockStore.GetSignReq(scTxID)
+	cacheTemp, loaded := node.signedResultCache.LoadOrStore(scTxID, &SignedResultCache{
+		cache:       make(map[int32]*pb.SignResult),
 		totalCount:  0,
 		signedCount: 0,
 		initTime:    time.Now().Unix(),
@@ -132,37 +135,37 @@ func (node *BraftNode) doSave(msg *pb.SignedResult) {
 	}
 	//如果不是第一次添加
 	if loaded {
-		if _, exist := cache.getCache(msg.NodeId); exist {
-			leaderLogger.Debug("already receive signedres", "nodeID", msg.NodeId, "scTxID", msg.TxId)
+		if _, exist := cache.getCache(msg.NodeID); exist {
+			leaderLogger.Debug("already receive signedres", "nodeID", msg.NodeID, "scTxID", scTxID)
 			return
 		}
 	}
 	cache.addTotalCount()
 	// 由于网络延迟，有可能先收到了其他节点的签名结果，后收到签名请求，这个时候只做好保存即可
-	if signReqMsg == nil {
+	if signReq == nil {
 		if msg.Code == pb.CodeType_SIGNED {
 			cache.addSignedCount()
-			cache.addCache(msg.NodeId, msg)
+			cache.addCache(msg.NodeID, msg)
 		} else {
 			cache.addErrCnt()
 		}
 		return
 	}
-	buf := bytes.NewBuffer(signReqMsg.NewlyTx.Data)
+	buf := bytes.NewBuffer(signReq.NewlyTx.Data)
 	newlyTx := new(wire.MsgTx)
 	err := newlyTx.Deserialize(buf)
 	assert.ErrorIsNil(err)
-	if msg.To == "bch" {
+	if msg.To == message.Bch {
 		watcher = node.bchWatcher
 	} else {
 		watcher = node.btcWatcher
 	}
 	if msg.Code == pb.CodeType_SIGNED {
-		if !watcher.VerifySign(newlyTx, msg.Data, cluster.NodeList[msg.NodeId].PublicKey) {
-			leaderLogger.Error("verify sign tx failed", "from", msg.NodeId, "sctxid", msg.TxId)
+		if !watcher.VerifySign(newlyTx, msg.Data, cluster.NodeList[msg.NodeID].PublicKey) {
+			leaderLogger.Error("verify sign tx failed", "from", msg.NodeID, "sctxid", scTxID)
 			cache.addErrCnt()
 		} else {
-			cache.addCache(msg.NodeId, msg)
+			cache.addCache(msg.NodeID, msg)
 			cache.addSignedCount()
 		}
 	} else {
@@ -173,10 +176,11 @@ func (node *BraftNode) doSave(msg *pb.SignedResult) {
 		quorumN       int32
 		accuseQuorumN int32
 	)
-	if signReqMsg.WatchedTx.IsTransferTx() {
-		snapshot := node.blockStore.GetClusterSnapshot(signReqMsg.MultisigAddress)
+
+	if signReq.GetWatchedEvent().IsTransferEvent() {
+		snapshot := node.blockStore.GetClusterSnapshot(signReq.MultisigAddress)
 		if snapshot == nil {
-			leaderLogger.Error("receive invalid transfer tx", "txid", signReqMsg.WatchedTx.Txid)
+			leaderLogger.Error("receive invalid transfer tx", "txid", scTxID)
 			return
 		}
 		quorumN = int32(snapshot.QuorumN)
@@ -186,7 +190,7 @@ func (node *BraftNode) doSave(msg *pb.SignedResult) {
 		accuseQuorumN = int32(cluster.AccuseQuorumN)
 	}
 
-	if cache.getSignedCount() >= quorumN && !cache.isDone() && signReqMsg != nil {
+	if cache.getSignedCount() >= quorumN && !cache.isDone() && signReq != nil {
 		if cache.setDone() {
 			cache.doneTime = time.Now()
 			var sigs [][][]byte
@@ -200,12 +204,12 @@ func (node *BraftNode) doSave(msg *pb.SignedResult) {
 				}
 			}
 			// sendTxToChain的时间可能会比较长，因为涉及到链上交易，所以需要提前把锁释放
-			node.sendTxToChain(newlyTx, watcher, sigs, msg, signReqMsg)
+			// node.sendTxToChain(newlyTx, watcher, sigs, msg, signReqmsg)
 		}
 	} else if cache.getErrCnt() > accuseQuorumN {
 		// 本次交易确认失败，清理缓存的数据，避免干扰后续的重试
 		leaderLogger.Debug("sign accuseQuorumN fail")
-		node.clearOnFail(signReqMsg)
+		node.clearOnFail(signReq)
 	}
 }
 
@@ -290,6 +294,6 @@ func (node *BraftNode) runCheckSignTimeout(ctx context.Context) {
 	}()
 }
 
-func (node *BraftNode) SaveSignedResult(msg *pb.SignedResult) {
+func (node *BraftNode) SaveSignedResult(msg *pb.SignResult) {
 	node.signedResultChan <- msg
 }
