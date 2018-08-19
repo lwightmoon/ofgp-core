@@ -114,12 +114,13 @@ func (bn *BraftNode) NotifyTxs(ctx context.Context, msg *pb.Transactions) (*pb.V
 }
 
 // NotifySignTx 处理收到的加签请求
-func (bn *BraftNode) NotifySignTx(ctx context.Context, msg *pb.SignTxRequest) (*pb.Void, error) {
+func (bn *BraftNode) NotifySignRequest(ctx context.Context, msg *pb.SignRequest) (*pb.Void, error) {
 	nodeLogger.Debug("Received notify sign tx request", "fromId", msg.NodeId)
-	if !checkSignTxRequest(msg) {
-		nodeLogger.Error(errInvalidRequest.Error())
-		return nil, errInvalidRequest
-	}
+	//todo
+	// if !checkSignTxRequest(msg) {
+	// 	nodeLogger.Error(errInvalidRequest.Error())
+	// 	return nil, errInvalidRequest
+	// }
 	bn.blockStore.HandleSignTx(msg)
 	return new(pb.Void), nil
 }

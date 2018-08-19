@@ -350,10 +350,12 @@ func checkSyncUpResponse(msg *pb.SyncUpResponse) bool {
 	return true
 }
 
+/* todo
 func checkSignTxRequest(req *pb.SignTxRequest) bool {
 	return req != nil && checkTerm(req.Term) && checkNodeId(req.NodeId) &&
 		crypto.Verify(cluster.NodeList[req.NodeId].PublicKey, req.Id(), req.Sig)
 }
+*/
 
 func checkSignedResult(msg *pb.SignedResult) bool {
 	return msg != nil && checkNodeId(msg.NodeId) && len(msg.TxId) > 0 && len(msg.To) > 0 &&

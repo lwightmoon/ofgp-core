@@ -119,6 +119,7 @@ func (hd *HTTPHandler) getBlockViewByHeight(w http.ResponseWriter, r *http.Reque
 	writeResponse(&w, newOKData(res))
 }
 
+//TODO
 func (hd *HTTPHandler) getBlockTxsBySec(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	startStr := r.FormValue("start")
 	endStr := r.FormValue("end")
@@ -132,13 +133,13 @@ func (hd *HTTPHandler) getBlockTxsBySec(w http.ResponseWriter, r *http.Request, 
 		fmt.Fprintf(w, "%s", newData(paramErrCode, err.Error(), nil))
 		return
 	}
-	var res []txMap
+	var res []txMap //todo new formtx and totx
 	for ; start < end; start++ {
 		block := hd.node.GetBlockInfo(start)
 		for _, tx := range block.Block.Txs {
 			res = append(res, txMap{
-				FromTxId: tx.WatchedTx.Txid,
-				ToTxId:   tx.NewlyTxId,
+				FromTxId: tx.Vin[0].GetTxID(),
+				ToTxId:   tx.Vout[0].GetTxID(),
 			})
 		}
 	}

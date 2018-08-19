@@ -39,14 +39,15 @@ func toTxInfo(tx *pb.Transaction, block *pb.BlockInfo) *TxInfo {
 	} else {
 		rst.Height = -1
 	}
-	rst.Amount = tx.WatchedTx.Amount
-	rst.ChainTxId = tx.WatchedTx.Txid
-	rst.From = tx.WatchedTx.From
-	rst.To = tx.WatchedTx.To
+	//todo
+	// rst.Amount = tx.WatchedTx.Amount
+	// rst.ChainTxId = tx.WatchedTx.Txid
+	// rst.From = tx.WatchedTx.From
+	// rst.To = tx.WatchedTx.To
 	rst.AddressAmountMap = make(map[string]int64)
-	for _, am := range tx.WatchedTx.RechargeList {
-		rst.AddressAmountMap[am.Address] = am.Amount
-	}
+	// for _, am := range tx.WatchedTx.RechargeList {
+	// 	rst.AddressAmountMap[am.Address] = am.Amount
+	// }
 	return rst
 }
 
@@ -141,10 +142,11 @@ func toBlockPack(block *fakeBlockInfo, currBlockHash *crypto.Digest256, height i
 			Amount:  tx.Amount,
 		}
 		wtx.RechargeList = append(wtx.RechargeList, recharge)
+		//TODO
 		innerTx := &pb.Transaction{
-			WatchedTx: wtx,
-			NewlyTxId: tx.ToTxHash,
-			Time:      time.Now().Unix(),
+			// WatchedTx: wtx,
+			// NewlyTxId: tx.ToTxHash,
+			Time: time.Now().Unix(),
 		}
 		innerTx.UpdateId()
 		innerTxs = append(innerTxs, innerTx)

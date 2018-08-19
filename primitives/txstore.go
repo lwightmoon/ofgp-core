@@ -1,6 +1,7 @@
 package primitives
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
 	"sync"
@@ -122,12 +123,63 @@ func makeTxsFetcher() txsFetcher {
 	return txsFetcher{make(chan []*pb.Transaction, 1)}
 }
 
+// innerTxStore 存储待打包交易
+type innerTxStore struct {
+	sync.Mutex
+	txs     map[*crypto.Digest256]*txWithTimeMs
+	indexer map[string]*crypto.Digest256
+}
+
+func (its *innerTxStore) addTx(tw *txWithTimeMs) {
+	its.Lock()
+	defer its.Unlock()
+	txID := tw.tx.TxID
+	its.txs[txID] = tw
+
+	for _, ptx := range tw.tx.Vin {
+		its.indexer[ptx.TxID] = txID
+	}
+	for _, ptx := range tw.tx.Vout {
+		its.indexer[ptx.TxID] = txID
+	}
+}
+func (its *innerTxStore) getTxByTxID(id *crypto.Digest256) *txWithTimeMs {
+	its.Lock()
+	defer its.Unlock()
+	return its.txs[id]
+}
+
+func (its *innerTxStore) getByPubTxID(scTxID string) *txWithTimeMs {
+	its.Lock()
+	defer its.Unlock()
+	index := its.indexer[scTxID]
+	res := its.txs[index]
+	return res
+}
+
+func (its *innerTxStore) delTx(tx *pb.Transaction) {
+	its.Lock()
+	defer its.Unlock()
+	txID := tx.TxID
+	delete(its.txs, txID)
+	for _, ptx := range tx.Vin {
+		delete(its.indexer, ptx.TxID)
+	}
+	for _, ptx := range tx.Vout {
+		delete(its.indexer, ptx.TxID)
+	}
+}
+
 // TxStore 公链监听到的交易以及网关本身交易的内存池
 type TxStore struct {
 	TxOverdueEvent *util.Event
 	db             *dgwdb.LDBDatabase
-	txInfoById     map[string]*txWithTimeMs  //未打包进区块的交易
-	watchedTxInfo  map[string]*WatchedTxInfo //所有未处理完的主/侧链交易
+
+	addWaitPackTxCh chan *pb.Transaction //添加等待打包ch
+	waitPackingTx   *innerTxStore        //未打包进区块的交易
+
+	txInfoById    map[string]*txWithTimeMs  //未打包进区块的交易
+	watchedTxInfo map[string]*WatchedTxInfo //所有未处理完的主/侧链交易
 
 	//新增的主/侧链交易，主节点一次批量获取到新增，然后转发给从节点
 	freshWatchedTxInfo map[string]*WatchedTxInfo
@@ -182,6 +234,7 @@ func (ts *TxStore) Run(ctx context.Context) {
 		select {
 		case addTxsReq := <-ts.addTxsChan:
 			addTxsReq.notAddedChan <- ts.addTxs(addTxsReq.txs)
+
 		case newCommit := <-ts.newCommitChan:
 			ts.cleanUpOnNewCommitted(newCommit.txs, newCommit.height)
 		case watchedTx := <-ts.addWatchedTxChan:
@@ -302,6 +355,20 @@ func (ts *TxStore) GetFreshWatchedTxs() []*WatchedTxInfo {
 	return rst
 }
 
+// AddTxtoWatchSign 重新加入待签名
+func (ts *TxStore) AddTxtoWatchSign(msg *message.WaitSignMsg) {
+	scTxID := msg.Event.GetTxID()
+	inMem := ts.IsTxInMem(msg.ScTxID)
+	if msg != nil && !ts.HasTxInDB(scTxID) && !inMem {
+		go func() {
+			ts.addWaitingSignTxCh <- msg
+		}()
+	} else {
+		bsLogger.Debug("tx has been in db or mem", "scTxID", scTxID)
+	}
+
+}
+
 // GetWaitingSignTxs 获取待签名交易
 func (ts *TxStore) GetWaitingSignTxs() []*message.WaitSignMsg {
 
@@ -339,7 +406,12 @@ func (ts *TxStore) DeleteWatchedTx(txId string) {
 	ts.Unlock()
 }
 
+func (ts *TxStore) DeleteWatchedEvent(scTxID string) {
+	ts.watchedTxEvent.Delete(scTxID)
+}
+
 // CreateInnerTx 创建一笔网关本身的交易
+/* todo
 func (ts *TxStore) CreateInnerTx(newlyTxId string, signMsgId string) {
 	signMsg := GetSignMsg(ts.db, signMsgId)
 	if signMsg == nil {
@@ -363,7 +435,7 @@ func (ts *TxStore) CreateInnerTx(newlyTxId string, signMsgId string) {
 	req := makeAddTxsRequest([]*pb.Transaction{innerTx})
 	ts.addTxsChan <- req
 }
-
+*/
 // QueryTxInfoBySidechainId 根据公链的交易id查询对应到的网关交易信息
 func (ts *TxStore) QueryTxInfoBySidechainId(scId string) *TxQueryResult {
 	return ts.queryTxsInfo([]string{scId})[0]
@@ -390,9 +462,9 @@ func (ts *TxStore) addTxs(txs []*pb.Transaction) []int {
 	notAddedIds := make([]int, 0)
 	ts.Lock()
 	for idx, tx := range txs {
-		if ts.txInfoById[tx.WatchedTx.Txid] == nil && GetTxLookupEntry(ts.db, tx.Id) == nil {
+		if ts.waitPackingTx.getTxByTxID(tx.TxID) == nil && GetTxLookupEntry(ts.db, tx.TxID) == nil {
 			tt := &txWithTimeMs{tx, time.Now(), time.Now(), defaultTxWaitingTolerance}
-			ts.txInfoById[tx.WatchedTx.Txid] = tt
+			ts.waitPackingTx.addTx(tt)
 		} else {
 			notAddedIds = append(notAddedIds, idx)
 		}
@@ -413,6 +485,12 @@ func (ts *TxStore) hasTxInMemPool(scTxId string) bool {
 	return ok
 }
 
+// IsTxWaitTopack 交易是否等待打包 代替 hasTxInMemPool
+func (ts *TxStore) IsTxInMem(scTxID string) bool {
+	tx := ts.waitPackingTx.getByPubTxID(scTxID)
+	return tx != nil
+}
+
 func (ts *TxStore) HasTxInDB(scTxId string) bool {
 	tmp := GetTxIdBySidechainTxId(ts.db, scTxId)
 	return tmp != nil
@@ -425,16 +503,24 @@ func (ts *TxStore) cleanUpOnNewCommitted(committedTxs []*pb.Transaction, height 
 			Height: height,
 			Index:  int32(idx),
 		}
-		bsLogger.Debug("write tx to db and delete from mempool", "txid", tx.WatchedTx.Txid)
+
 		ts.Lock()
-		SetTxLookupEntry(ts.db, tx.Id, entry)
+		SetTxLookupEntry(ts.db, tx.TxID, entry)
 		//from链 tx_id 和网关tx_id的对应
-		SetTxIdMap(ts.db, tx.WatchedTx.Txid, tx.Id)
+		for _, pubTx := range tx.Vin {
+			bsLogger.Debug("write tx to db and delete from mempool", "txid", pubTx.GetTxID())
+			SetTxIdMap(ts.db, pubTx.GetTxID(), tx.TxID)
+			ts.watchedTxEvent.Delete(pubTx.GetTxID())
+			ts.waitingSignTx.Delete(pubTx.GetTxID())
+		}
 		//to链和tx_id 和网关tx_id的对应
-		SetTxIdMap(ts.db, tx.NewlyTxId, tx.Id)
-		delete(ts.txInfoById, tx.WatchedTx.Txid)
-		delete(ts.watchedTxInfo, tx.WatchedTx.Txid)
-		delete(ts.freshWatchedTxInfo, tx.WatchedTx.Txid)
+		for _, pubTx := range tx.Vout {
+			bsLogger.Debug("write tx to db and delete from mempool", "txid", pubTx.GetTxID())
+			SetTxIdMap(ts.db, pubTx.GetTxID(), tx.TxID)
+			ts.watchedTxEvent.Delete(pubTx.GetTxID())
+			ts.waitingSignTx.Delete(pubTx.GetTxID())
+		}
+		ts.waitPackingTx.delTx(tx)
 		ts.Unlock()
 	}
 }
@@ -567,7 +653,51 @@ func (ts *TxStore) doHeartbeat() {
 	}
 }
 
+func (ts *TxStore) validatePubTxs(txs []*pb.PublicTx) int {
+	for _, pubTx := range txs {
+		val, ok := ts.watchedTxEvent.Load(pubTx.TxID)
+		if !ok {
+			// 如果本节点没有监听记录，则返回mempool里面不存在
+			// 很可能是新加入的节点，跳过本次区块，下一次init区块的时候会去自动同步最新区块
+			bsLogger.Warn("validate tx not exist", "sctxid", pubTx.TxID)
+			return NotExist
+		}
+		watchedEvent := val.(*pb.WatchedEvent)
+		if watchedEvent.GetFrom() != pubTx.Chain && !bytes.Equal(watchedEvent.Data, pubTx.Data) {
+			bsLogger.Warn("validate watchedtx invalid", "scTxID", pubTx.TxID)
+			return Invalid
+		}
+	}
+	return CheckChain
+}
+
 // ValidateTx 验证交易的合法性
+func (ts *TxStore) ValidateTx(tx *pb.Transaction) int {
+	memTx := ts.waitPackingTx.getTxByTxID(tx.TxID)
+	if memTx == nil {
+		validateRes := ts.validatePubTxs(tx.Vin)
+		if validateRes == NotExist || validateRes == Invalid {
+			bsLogger.Warn("validate vin pub tx fail")
+			return validateRes
+		}
+		validateRes = ts.validatePubTxs(tx.Vout)
+		if validateRes == NotExist || validateRes == Invalid {
+			bsLogger.Warn("validate vout pub tx fail")
+			return validateRes
+		}
+		return CheckChain
+	}
+	if memTx.tx.EqualTo(tx) {
+		return Valid
+	}
+	// 证明本机监听到的消息与传过来的消息不一致，先accuse再说
+	bsLogger.Warn("validate gateway tx invalid", "innertxID", tx.TxID)
+	return Invalid
+
+}
+
+// ValidateTx 验证交易的合法性
+/*
 func (ts *TxStore) ValidateTx(tx *pb.Transaction) int {
 	ts.RLock()
 	defer ts.RUnlock()
@@ -596,6 +726,7 @@ func (ts *TxStore) ValidateTx(tx *pb.Transaction) int {
 		return Invalid
 	}
 }
+*/
 
 // ValidateWatchedTx 验证leader传过来的公链交易是否和本节点一致
 func (ts *TxStore) ValidateWatchedTx(tx *pb.WatchedTxInfo) int {

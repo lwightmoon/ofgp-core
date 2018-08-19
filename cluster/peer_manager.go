@@ -231,9 +231,9 @@ func (pm *PeerManager) Broadcast(msg interface{}, excludeSelf bool, selectSome b
 		case *pb.Transactions:
 			pmLogger.Debug("Broadcast transactions msg", "nodeId", nodeId)
 			go func() { pm.NotifyTxs(nodeId, msg) }()
-		case *pb.SignTxRequest:
+		case *pb.SignRequest:
 			pmLogger.Debug("Broadcast sign tx request", "nodeId", nodeId)
-			go func() { pm.NotifySignTx(nodeId, msg) }()
+			go func() { pm.NotifySignRequest(nodeId, msg) }()
 		case *pb.SignResult:
 			pmLogger.Debug("Broadcast signed result", "nodeId", nodeId)
 			go func() { pm.NotifySignResult(nodeId, msg) }()
@@ -349,13 +349,13 @@ func (pm *PeerManager) NotifyTxs(nodeId int32, msg *pb.Transactions) (*pb.Void, 
 }
 
 // NotifySignTx 向nodeid节点发送SignTxRequest消息
-func (pm *PeerManager) NotifySignTx(nodeId int32, msg *pb.SignTxRequest) (*pb.SignTxResponse, error) {
+func (pm *PeerManager) NotifySignRequest(nodeId int32, msg *pb.SignRequest) (*pb.SignTxResponse, error) {
 	node := pm.GetNode(nodeId)
 	if node == nil {
 		return nil, errInvalidNode
 	}
 	rsp := new(pb.SignTxResponse)
-	err := node.invokeRPC("/proto.Braft/NotifySignTx", msg, rsp)
+	err := node.invokeRPC("/proto.Braft/NotifySignRequest", msg, rsp)
 	return rsp, err
 }
 

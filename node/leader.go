@@ -9,6 +9,7 @@ import (
 	"github.com/ofgp/ofgp-core/cluster"
 	"github.com/ofgp/ofgp-core/crypto"
 	"github.com/ofgp/ofgp-core/log"
+	"github.com/ofgp/ofgp-core/message"
 	"github.com/ofgp/ofgp-core/primitives"
 	pb "github.com/ofgp/ofgp-core/proto"
 	"github.com/ofgp/ofgp-core/util"
@@ -135,7 +136,8 @@ func (ld *Leader) OnNodeLeaveDone() {
 }
 
 func (ld *Leader) Run(ctx context.Context) {
-	go ld.createTransaction(ctx)
+	// go ld.createTransaction(ctx)
+	go ld.createSignReq(ctx)
 	go ld.watchFormerMultisig(ctx)
 	tick := time.Tick(cluster.BlockInterval)
 	for {
@@ -344,12 +346,12 @@ func (ld *Leader) watchFormerMultisig(ctx context.Context) {
 			for _, multiSig := range cluster.MultiSigSnapshot.SigInfos {
 				if ld.isInCharge() {
 					leaderLogger.Debug("watcher former multisig", "bchaddress", multiSig.BchAddress, "btcaddress", multiSig.BtcAddress)
-					addressMap := make(map[string]string)
-					addressMap["bch"] = multiSig.BchAddress
-					addressMap["btc"] = multiSig.BtcAddress
+					addressMap := make(map[uint32]string)
+					addressMap[message.Bch] = multiSig.BchAddress
+					addressMap[message.Btc] = multiSig.BtcAddress
 					for chainType, address := range addressMap {
 						var watcher *btcwatcher.MortgageWatcher
-						if chainType == "btc" {
+						if chainType == message.Btc {
 							watcher = ld.btcWatcher
 						} else {
 							watcher = ld.bchWatcher
@@ -360,14 +362,14 @@ func (ld *Leader) watchFormerMultisig(ctx context.Context) {
 								break
 							}
 							leaderLogger.Debug("multisig has unspend utxo", "address", address, "utxolen", len(utxoList))
-							watchedTxInfo := &pb.WatchedTxInfo{
-								Txid: "TransferTx" + strconv.FormatInt(util.NowMs(), 10),
+							watchedTxInfo := &pb.WatchedEvent{
+								TxID: "TransferTx" + strconv.FormatInt(util.NowMs(), 10),
 								From: chainType,
 								To:   chainType,
 							}
 							clusterSnapshot := ld.blockStore.GetClusterSnapshot(address)
 							transferTx := ld.createTransferTx(watcher, address, clusterSnapshot)
-							signTxReq, err := pb.MakeSignTxMsg(ld.blockStore.GetNodeTerm(), ld.nodeInfo.Id,
+							signTxReq, err := pb.MakeSignReqMsg(ld.blockStore.GetNodeTerm(), ld.nodeInfo.Id,
 								watchedTxInfo, transferTx, address, ld.signer)
 							if err != nil {
 								leaderLogger.Error("make sign transfer tx failed", "err", err)
@@ -376,7 +378,7 @@ func (ld *Leader) watchFormerMultisig(ctx context.Context) {
 							if !ld.isInCharge() {
 								break JLoop
 							}
-							ld.broadcastSign(signTxReq, clusterSnapshot.NodeList, clusterSnapshot.QuorumN)
+							ld.broadcastSignReq(signTxReq, clusterSnapshot.NodeList, clusterSnapshot.QuorumN)
 							utxoList = watcher.GetUnspentUtxo(address)
 						}
 					}
@@ -391,7 +393,8 @@ func (ld *Leader) watchFormerMultisig(ctx context.Context) {
 	}
 }
 
-// 循环处理监听到的交易
+// 循环处理监听到的交易 todo
+/*
 func (ld *Leader) createTransaction(ctx context.Context) {
 	tick := time.Tick(time.Duration(100) * time.Millisecond)
 	for {
@@ -446,6 +449,7 @@ func (ld *Leader) createTransaction(ctx context.Context) {
 		}
 	}
 }
+*/
 
 //集群内广播签名请求
 func (ld *Leader) createSignReq(ctx context.Context) {
@@ -532,7 +536,7 @@ func (ld *Leader) createEthInput(watchedTx *pb.WatchedTxInfo) *pb.NewlyTx {
 }
 
 // 广播签名交易, 对于ETH，广播给其他节点即可；对于BTC/BCH，广播之后还需要收集返回的签名，按顺序merge之后去公链上发送交易
-func (ld *Leader) broadcastSign(msg *pb.SignTxRequest, nodes []cluster.NodeInfo, quorumN int) {
+func (ld *Leader) broadcastSignReq(req *pb.SignRequest, nodes []cluster.NodeInfo, quorumN int) {
 	//对QuorumnN个节点可用才发送sign请求
 	for availableCnt := ld.pm.GetTxConnAvailableCnt(nodes); availableCnt < quorumN; {
 		leaderLogger.Debug("txConn is not available")
@@ -541,21 +545,7 @@ func (ld *Leader) broadcastSign(msg *pb.SignTxRequest, nodes []cluster.NodeInfo,
 	}
 	for _, node := range nodes {
 		if node.IsNormal {
-			go ld.pm.NotifySignTx(node.Id, msg)
-		}
-	}
-}
-
-func (ld *Leader) broadcastSignReq(msg *pb.SignRequest, nodes []cluster.NodeInfo, quorumN int) {
-	//对QuorumnN个节点可用才发送sign请求
-	for availableCnt := ld.pm.GetTxConnAvailableCnt(nodes); availableCnt < quorumN; {
-		leaderLogger.Debug("txConn is not available")
-		time.Sleep(100 * time.Millisecond)
-		availableCnt = ld.pm.GetTxConnAvailableCnt(nodes)
-	}
-	for _, node := range nodes {
-		if node.IsNormal {
-			go ld.pm.NotifySignTx(node.Id, nil)
+			go ld.pm.NotifySignRequest(node.Id, req)
 		}
 	}
 }

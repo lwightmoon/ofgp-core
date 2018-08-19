@@ -287,25 +287,8 @@ func GetTxIdBySidechainTxId(db *dgwdb.LDBDatabase, scTxId string) *crypto.Digest
 	return &crypto.Digest256{Data: data}
 }
 
-// SetSignMsg 保存SignTxRequest，方便后面做校验比对
-func SetSignMsg(db *dgwdb.LDBDatabase, msg *pb.SignTxRequest, msgId string) {
-	bytes, err := proto.Marshal(msg)
-	assert.ErrorIsNil(err)
-	k := append(keySignMsgPrefix, []byte(msgId)...)
-	db.Put(k, bytes)
-}
 
-// GetSignMsg 获取签名时的上下文信息
-func GetSignMsg(db *dgwdb.LDBDatabase, msgId string) *pb.SignTxRequest {
-	k := append(keySignMsgPrefix, []byte(msgId)...)
-	data, err := db.Get(k)
-	if err != nil {
-		return nil
-	}
-	return pb.UnmarshalSignTxRequest(data)
-}
-
-// SetSignReq 保存签名请求
+// SetSignReq 保存签名请求 后续校验
 func SetSignReq(db *dgwdb.LDBDatabase, req *pb.SignRequest, scTxID string) {
 	bytes, err := proto.Marshal(req)
 	assert.ErrorIsNil(err)

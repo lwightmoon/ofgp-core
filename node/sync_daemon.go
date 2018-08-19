@@ -263,12 +263,19 @@ func (sd *SyncDaemon) processSimpleSyncUpResponse(rsp *pb.SyncUpResponse, accuse
 					Height: height,
 					Index:  int32(idx),
 				}
-				sdLogger.Debug("simple sync", "txid", tx.WatchedTx.Txid)
-				primitives.SetTxLookupEntry(sd.db, tx.Id, entry)
+				sdLogger.Debug("simple sync", "txid", tx.TxID)
+				primitives.SetTxLookupEntry(sd.db, tx.TxID, entry)
 				//from链 tx_id 和网关tx_id的对应
-				primitives.SetTxIdMap(sd.db, tx.WatchedTx.Txid, tx.Id)
+				for _, pubTx := range tx.Vin {
+					sdLogger.Debug("write tx to db and delete from mempool", "txid", pubTx.GetTxID())
+					primitives.SetTxIdMap(sd.db, pubTx.GetTxID(), tx.TxID)
+				}
 				//to链和tx_id 和网关tx_id的对应
-				primitives.SetTxIdMap(sd.db, tx.NewlyTxId, tx.Id)
+				for _, pubTx := range tx.Vout {
+					sdLogger.Debug("write tx to db and delete from mempool", "txid", pubTx.GetTxID())
+					primitives.SetTxIdMap(sd.db, pubTx.GetTxID(), tx.TxID)
+
+				}
 			}
 		}
 	}

@@ -17,7 +17,7 @@ service Braft {
     rpc NotifyStrongAccuse(StrongAccuse) returns (Void);
     rpc NotifyVote(Vote) returns (Void);
     rpc NotifyTxs(Transactions) returns (Void);
-    rpc NotifySignTx(SignTxRequest) returns (Void);
+    rpc NotifySignRequest(SignRequest) returns (Void);
     // 新节点加入
     rpc NotifyJoin(JoinRequest) returns (Void);
     rpc NotifyJoinCheckSynced(JoinRequest) returns(JoinResponse);
@@ -101,11 +101,20 @@ message NewlyTx {
     bytes data = 1;
 }
 
+message PublicTx{
+    uint32 chain = 1;
+    string tx_i_d = 2;
+    int64 amount = 3;
+    bytes data = 4;
+}
+
 message Transaction {
-    crypto.Digest256 id = 1;
-    WatchedTxInfo watched_tx = 2;
-    string newly_tx_id = 3;
-    int64 time = 4;
+    crypto.Digest256 tx_i_d = 1;
+    string business =2;
+    repeated PublicTx vin = 3;
+    repeated PublicTx vout = 4;
+    int64 time = 5;
+    bytes data =6;
 }
 
 message Transactions {
@@ -224,15 +233,6 @@ message StrongAccuse {
     map<int32, WeakAccuse> weak_accuses = 1;
 }
 
-message SignTxRequest {
-    int64 term = 1;
-    int32 node_id = 2;
-    string multisig_address = 3;
-    WatchedTxInfo watched_tx = 4;
-    NewlyTx newly_tx = 5;
-    bytes sig = 6;
-    int64 time = 7;
-}
 
 //签名请求
 message SignRequest{

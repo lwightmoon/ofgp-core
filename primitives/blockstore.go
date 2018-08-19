@@ -2,7 +2,6 @@ package primitives
 
 import (
 	"bytes"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"math/big"
@@ -181,11 +180,6 @@ func (bs *BlockStore) GetCurrentHeight(chainType string) int64 {
 	defer mu.RUnlock()
 	height := GetCurrentHeight(bs.db, chainType)
 	return height
-}
-
-// GetSignReqMsg 获取缓存的签名源请求
-func (bs *BlockStore) GetSignReqMsg(txId string) *pb.SignTxRequest {
-	return GetSignMsg(bs.db, txId)
 }
 
 // DeleteSignReqMsg 删除缓存的签名请求
@@ -372,10 +366,10 @@ func (bs *BlockStore) GenSyncUpResponse(base int64, maxBlockN int64, needFresh b
 }
 
 // HandleSignTx 处理交易加签请求，需要对交易做合法性校验以及重复签名的校验
-func (bs *BlockStore) HandleSignTx(req *pb.SignTxRequest) {
+func (bs *BlockStore) HandleSignTx(req *pb.SignRequest) {
 	deferredEvents := &task.Queue{}
 	start := time.Now().UnixNano()
-	bs.handleSignTx(deferredEvents, req)
+	bs.handleSignReq(deferredEvents, req)
 	end := time.Now().UnixNano()
 	bsLogger.Debug("hanleSignTime", "time", (end-start)/1e6)
 	deferredEvents.ExecAll()
@@ -421,7 +415,8 @@ func (bs *BlockStore) handleInitMsg(tasks *task.Queue, init *pb.InitMsg) {
 
 		newFresh := pb.NewBlockPack(init)
 		bsLogger.Debug("in handle init msg, begin validate txs")
-		allTxValid := bs.validateTxs(newFresh)
+		// allTxValid := bs.validateTxs(newFresh) todo
+		allTxValid := Valid
 		bsLogger.Debug("in handle init msg, validate txs done")
 
 		reconfigValid := bs.checkReconfigBlock(newFresh)
@@ -596,111 +591,6 @@ func (bs *BlockStore) handleStrongAccuse(tasks *task.Queue, msg *pb.StrongAccuse
 
 // 对传过来的交易信息做校验，校验不通过广播accuse，通过则处理加签逻辑，并广播加签结果
 // 仅有主节点能发送过来此类消息
-func (bs *BlockStore) handleSignTx(tasks *task.Queue, msg *pb.SignTxRequest) {
-	bsLogger.Debug("begin handle sign tx msg")
-	var signResult *pb.SignedResult
-	var err error
-	targetChain := msg.WatchedTx.To
-	nodeTerm := GetNodeTerm(bs.db)
-	switch {
-	case msg.Term > nodeTerm:
-		tasks.Add(func() { bs.NeedSyncUpEvent.Emit(msg.NodeId) })
-		if targetChain == "bch" || targetChain == "btc" {
-			signResult, err = pb.MakeSignedResult(pb.CodeType_NEEDSYNC, bs.localNodeId,
-				msg.WatchedTx.Txid, nil, targetChain, nodeTerm, bs.signer)
-			SetSignMsg(bs.db, msg, msg.WatchedTx.Txid)
-			if err != nil {
-				bsLogger.Error("sync make signedRes err", "err", err)
-				return
-			}
-			tasks.Add(func() { bs.SignHandledEvent.Emit(signResult) })
-		}
-	case msg.Term == nodeTerm:
-		bsLogger.Debug("begin sign tx", "sctxid", msg.WatchedTx.Txid)
-		if targetChain == "bch" || targetChain == "btc" {
-			var watcher *btcwatcher.MortgageWatcher
-			if targetChain == "bch" {
-				watcher = bs.bchWatcher
-			} else {
-				watcher = bs.btcWatcher
-			}
-			buf := bytes.NewBuffer(msg.NewlyTx.Data)
-			newlyTx := new(wire.MsgTx)
-			newlyTx.Deserialize(buf)
-
-			validateResult := bs.validateBtcSignTx(msg, newlyTx)
-			if validateResult != validatePass {
-				if validateResult == wrongInputOutput {
-					bsLogger.Error("validate sign tx failed", "sctxid", msg.WatchedTx.Txid)
-					tasks.Add(func() { bs.NewWeakAccuseEvent.Emit(msg.Term) })
-				} else {
-					bsLogger.Debug("tx already signed", "sctxid", msg.WatchedTx.Txid)
-				}
-				SetSignMsg(bs.db, msg, msg.WatchedTx.Txid)
-				signResult, err = pb.MakeSignedResult(pb.CodeType_REJECT, bs.localNodeId,
-					msg.WatchedTx.Txid, nil, targetChain, nodeTerm, bs.signer)
-				if err != nil {
-					bsLogger.Error("validatesign make signedResult err", "err", err)
-					return
-				}
-				tasks.Add(func() { bs.SignHandledEvent.Emit(signResult) })
-				return
-			}
-
-			newlyTxId := newlyTx.TxHash().String()
-			signStart := time.Now().UnixNano()
-			sig, ok := watcher.SignTx(newlyTx, bs.signer.PubkeyHash)
-			signEnd := time.Now().UnixNano()
-			bsLogger.Debug("signtime", "scTxID", msg.WatchedTx.Txid, "time", (signEnd-signStart)/1e6)
-			if ok != 0 {
-				bsLogger.Error("sign tx failed", "code", ok, "sctxid", msg.WatchedTx.Txid)
-				SetSignMsg(bs.db, msg, msg.WatchedTx.Txid)
-				signResult, err = pb.MakeSignedResult(pb.CodeType_REJECT, bs.localNodeId,
-					msg.WatchedTx.Txid, nil, targetChain, nodeTerm, bs.signer)
-				if err != nil {
-					bsLogger.Debug("sign fail make signedResult err", "err", err, "scTxID", msg.WatchedTx.Txid)
-					return
-				}
-				tasks.Add(func() { bs.SignHandledEvent.Emit(signResult) })
-				return
-			}
-			bsLogger.Debug("sign bch tx done", "sctxid", msg.WatchedTx.Txid, "newlyTxid", newlyTxId)
-			SetSignMsg(bs.db, msg, msg.WatchedTx.Txid)
-			signResult, err := pb.MakeSignedResult(pb.CodeType_SIGNED, bs.localNodeId,
-				msg.WatchedTx.Txid, sig, targetChain, nodeTerm, bs.signer)
-			if err != nil {
-				bsLogger.Debug("sign suc make signedResult err", "err", err, "scTxID", msg.WatchedTx.Txid)
-				return
-			}
-			tasks.Add(func() { bs.SignHandledEvent.Emit(signResult) })
-		} else if targetChain == "eth" {
-			validateResult := bs.validateEthSignTx(msg)
-			if validateResult != validatePass {
-				if validateResult == wrongInputOutput {
-					bsLogger.Error("validate sign tx failed", "sctxid", msg.WatchedTx.Txid)
-					tasks.Add(func() { bs.NewWeakAccuseEvent.Emit(msg.Term) })
-				} else {
-					bsLogger.Debug("tx already signed", "sctxid", msg.WatchedTx.Txid)
-				}
-				return
-			}
-
-			_, err := bs.ethWatcher.SendTranxByInput(bs.signer.PubKeyHex, bs.signer.PubkeyHash, msg.NewlyTx.Data)
-			if err != nil {
-				bsLogger.Error("sign tx failed", "err", err, "sctxid", msg.WatchedTx.Txid)
-				return
-			}
-			bsLogger.Debug("sign eth tx done")
-			bs.ts.DeleteFresh(msg.WatchedTx.Txid)
-			SetSignMsg(bs.db, msg, msg.WatchedTx.Txid)
-			tasks.Add(func() {
-				bs.SignedTxEvent.Emit(hex.EncodeToString(msg.NewlyTx.Data), msg.WatchedTx.Txid,
-					targetChain, msg.WatchedTx.TokenTo)
-			})
-		}
-	}
-}
-
 // handleSignReq 处理签名请求
 func (bs *BlockStore) handleSignReq(tasks *task.Queue, msg *pb.SignRequest) {
 	bsLogger.Debug("begin handle sign tx msg")
@@ -1021,6 +911,7 @@ func genSyncUpResponse(db *dgwdb.LDBDatabase, base int64, maxBlockN int64, needF
 	return rsp
 }
 
+// todo validate txs
 func (bs *BlockStore) validateTxs(blockPack *pb.BlockPack) int {
 	var checkChainTx []*pb.Transaction
 	for _, tx := range blockPack.GetInit().Block.Txs {
@@ -1044,42 +935,85 @@ func (bs *BlockStore) validateTxs(blockPack *pb.BlockPack) int {
 		resultChan := make(chan int, checkLen)
 		receivedCount := 0
 		for _, tx := range checkChainTx {
-			go func(tx *pb.Transaction) {
-				if tx.WatchedTx.To == "bch" {
-					chainTx := bs.bchWatcher.GetTxByHash(tx.NewlyTxId)
-					if chainTx == nil {
-						resultChan <- Invalid
-					} else {
-						resultChan <- Valid
-					}
-				} else if tx.WatchedTx.To == "btc" {
-					chainTx := bs.btcWatcher.GetTxByHash(tx.NewlyTxId)
-					if chainTx == nil {
-						resultChan <- Invalid
-					} else {
-						resultChan <- Valid
-					}
-				} else if tx.WatchedTx.To == "eth" {
-					signMsg := GetSignMsg(bs.db, tx.WatchedTx.Txid)
-					if signMsg == nil {
-						bsLogger.Error("validate tx invalid, never signed", "sctxid", tx.WatchedTx.Txid)
-						resultChan <- Invalid
-						return
-					}
-					pushEvent, err := bs.ethWatcher.GetEventByHash(tx.NewlyTxId)
-					if err != nil {
-						bsLogger.Error("validate tx invalid, not found on chain", "sctxid", tx.WatchedTx.Txid)
-						resultChan <- Invalid
-					} else {
-						if !bs.validateETHTx(pushEvent, tx.WatchedTx) {
+			//todo review checkonchain
+			/*
+				go func(tx *pb.Transaction) {
+
+					if tx.WatchedTx.To == "bch" {
+						chainTx := bs.bchWatcher.GetTxByHash(tx.NewlyTxId)
+						if chainTx == nil {
 							resultChan <- Invalid
 						} else {
 							resultChan <- Valid
 						}
+					} else if tx.WatchedTx.To == "btc" {
+						chainTx := bs.btcWatcher.GetTxByHash(tx.NewlyTxId)
+						if chainTx == nil {
+							resultChan <- Invalid
+						} else {
+							resultChan <- Valid
+						}
+					} else if tx.WatchedTx.To == "eth" {
+						signMsg := GetSignMsg(bs.db, tx.WatchedTx.Txid)
+						if signMsg == nil {
+							bsLogger.Error("validate tx invalid, never signed", "sctxid", tx.WatchedTx.Txid)
+							resultChan <- Invalid
+							return
+						}
+						pushEvent, err := bs.ethWatcher.GetEventByHash(tx.NewlyTxId)
+						if err != nil {
+							bsLogger.Error("validate tx invalid, not found on chain", "sctxid", tx.WatchedTx.Txid)
+							resultChan <- Invalid
+						} else {
+							if !bs.validateETHTx(pushEvent, tx.WatchedTx) {
+								resultChan <- Invalid
+							} else {
+								resultChan <- Valid
+							}
+						}
+					} else {
+						resultChan <- Invalid
 					}
-				} else {
-					resultChan <- Invalid
+				}(tx)
+			*/
+			go func(tx *pb.Transaction) {
+				for _, pubtx := range tx.Vout {
+					switch pubtx.Chain {
+					case message.Bch:
+						chainTx := bs.bchWatcher.GetTxByHash(pubtx.TxID)
+						if chainTx == nil {
+							resultChan <- Invalid
+						} else {
+							resultChan <- Valid
+						}
+					case message.Btc:
+						chainTx := bs.btcWatcher.GetTxByHash(pubtx.TxID)
+						if chainTx == nil {
+							resultChan <- Invalid
+						} else {
+							resultChan <- Valid
+						}
+					case message.Eth:
+						pushEvent, err := bs.ethWatcher.GetEventByHash(pubtx.TxID)
+						if err != nil || pushEvent == nil {
+							bsLogger.Error("validate tx invalid, not found on chain", "sctxid", tx.TxID)
+							resultChan <- Invalid
+						}
+						//todo validate ethTx
+						// } else {
+						// 	if !bs.validateETHTx(pushEvent, tx.WatchedTx) {
+						// 		resultChan <- Invalid
+						// 	} else {
+						// 		resultChan <- Valid
+						// 	}
+						// }
+						resultChan <- Valid
+
+					default:
+						resultChan <- Invalid
+					}
 				}
+
 			}(tx)
 		}
 		for {
@@ -1107,6 +1041,7 @@ func (bs *BlockStore) validateETHTx(txInfo *ew.PushEvent, scTxInfo *pb.WatchedTx
 	return mintData.Proposal == scTxInfo.Txid && mintData.Wad == uint64(scTxInfo.RechargeList[0].Amount)
 }
 
+/*
 func (bs *BlockStore) validateBtcSignTx(req *pb.SignTxRequest, newlyTx *wire.MsgTx) int {
 	if req.WatchedTx.IsTransferTx() {
 		return bs.validateTransferSignTx(req, newlyTx)
@@ -1135,7 +1070,9 @@ func (bs *BlockStore) validateBtcSignTx(req *pb.SignTxRequest, newlyTx *wire.Msg
 
 	return validatePass
 }
+*/
 
+/*
 func (bs *BlockStore) validateTransferSignTx(req *pb.SignTxRequest, newlyTx *wire.MsgTx) int {
 	if len(newlyTx.TxOut) != 1 || len(req.MultisigAddress) == 0 {
 		bsLogger.Warn("txout check failed", "count", len(newlyTx.TxOut))
@@ -1169,7 +1106,8 @@ func (bs *BlockStore) validateTransferSignTx(req *pb.SignTxRequest, newlyTx *wir
 	}
 	return wrongInputOutput
 }
-
+*/
+/*todo
 func (bs *BlockStore) validateEthSignTx(req *pb.SignTxRequest) int {
 	baseCheckResult := bs.baseCheck(req)
 	if baseCheckResult != validatePass {
@@ -1190,7 +1128,8 @@ func (bs *BlockStore) validateEthSignTx(req *pb.SignTxRequest) int {
 	}
 	return validatePass
 }
-
+*/
+/* todo
 func (bs *BlockStore) baseCheck(req *pb.SignTxRequest) int {
 	if !bs.validateWatchedTx(req.WatchedTx) {
 		bsLogger.Warn("watched tx in request is not valid")
@@ -1212,7 +1151,9 @@ func (bs *BlockStore) baseCheck(req *pb.SignTxRequest) int {
 	}
 	return validatePass
 }
+*/
 
+/* todo
 func (bs *BlockStore) validateWatchedTx(tx *pb.WatchedTxInfo) bool {
 	var newTx *pb.WatchedTxInfo
 	switch bs.ts.ValidateWatchedTx(tx) {
@@ -1249,6 +1190,7 @@ func (bs *BlockStore) validateWatchedTx(tx *pb.WatchedTxInfo) bool {
 		return false
 	}
 }
+*/
 
 func (bs *BlockStore) validateBtcSignReq(req *pb.SignRequest, newlyTx *wire.MsgTx) int {
 	if req.GetWatchedEvent().IsTransferEvent() {
@@ -1325,7 +1267,7 @@ func (bs *BlockStore) validateWatchedEvent(event *pb.WatchedEvent) bool {
 	case Invalid:
 		return false
 	case NotExist:
-		//todo
+		//todo 到链上check
 		return event.Equal(newEvent)
 	default:
 		return false

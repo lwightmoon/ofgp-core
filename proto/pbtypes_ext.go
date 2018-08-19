@@ -23,14 +23,15 @@ import (
 func (tx *Transaction) EqualTo(other *Transaction) bool {
 	tx.UpdateId()
 	other.UpdateId()
-	return tx.Id.EqualTo(other.Id)
+	return tx.TxID.EqualTo(other.TxID)
 }
 
 // UpdateId 更新Tx的ID
 func (tx *Transaction) UpdateId() {
 	hasher := crypto.NewHasher256()
 	feedTxFields(hasher, "Tx", tx)
-	tx.Id = hasher.Sum(nil)
+
+	tx.TxID = hasher.Sum(nil)
 }
 
 // EqualTo 比较两个WatchedTxInfo内容是否相等
@@ -584,15 +585,15 @@ func feedBlockFields(hasher *crypto.Hasher256, fieldName string, block *Block) {
 		switch block.Type {
 		case Block_GENESIS:
 		case Block_TXS:
-			util.FeedField(hs, "TxIds", func(h *crypto.Hasher256) {
+			util.FeedField(hs, "TxIDs", func(h *crypto.Hasher256) {
 				for _, tx := range block.Txs {
-					util.FeedDigestField(h, "TxId", tx.Id)
+					util.FeedDigestField(h, "TxID", tx.TxID)
 				}
 			})
 		case Block_BCH:
-			util.FeedField(hs, "TxIds", func(h *crypto.Hasher256) {
+			util.FeedField(hs, "TxIDs", func(h *crypto.Hasher256) {
 				for _, tx := range block.Txs {
-					util.FeedDigestField(h, "TxId", tx.Id)
+					util.FeedDigestField(h, "TxID", tx.TxID)
 				}
 			})
 			util.FeedDigestField(hs, "BchBlockHeader", block.BchBlockHeader.Id())
@@ -713,27 +714,31 @@ func feedWeakAccuseFields(hasher *crypto.Hasher256, fieldName string, msg *WeakA
 	})
 }
 
+func feedPubTxFields(hs *crypto.Hasher256, fileName string, txs []*PublicTx) {
+	if len(txs) > 0 {
+		for _, tx := range txs {
+			util.FeedInt32Field(hs, "Chain", int32(tx.Chain))
+			util.FeedTextField(hs, "TxID", tx.TxID)
+			util.FeedInt64Field(hs, "Amount", tx.Amount)
+		}
+	}
+}
+
+//todo test feedTxFields
 func feedTxFields(hasher *crypto.Hasher256, fieldName string, msg *Transaction) {
 	util.FeedField(hasher, fieldName, func(hs *crypto.Hasher256) {
-		util.FeedField(hs, "WatchedTx", func(hs *crypto.Hasher256) {
-			tx := msg.WatchedTx
-			util.FeedTextField(hs, "Txid", tx.Txid)
-			util.FeedInt64Field(hs, "Amount", tx.Amount)
-			util.FeedTextField(hs, "From", tx.From)
-			util.FeedTextField(hs, "To", tx.To)
-			if len(tx.RechargeList) > 0 {
-				util.FeedField(hs, "Recharge", func(hs *crypto.Hasher256) {
-					for _, recharge := range tx.RechargeList {
-						util.FeedTextField(hs, "Address", recharge.Address)
-						util.FeedInt64Field(hs, "Amount", recharge.Amount)
-					}
-				})
-			}
+		util.FeedTextField(hs, "Business", msg.Business)
+		util.FeedBinField(hs, "data", msg.Data)
+		util.FeedField(hs, "txs", func(hs *crypto.Hasher256) {
+			txs := msg.Vin
+			feedPubTxFields(hs, "Vin", txs)
+			txs = msg.Vout
+			feedPubTxFields(hs, "Vout", txs)
 		})
-		util.FeedTextField(hs, "NewlyTxId", msg.NewlyTxId)
 	})
 }
 
+/* todo
 func feedSignMsgFields(hasher *crypto.Hasher256, fieldName string, msg *SignTxRequest) {
 	util.FeedField(hasher, fieldName, func(hs *crypto.Hasher256) {
 		util.FeedInt64Field(hs, "Term", msg.Term)
@@ -757,6 +762,7 @@ func feedSignMsgFields(hasher *crypto.Hasher256, fieldName string, msg *SignTxRe
 		util.FeedBinField(hs, "NewlyTx", msg.NewlyTx.Data)
 	})
 }
+*/
 
 func feedSignedResultFields(hasher *crypto.Hasher256, fieldName string, msg *SignedResult) {
 	util.FeedField(hasher, fieldName, func(hs *crypto.Hasher256) {
@@ -953,7 +959,8 @@ func (tx *WatchedTxInfo) IsTransferTx() bool {
 	return tx.From == tx.To && strings.HasPrefix(tx.Txid, "TransferTx")
 }
 
-// MakeSignTxMsg 创建一个SignTxMsg并返回
+// MakeSignTxMsg 创建一个SignTxMsg并返回 todo
+/*
 func MakeSignTxMsg(term int64, nodeId int32, watchedTx *WatchedTxInfo, newlyTx *NewlyTx,
 	multisigAddress string, signer *crypto.SecureSigner) (*SignTxRequest, error) {
 	msg := &SignTxRequest{
@@ -971,24 +978,29 @@ func MakeSignTxMsg(term int64, nodeId int32, watchedTx *WatchedTxInfo, newlyTx *
 	msg.Sig = sig
 	return msg, nil
 }
-
-// Id 计算SignTxRequest的hashid
+*/
+// Id 计算SignTxRequest的hashid todo
+/*
 func (msg *SignTxRequest) Id() *crypto.Digest256 {
 	hasher := crypto.NewHasher256()
 	feedSignMsgFields(hasher, "SignMsg", msg)
 	return hasher.Sum(nil)
 }
+*/
 
+/*
 func (msg *SignTxRequest) MsgHash() string {
 	return msg.Id().AsMapKey()
 }
-
+*/
+/*
 func UnmarshalSignTxRequest(bytes []byte) *SignTxRequest {
 	rst := new(SignTxRequest)
 	err := proto.Unmarshal(bytes, rst)
 	assert.ErrorIsNil(err)
 	return rst
 }
+*/
 
 func (msg *ChainTxIdMsg) Id() *crypto.Digest256 {
 	hasher := crypto.NewHasher256()

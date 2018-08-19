@@ -85,25 +85,25 @@ func (tx *waitingConfirmTx) isTimeout() bool {
 
 // BraftNode node主结构, 也是程序启动的入口
 type BraftNode struct {
-	localNodeInfo        cluster.NodeInfo
-	signer               *crypto.SecureSigner
-	blockStore           *primitives.BlockStore
-	txStore              *primitives.TxStore
-	peerManager          *cluster.PeerManager
-	accuser              *accuser.Accuser
-	leader               *Leader
-	bchWatcher           *btcwatcher.MortgageWatcher
-	btcWatcher           *btcwatcher.MortgageWatcher
-	ethWatcher           *ew.Client
-	syncDaemon           *SyncDaemon
-	mu                   sync.Mutex
-	waitingConfirmTxChan chan *waitingConfirmTx
-	waitingConfirmTxs    map[string]*waitingConfirmTx
-	quit                 context.CancelFunc
-	isInReconfig         bool
+	localNodeInfo cluster.NodeInfo
+	signer        *crypto.SecureSigner
+	blockStore    *primitives.BlockStore
+	txStore       *primitives.TxStore
+	peerManager   *cluster.PeerManager
+	accuser       *accuser.Accuser
+	leader        *Leader
+	bchWatcher    *btcwatcher.MortgageWatcher
+	btcWatcher    *btcwatcher.MortgageWatcher
+	ethWatcher    *ew.Client
+	syncDaemon    *SyncDaemon
+	mu            sync.Mutex
+
+	signedTxs    sync.Map //已签名交易
+	quit         context.CancelFunc
+	isInReconfig bool
 
 	signedResultChan  chan *pb.SignResult //处理sign结果
-	signedResultCache sync.Map
+	signedResultCache sync.Map            //缓存签名结果
 	pubsub            *pubServer
 }
 
@@ -202,21 +202,19 @@ func NewBraftNode(localNodeInfo cluster.NodeInfo) *BraftNode {
 	syncDaemon := NewSyncDaemon(db, bs, pm)
 
 	bn := &BraftNode{
-		localNodeInfo:        localNodeInfo,
-		signer:               signer,
-		blockStore:           bs,
-		txStore:              ts,
-		peerManager:          pm,
-		accuser:              ac,
-		leader:               ld,
-		bchWatcher:           bchWatcher,
-		btcWatcher:           btcWatcher,
-		ethWatcher:           ethWatcher,
-		syncDaemon:           syncDaemon,
-		mu:                   sync.Mutex{},
-		waitingConfirmTxChan: txChan,
-		waitingConfirmTxs:    make(map[string]*waitingConfirmTx),
-		isInReconfig:         false,
+		localNodeInfo: localNodeInfo,
+		signer:        signer,
+		blockStore:    bs,
+		txStore:       ts,
+		peerManager:   pm,
+		accuser:       ac,
+		leader:        ld,
+		bchWatcher:    bchWatcher,
+		btcWatcher:    btcWatcher,
+		ethWatcher:    ethWatcher,
+		syncDaemon:    syncDaemon,
+		mu:            sync.Mutex{},
+		isInReconfig:  false,
 
 		signedResultChan: make(chan *pb.SignResult),
 		pubsub:           newPubServer(1),
@@ -474,8 +472,8 @@ func (bn *BraftNode) Run() {
 		bn.accuser.OnTermChange(bn.blockStore.GetNodeTerm()) // init accuser's term
 		go bn.watchNewTx(ctx)
 		go bn.voteDaemon(ctx)
-		go bn.dealWaitingChan(ctx)
-		go bn.watchWatingConfirmTx(ctx)
+		//TODO 改用通知的方式获取交易是否确认
+		// go bn.watchWatingConfirmTx(ctx)
 	}
 	if startMode != cluster.ModeTest {
 		go bn.regularSyncUp(ctx)
@@ -665,13 +663,14 @@ func (bn *BraftNode) dealEthEvent(ev *ew.PushEvent) {
 			return
 		}
 		mintData := ev.ExtraData.(*ew.ExtraMintData)
-		nodeLogger.Debug("receive eth create", "tx", ev.Tx.TxHash.Hex())
-		go func(scTxId string) {
-			bn.mu.Lock()
-			bn.txStore.CreateInnerTx(ev.Tx.TxHash.Hex(), scTxId)
-			delete(bn.waitingConfirmTxs, mintData.Proposal)
-			bn.mu.Unlock()
-		}(mintData.Proposal)
+		nodeLogger.Debug("receive eth create", "tx", ev.Tx.TxHash.Hex(), "mintData", mintData.AppCode)
+		//todo 交易确认
+		// go func(scTxId string) {
+		// 	bn.mu.Lock()
+		// 	bn.txStore.CreateInnerTx(ev.Tx.TxHash.Hex(), scTxId)
+		// 	delete(bn.waitingConfirmTxs, mintData.Proposal)
+		// 	bn.mu.Unlock()
+		// }(mintData.Proposal)
 	case ew.VOTE_METHOD_ADDVOTER:
 		if (ev.Events & ew.VOTE_TX_VOTERADDED) == 0 {
 			return
@@ -688,17 +687,9 @@ func (bn *BraftNode) dealEthEvent(ev *ew.PushEvent) {
 	bn.blockStore.SetETHBlockTxIndex(ev.Tx.TxIndex)
 }
 
-func (bn *BraftNode) dealWaitingChan(ctx context.Context) {
-	for {
-		select {
-		case tx := <-bn.waitingConfirmTxChan:
-			bn.mu.Lock()
-			bn.waitingConfirmTxs[tx.msgId] = tx
-			bn.mu.Unlock()
-		case <-ctx.Done():
-			return
-		}
-	}
+// markTxSigned 标记已签名交易
+func (bn *BraftNode) markTxSigned(scTxID string) {
+	bn.signedTxs.Store(scTxID, struct{}{})
 }
 
 func (bn *BraftNode) onNewBlockCommitted(pack *pb.BlockPack) {
@@ -707,21 +698,28 @@ func (bn *BraftNode) onNewBlockCommitted(pack *pb.BlockPack) {
 		if len(block.Txs) > 0 {
 			bn.mu.Lock()
 			defer bn.mu.Unlock()
-			for _, tx := range block.Txs {
-				scTxID := tx.WatchedTx.Txid
-				delete(bn.waitingConfirmTxs, scTxID)
+			for _, tx := range block.Txs { //删除已签名标记
+				for _, pubtx := range tx.Vin {
+					bn.signedTxs.Delete(pubtx.GetTxID())
+				}
+				for _, pubtx := range tx.Vout {
+					bn.signedTxs.Delete(pubtx.GetTxID())
+				}
 			}
 		}
 	}
 }
 
-func (bn *BraftNode) deleteFromWaiting(id string) {
+//TODO
+// deleteFromWaiting 删除已签名标记 在收到confirm通知的时后调用
+func (bn *BraftNode) deleteFromSigned(scTxID string) {
 	bn.mu.Lock()
 	defer bn.mu.Unlock()
-	nodeLogger.Debug("delete from waitting", "scTxID", id)
-	delete(bn.waitingConfirmTxs, id)
+	nodeLogger.Debug("delete from signed", "scTxID", scTxID)
+	bn.signedTxs.Delete(scTxID)
 }
 
+/* todo
 func (bn *BraftNode) checkTxOnChain(tx *waitingConfirmTx, wg *sync.WaitGroup) {
 	defer wg.Done()
 	hash := tx.msgId
@@ -758,24 +756,12 @@ func (bn *BraftNode) checkTxOnChain(tx *waitingConfirmTx, wg *sync.WaitGroup) {
 				bn.deleteFromWaiting(tx.msgId)
 			}
 		}
-		/*
-			} else if tx.chainType == "eth" {
-				nodeLogger.Debug("begin filter eth input", "sctxid", tx.msgId, "input", tx.chainTxId)
-				input, _ := hex.DecodeString(tx.chainTxId)
-				chainTxs, _ := bn.ethWatcher.FilterInput(tx.contractId, input)
-				if len(chainTxs) > 0 {
-					if !tx.inMem {
-						tx.setInMem()
-					}
-					if chainTxs[0].Confirmations >= int64(EthConfirms) {
-						bn.txStore.CreateInnerTx(chainTxs[0].ScTxid, tx.msgId)
-						txDelCh <- hash
-					}
-				}
-		*/
+
 	}
 }
+*/
 
+/* todo
 func (bn *BraftNode) getWaitingTxCh() (<-chan *waitingConfirmTx, int) {
 	bn.mu.Lock()
 	defer bn.mu.Unlock()
@@ -790,8 +776,9 @@ func (bn *BraftNode) getWaitingTxCh() (<-chan *waitingConfirmTx, int) {
 
 	return txCh, txSize
 }
-
+*/
 //链上验证并发数
+/*
 var CheckOnChainCur int
 
 //探测时间间隔
@@ -833,6 +820,7 @@ func (bn *BraftNode) watchWatingConfirmTx(ctx context.Context) {
 		}
 	}
 }
+*/
 
 // Stop 节点停止运行
 func (bn *BraftNode) Stop() {

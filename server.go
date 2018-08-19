@@ -111,10 +111,6 @@ func run(ctx *cli.Context) {
 	node.EthConfirms = viper.GetInt("DGW.eth_confirms")
 	//交易处理超时时间
 	node.ConfirmTolerance = viper.GetDuration("DGW.confirm_tolerance")
-	//交易链上check并发数
-	node.CheckOnChainCur = viper.GetInt("check_onchain_cur")
-	//交易链上check 周期
-	node.CheckOnChainInterval = viper.GetDuration("check_onchain_interval")
 
 	//设置发起accuse 的间隔
 	accuser.AccuseInterval = viper.GetInt64("accuse_interval")

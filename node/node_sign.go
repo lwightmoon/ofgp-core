@@ -93,6 +93,7 @@ func (node *BraftNode) clearOnFail(signReq *pb.SignRequest) {
 	// }
 }
 
+/* todo
 func (node *BraftNode) sendTxToChain(newlyTx *wire.MsgTx, watcher *btcwatcher.MortgageWatcher,
 	sigs [][][]byte, signResult *pb.SignedResult, signReq *pb.SignTxRequest) {
 
@@ -113,6 +114,7 @@ func (node *BraftNode) sendTxToChain(newlyTx *wire.MsgTx, watcher *btcwatcher.Mo
 	}
 	node.blockStore.SignedTxEvent.Emit(newlyTxHash, signResult.TxId, signResult.To, signReq.WatchedTx.TokenTo)
 }
+*/
 
 func (node *BraftNode) doSave(msg *pb.SignResult) {
 	var watcher *btcwatcher.MortgageWatcher
@@ -203,6 +205,8 @@ func (node *BraftNode) doSave(msg *pb.SignResult) {
 					}
 				}
 			}
+			//标记已签名
+			node.markTxSigned(msg.ScTxID)
 			// sendTxToChain的时间可能会比较长，因为涉及到链上交易，所以需要提前把锁释放
 			// node.sendTxToChain(newlyTx, watcher, sigs, msg, signReqmsg)
 		}
@@ -235,10 +239,8 @@ func (node *BraftNode) saveSignedResult(ctx context.Context) {
 	}
 }
 
-func (node *BraftNode) hasTxInWaitting(scTxID string) bool {
-	node.mu.Lock()
-	defer node.mu.Unlock()
-	_, ok := node.waitingConfirmTxs[scTxID]
+func (node *BraftNode) isTxSigned(scTxID string) bool {
+	_, ok := node.signedTxs.Load(scTxID)
 	return ok
 }
 
@@ -253,20 +255,25 @@ func (node *BraftNode) checkSignTimeout() {
 
 			//删除sign标记
 			node.signedResultCache.Delete(scTxID)
-			signReq := node.blockStore.GetSignReqMsg(scTxID)
+			signReq := node.blockStore.GetSignReq(scTxID)
 			if signReq == nil { //本地尚未签名
 				return true
 			}
 			node.blockStore.DeleteSignReqMsg(scTxID)
-
-			if !signReq.WatchedTx.IsTransferTx() {
-				if !node.hasTxInWaitting(scTxID) { //如果签名已经共识
-					node.txStore.AddFreshWatchedTx(signReq.WatchedTx)
+			watchedEvent := signReq.GetWatchedEvent()
+			if !watchedEvent.IsTransferEvent() {
+				if !node.isTxSigned(scTxID) { //如果签名已经共识
+					node.txStore.AddTxtoWatchSign(&message.WaitSignMsg{
+						Business: signReq.Business,
+						ScTxID:   signReq.GetWatchedEvent().GetTxID(),
+						Event:    signReq.WatchedEvent,
+						Tx:       signReq.NewlyTx,
+					})
 				} else {
 					nodeLogger.Debug("tx is in waiting", "scTxID", scTxID)
 				}
 			} else {
-				node.txStore.DeleteWatchedTx(scTxID)
+				node.txStore.DeleteWatchedEvent(scTxID)
 			}
 		}
 		return true

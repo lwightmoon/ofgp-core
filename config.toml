@@ -70,8 +70,6 @@ btc_confirms = 6
 bch_confirms = 6 
 #交易超时时间min
 confirm_tolerance = 10
-check_onchain_interval = 30
-check_onchain_cur = 5
 #accuse 间隔单位s
 accuse_interval = 180
 #锁定utxo的时间
