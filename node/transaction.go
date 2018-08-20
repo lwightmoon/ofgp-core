@@ -8,6 +8,7 @@ import (
 	btcwatcher "github.com/ofgp/bitcoinWatcher/mortgagewatcher"
 	ew "github.com/ofgp/ethwatcher"
 	"github.com/ofgp/ofgp-core/crypto"
+	"github.com/ofgp/ofgp-core/message"
 	"github.com/ofgp/ofgp-core/primitives"
 	pb "github.com/ofgp/ofgp-core/proto"
 )
@@ -15,7 +16,7 @@ import (
 //transaction 相关
 
 type txOperator interface {
-	CreateTx() *pb.NewlyTx
+	CreateTx(req CreateReq) *pb.NewlyTx
 	SendTx(req ISendReq) error
 }
 
@@ -30,12 +31,14 @@ type AddrInfo struct {
 	Amount uint64
 }
 type CreateReq interface {
+	GetChain() uint32
 	GetID() string
 	GetFee() uint64
 	GetAddrInfos() []AddrInfo
 }
 
 type BaseCreateReq struct {
+	Chain     uint32
 	ID        string
 	Fee       uint64
 	AddrInfos []AddrInfo
@@ -45,6 +48,10 @@ type EthCreateReq struct {
 	BaseCreateReq
 	Method  string
 	TokenTo uint32
+}
+
+func (req *BaseCreateReq) GetChain() uint32 {
+	return req.Chain
 }
 
 func (req *BaseCreateReq) GetFee() uint64 {
@@ -58,12 +65,14 @@ func (req *BaseCreateReq) GetAddrInfos() []AddrInfo {
 }
 
 type ISendReq interface {
+	GetChain() uint32
 	GetID() string
 	GetTx() *pb.NewlyTx
 }
 type SendReq struct {
-	ID string
-	Tx *pb.NewlyTx
+	Chain string
+	ID    string
+	Tx    *pb.NewlyTx
 }
 
 func (eop *ethOperator) CreateTx(req CreateReq) *pb.NewlyTx {
@@ -160,4 +169,35 @@ func (bchOP *bchOprator) CreateTx(req CreateReq) *pb.NewlyTx {
 func (bchOP *bchOprator) SendTx(req ISendReq) error {
 	err := sendCointTx(bchOP.bchWatcher, req, "bch")
 	return err
+}
+
+// txInvoker 命令执行
+type txInvoker struct {
+	ethOp txOperator
+	bchOp txOperator
+	btcOp txOperator
+}
+
+func (ti *txInvoker) CreateTx(req CreateReq) *pb.NewlyTx {
+	var newTx *pb.NewlyTx
+	switch req.GetChain() {
+	case message.Bch:
+		newTx = ti.ethOp.CreateTx(req)
+	case message.Eth:
+		newTx = ti.ethOp.CreateTx(req)
+	case message.Btc:
+		newTx = ti.btcOp.CreateTx(req)
+	}
+	return newTx
+}
+
+func (ti *txInvoker) SendTx(req ISendReq) {
+	switch req.GetChain() {
+	case message.Bch:
+		ti.ethOp.SendTx(req)
+	case message.Eth:
+		ti.ethOp.SendTx(req)
+	case message.Btc:
+		ti.btcOp.SendTx(req)
+	}
 }

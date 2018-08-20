@@ -209,8 +209,18 @@ func (node *BraftNode) doSave(msg *pb.SignResult) {
 					}
 				}
 			}
-			//标记已签名
+
+			ok := watcher.MergeSignTx(newlyTx, sigs)
+			if !ok {
+				leaderLogger.Error("merge sign tx failed", "sctxID", msg.ScTxID)
+				node.clearOnFail(signReq) //todo merge 失败clearOnFail 处理
+				return
+			}
+			//标记已签名 替换SignedEvent
 			node.markTxSigned(msg.ScTxID)
+
+			//通知相关业务已被签名
+			node.noticeSigned(msg, msg.To, newlyTx)
 			// sendTxToChain的时间可能会比较长，因为涉及到链上交易，所以需要提前把锁释放
 			// node.sendTxToChain(newlyTx, watcher, sigs, msg, signReqmsg)
 		}

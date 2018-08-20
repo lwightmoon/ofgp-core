@@ -1,5 +1,10 @@
 package node
 
+import (
+	"github.com/btcsuite/btcd/wire"
+	"github.com/ofgp/ofgp-core/crypto"
+)
+
 //watcher交互event
 type PushEvent interface {
 	GetBusiness() string
@@ -36,15 +41,23 @@ func (we *WatchedEvent) GetErr() error {
 
 //SignedData 签名数据
 type SignedData struct {
-	Chain string
+	Chain uint32
 	ID    string //业务id
 	TxID  string
-	Data  []byte //签名后数据
+	Data  *wire.MsgTx //签名后数据
 }
 type SignedEvent struct {
 	business string
 	data     SignedData
 	err      error //1、节点正在同步数据 2、签名失败
+}
+
+func newSignedEvent(business string, data SignedData, err error) *SignedEvent {
+	return &SignedEvent{
+		business,
+		data,
+		err,
+	}
 }
 
 func (se *SignedEvent) GetBusiness() string {
@@ -75,16 +88,24 @@ func (ce *ConfirmEvent) GetErr() error {
 }
 
 type CommitedData struct {
-	txID   string //网关交易id
-	height int    //网关区块高度
-	index  int    //在区块中的索引
+	TxID   *crypto.Digest256 //网关交易id
+	Height int64             //网关区块高度
+	Index  int               //在区块中的索引
 }
 
 // CommitedEvent 交易被提交
 type CommitedEvent struct {
 	business string
-	data     CommitedData
+	data     *CommitedData
 	err      error
+}
+
+func newCommitedEvent(business string, data *CommitedData, err error) *CommitedEvent {
+	return &CommitedEvent{
+		business: business,
+		data:     data,
+		err:      err,
+	}
 }
 
 func (ce *CommitedEvent) GetBusiness() string {

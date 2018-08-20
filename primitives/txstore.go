@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	"errors"
 	"sync"
 	"time"
 
@@ -407,31 +408,34 @@ func (ts *TxStore) DeleteWatchedEvent(scTxID string) {
 }
 
 // CreateInnerTx 创建一笔网关本身的交易
-/* todo
-func (ts *TxStore) CreateInnerTx(newlyTxId string, signMsgId string) {
-	signMsg := GetSignMsg(ts.db, signMsgId)
-	if signMsg == nil {
-		bsLogger.Error("create inner tx failed, sign msg not found", "signmsgid", signMsgId,
-			"newlyTxId", newlyTxId)
-		return
+func (ts *TxStore) CreateInnerTx(innerTx *pb.Transaction) error {
+	for _, putx := range innerTx.Vout {
+		signMsg := GetSignReq(ts.db, putx.TxID)
+		if signMsg == nil {
+			bsLogger.Error("create inner tx failed, sign msg not found", "signmsgid", putx.TxID)
+			return errors.New("vout has unsigned tx")
+		}
 	}
-	bsLogger.Debug("create inner tx", "from", signMsg.WatchedTx.From, "to", signMsg.WatchedTx.To,
-		"sctxid", signMsg.WatchedTx.Txid, "newliTxId", newlyTxId)
-	innerTx := &pb.Transaction{
-		WatchedTx: signMsg.WatchedTx.Clone(),
-		NewlyTxId: newlyTxId,
-		Time:      time.Now().Unix(),
+	txID := innerTx.TxID
+	innerTx.UpdateId()
+	if !bytes.Equal(txID.Data, innerTx.TxID.Data) {
+		return errors.New("txid validate fail")
 	}
 	// 这个时候监听到的交易已经成功处理并上链了，先清理监听交易缓存
-	ts.Lock()
-	delete(ts.watchedTxInfo, signMsg.WatchedTx.Txid)
-	delete(ts.freshWatchedTxInfo, signMsg.WatchedTx.Txid)
-	ts.Unlock()
+	for _, pubtx := range innerTx.Vin {
+		ts.watchedTxEvent.Delete(pubtx.TxID)
+		ts.waitingSignTx.Delete(pubtx.TxID)
+	}
+	for _, pubtx := range innerTx.Vout {
+		ts.watchedTxEvent.Delete(pubtx.TxID)
+		ts.waitingSignTx.Delete(pubtx.TxID)
+	}
 	innerTx.UpdateId()
 	req := makeAddTxsRequest([]*pb.Transaction{innerTx})
 	ts.addTxsChan <- req
+	return nil
 }
-*/
+
 // QueryTxInfoBySidechainId 根据公链的交易id查询对应到的网关交易信息
 func (ts *TxStore) QueryTxInfoBySidechainId(scId string) *TxQueryResult {
 	return ts.queryTxsInfo([]string{scId})[0]
@@ -484,7 +488,6 @@ func (ts *TxStore) cleanUpOnNewCommitted(committedTxs []*pb.Transaction, height 
 			Index:  int32(idx),
 		}
 
-		ts.Lock()
 		SetTxLookupEntry(ts.db, tx.TxID, entry)
 		//from链 tx_id 和网关tx_id的对应
 		for _, pubTx := range tx.Vin {
@@ -501,7 +504,6 @@ func (ts *TxStore) cleanUpOnNewCommitted(committedTxs []*pb.Transaction, height 
 			ts.waitingSignTx.Delete(pubTx.GetTxID())
 		}
 		ts.waitPackingTx.delTx(tx)
-		ts.Unlock()
 	}
 }
 

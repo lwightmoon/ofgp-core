@@ -104,7 +104,8 @@ type BraftNode struct {
 
 	signedResultChan  chan *pb.SignResult //处理sign结果
 	signedResultCache sync.Map            //缓存签名结果
-	pubsub            *pubServer
+	pubsub            *pubServer          //与业务交互
+	txInvoker         *txInvoker          //创建发送交易相关
 }
 
 func getFederationAddress() cluster.MultiSigInfo {
@@ -138,7 +139,6 @@ func NewBraftNode(localNodeInfo cluster.NodeInfo) *BraftNode {
 	}
 
 	initWatchHeight(db)
-	txChan := make(chan *waitingConfirmTx)
 
 	signer := cluster.NodeSigners[localNodeInfo.Id]
 	signer.InitKeystoreParam(viper.GetString("KEYSTORE.keystore_private_key"), viper.GetString("KEYSTORE.service_id"),
@@ -300,19 +300,6 @@ func NewBraftNode(localNodeInfo cluster.NodeInfo) *BraftNode {
 		ts.OnTermChanged(sc.Term() + 1)
 		ac.OnTermChange(sc.Term() + 1)
 	})
-
-	bs.SignedTxEvent.Subscribe(
-		func(txId string, msgId string, chainType string, tokenTo uint32) {
-			// 签完名后，开始监听链上是否已经执行了此笔交易
-			nodeLogger.Debug("begin watch confirm tx", "newlyTxid", txId, "msgId", msgId)
-			txChan <- &waitingConfirmTx{
-				msgId:     msgId,
-				chainTxId: txId,
-				chainType: chainType,
-				TokenTo:   tokenTo,
-				timestamp: time.Now(),
-			}
-		})
 
 	bs.ReconfigEvent.Subscribe(func() {
 		// Reconfig过程中，需要暂停交易处理

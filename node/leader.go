@@ -393,7 +393,7 @@ func (ld *Leader) watchFormerMultisig(ctx context.Context) {
 	}
 }
 
-// 循环处理监听到的交易 todo
+// 循环处理监听到的交易 
 /*
 func (ld *Leader) createTransaction(ctx context.Context) {
 	tick := time.Tick(time.Duration(100) * time.Millisecond)
@@ -463,8 +463,20 @@ func (ld *Leader) createSignReq(ctx context.Context) {
 					leaderLogger.Debug("get waiting sign tx", "cnt", len(txs))
 				}
 				for _, tx := range txs {
-					req, _ := pb.MakeSignReqMsg(ld.blockStore.GetNodeTerm(), ld.nodeInfo.Id, nil, tx.Tx, "", ld.signer)
-					//todo
+					if !ld.isInCharge() {
+						ld.txStore.AddTxtoWaitSign(tx)
+						continue
+					}
+					req, err := pb.MakeSignReqMsg(ld.blockStore.GetNodeTerm(), ld.nodeInfo.Id, tx.Event, tx.Tx, "", ld.signer)
+					if err != nil {
+						leaderLogger.Error("make sign tx failed", "err", err, "scTxID", tx.ScTxID)
+						continue
+					}
+					if !ld.isInCharge() {
+						ld.txStore.AddTxtoWaitSign(tx)
+						continue
+					}
+					ld.broadcastSignReq(req, cluster.NodeList, cluster.QuorumN)
 					leaderLogger.Debug("broadcast sign", "business", req.GetBusiness(), "scTxID", req.GetWatchedEvent().GetTxID())
 				}
 			}

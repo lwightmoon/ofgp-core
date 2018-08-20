@@ -30,7 +30,6 @@ func (tx *Transaction) EqualTo(other *Transaction) bool {
 func (tx *Transaction) UpdateId() {
 	hasher := crypto.NewHasher256()
 	feedTxFields(hasher, "Tx", tx)
-
 	tx.TxID = hasher.Sum(nil)
 }
 
