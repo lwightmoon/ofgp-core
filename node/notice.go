@@ -32,6 +32,12 @@ func (bn *BraftNode) noticeSigned(msg *pb.SignResult, chain uint32, newTx *wire.
 	bn.pubsub.pub(msg.Business, event)
 }
 
-func (bn *BraftNode) noticeConfirmed() {
+func (bn *BraftNode) noticeConfirmed(pushEvent PushEvent) {
+	event := newConfirmEvent(pushEvent)
+	bn.pubsub.pub(event.GetBusiness(), event)
+}
 
+func (bn *BraftNode) noticeWatched(pushEvent PushEvent) {
+	event := newWatchedEvent(pushEvent)
+	bn.pubsub.pub(event.GetBusiness(), event)
 }

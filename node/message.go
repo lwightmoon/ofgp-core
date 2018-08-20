@@ -29,6 +29,13 @@ type WatchedEvent struct {
 	err      error
 }
 
+func newWatchedEvent(event PushEvent) *WatchedEvent {
+	return &WatchedEvent{
+		business: event.GetBusiness(),
+		data:     event,
+		err:      nil,
+	}
+}
 func (we *WatchedEvent) GetBusiness() string {
 	return we.business
 }
@@ -75,6 +82,14 @@ type ConfirmEvent struct {
 	business string
 	data     PushEvent
 	err      error //等待交易确认超时
+}
+
+func newConfirmEvent(event PushEvent) *ConfirmEvent {
+	return &ConfirmEvent{
+		business: event.GetBusiness(),
+		data:     event,
+		err:      nil,
+	}
 }
 
 func (ce *ConfirmEvent) GetBusiness() string {
