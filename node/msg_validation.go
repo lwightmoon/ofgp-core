@@ -350,16 +350,14 @@ func checkSyncUpResponse(msg *pb.SyncUpResponse) bool {
 	return true
 }
 
-/* todo
-func checkSignTxRequest(req *pb.SignTxRequest) bool {
+func checkSignRequest(req *pb.SignRequest) bool {
 	return req != nil && checkTerm(req.Term) && checkNodeId(req.NodeId) &&
 		crypto.Verify(cluster.NodeList[req.NodeId].PublicKey, req.Id(), req.Sig)
 }
-*/
 
-func checkSignedResult(msg *pb.SignedResult) bool {
-	return msg != nil && checkNodeId(msg.NodeId) && len(msg.TxId) > 0 && len(msg.To) > 0 &&
-		checkTerm(msg.Term) && crypto.Verify(cluster.NodeList[msg.NodeId].PublicKey, msg.Id(), msg.Sig)
+func checkSignedResult(msg *pb.SignResult) bool {
+	return msg != nil && checkNodeId(msg.NodeID) && len(msg.ScTxID) > 0 && msg.To > 0 &&
+		checkTerm(msg.Term) && crypto.Verify(cluster.NodeList[msg.NodeID].PublicKey, msg.Id(), msg.Sig)
 }
 
 func checkChainTxIdMsg(msg *pb.ChainTxIdMsg) bool {

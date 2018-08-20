@@ -366,7 +366,6 @@ func (ts *TxStore) GetWaitingSignTxs() []*message.WaitSignMsg {
 	var txs []*message.WaitSignMsg
 	ts.waitingSignTx.Range(func(k, v interface{}) bool {
 		tx, ok := v.(*message.WaitSignMsg)
-		//todo 添加已处理check
 		if ok {
 			scTxID := tx.ScTxID
 			// 本term内已经确定加签失败的交易，下个term再重新发起

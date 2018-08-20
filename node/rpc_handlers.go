@@ -116,22 +116,20 @@ func (bn *BraftNode) NotifyTxs(ctx context.Context, msg *pb.Transactions) (*pb.V
 // NotifySignTx 处理收到的加签请求
 func (bn *BraftNode) NotifySignRequest(ctx context.Context, msg *pb.SignRequest) (*pb.Void, error) {
 	nodeLogger.Debug("Received notify sign tx request", "fromId", msg.NodeId)
-	//todo
-	// if !checkSignTxRequest(msg) {
-	// 	nodeLogger.Error(errInvalidRequest.Error())
-	// 	return nil, errInvalidRequest
-	// }
+	if !checkSignRequest(msg) {
+		nodeLogger.Error(errInvalidRequest.Error())
+		return nil, errInvalidRequest
+	}
 	bn.blockStore.HandleSignTx(msg)
 	return new(pb.Void), nil
 }
 
 func (bn *BraftNode) NotifySignResult(ctx context.Context, msg *pb.SignResult) (*pb.Void, error) {
 	nodeLogger.Debug("Received notify signed result", "fromId", msg.NodeID)
-	// todo signResult check
-	// if !checkSignedResult(msg) {
-	// 	nodeLogger.Error(errInvalidRequest.Error())
-	// 	return nil, errInvalidRequest
-	// }
+	if !checkSignedResult(msg) {
+		nodeLogger.Error(errInvalidRequest.Error())
+		return nil, errInvalidRequest
+	}
 	bn.SaveSignedResult(msg)
 	return new(pb.Void), nil
 }

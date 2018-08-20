@@ -909,7 +909,6 @@ func genSyncUpResponse(db *dgwdb.LDBDatabase, base int64, maxBlockN int64, needF
 	return rsp
 }
 
-// todo validate txs
 func (bs *BlockStore) validateTxs(blockPack *pb.BlockPack) int {
 	var checkChainTx []*pb.Transaction
 	for _, tx := range blockPack.GetInit().Block.Txs {
@@ -933,7 +932,7 @@ func (bs *BlockStore) validateTxs(blockPack *pb.BlockPack) int {
 		resultChan := make(chan int, checkLen)
 		receivedCount := 0
 		for _, tx := range checkChainTx {
-			//todo review checkonchain
+			//todo review checkonchain 如何check eth交易
 			/*
 				go func(tx *pb.Transaction) {
 
@@ -1105,7 +1104,7 @@ func (bs *BlockStore) validateTransferSignTx(req *pb.SignTxRequest, newlyTx *wir
 	return wrongInputOutput
 }
 */
-/*todo
+/*todo eth没有签名请求
 func (bs *BlockStore) validateEthSignTx(req *pb.SignTxRequest) int {
 	baseCheckResult := bs.baseCheck(req)
 	if baseCheckResult != validatePass {
@@ -1123,29 +1122,6 @@ func (bs *BlockStore) validateEthSignTx(req *pb.SignTxRequest) int {
 	if !bytes.Equal(req.NewlyTx.Data, localInput) {
 		bsLogger.Warn("verify eth input not passed", "sctxid", req.WatchedTx.Txid)
 		return wrongInputOutput
-	}
-	return validatePass
-}
-*/
-/* todo
-func (bs *BlockStore) baseCheck(req *pb.SignTxRequest) int {
-	if !bs.validateWatchedTx(req.WatchedTx) {
-		bsLogger.Warn("watched tx in request is not valid")
-		return wrongInputOutput
-	}
-	// 以下步骤防止双花
-	// 对应的交易已经达成共识或已经打包进区块了, 明显是重复交易
-	scTxId := req.WatchedTx.Txid
-	if bs.ts.HasTxInMemPool(scTxId) || bs.ts.HasTxInDB(scTxId) {
-		bsLogger.Warn("watched tx in request have been done", "txid", scTxId)
-		return alreadySigned
-	}
-
-	// 已经签过名了，拒绝重复签
-	signMsg := GetSignMsg(bs.db, scTxId)
-	if signMsg != nil {
-		bsLogger.Warn("request has been signed in this term")
-		return alreadySigned
 	}
 	return validatePass
 }
@@ -1198,7 +1174,7 @@ func (bs *BlockStore) validateBtcSignReq(req *pb.SignRequest, newlyTx *wire.MsgT
 	if baseCheckResult != validatePass {
 		return baseCheckResult
 	}
-
+	//输出check 放到创建交易的地方
 	return validatePass
 }
 
@@ -1240,13 +1216,22 @@ func (bs *BlockStore) validateTransferSignReq(req *pb.SignRequest, newlyTx *wire
 	return wrongInputOutput
 }
 
+// baseCheckSignReq 代替baseCheck
 func (bs *BlockStore) baseCheckSignReq(req *pb.SignRequest) int {
 	if !bs.validateWatchedEvent(req.GetWatchedEvent()) {
 		bsLogger.Warn("watched event invalid", "scTxID", req.GetWatchedEvent().GetTxID())
 		return wrongInputOutput
 	}
 	scTxID := req.GetWatchedEvent().GetTxID()
-	//todo 已达成共识check
+	// 以下步骤防止双花
+	// 对应的交易已经达成共识或已经打包进区块了, 明显是重复交易
+	scTxId := req.WatchedEvent.GetTxID()
+	if bs.ts.IsTxInMem(scTxId) || bs.ts.HasTxInDB(scTxId) {
+		bsLogger.Warn("watched tx in request have been done", "txid", scTxId)
+		return alreadySigned
+	}
+
+	// 已经签过名了，拒绝重复签
 	signReq := GetSignReq(bs.db, scTxID)
 	if signReq != nil {
 		bsLogger.Warn("request has been signed in this term", "scTxID", scTxID)
@@ -1255,7 +1240,7 @@ func (bs *BlockStore) baseCheckSignReq(req *pb.SignRequest) int {
 	return validatePass
 }
 
-// validateWatchedEvent 校验监听到的event
+// validateWatchedEvent 校验监听到的event 代替validateWatchedTx
 func (bs *BlockStore) validateWatchedEvent(event *pb.WatchedEvent) bool {
 	var newEvent *pb.WatchedEvent
 	validateRes := bs.ts.ValidateWatchedEvent(event)

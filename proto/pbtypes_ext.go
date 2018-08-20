@@ -738,38 +738,31 @@ func feedTxFields(hasher *crypto.Hasher256, fieldName string, msg *Transaction) 
 	})
 }
 
-/* todo
-func feedSignMsgFields(hasher *crypto.Hasher256, fieldName string, msg *SignTxRequest) {
+func feedSignMsgFields(hasher *crypto.Hasher256, fieldName string, msg *SignRequest) {
 	util.FeedField(hasher, fieldName, func(hs *crypto.Hasher256) {
 		util.FeedInt64Field(hs, "Term", msg.Term)
 		util.FeedInt32Field(hs, "NodeId", msg.NodeId)
 		util.FeedTextField(hs, "MultisigAddress", msg.MultisigAddress)
-		util.FeedField(hs, "WatchedTx", func(hs *crypto.Hasher256) {
-			tx := msg.WatchedTx
-			util.FeedTextField(hs, "Txid", tx.Txid)
-			util.FeedInt64Field(hs, "Amount", tx.Amount)
-			util.FeedTextField(hs, "From", tx.From)
-			util.FeedTextField(hs, "To", tx.To)
-			if len(tx.RechargeList) > 0 {
-				util.FeedField(hs, "Recharge", func(hs *crypto.Hasher256) {
-					for _, recharge := range tx.RechargeList {
-						util.FeedTextField(hs, "Address", recharge.Address)
-						util.FeedInt64Field(hs, "Amount", recharge.Amount)
-					}
-				})
-			}
+		util.FeedField(hs, "WatchedEvent", func(hs *crypto.Hasher256) {
+			event := msg.WatchedEvent
+			util.FeedTextField(hs, "Business", event.Business)
+			util.FeedInt32Field(hs, "EventType", int32(event.EventType))
+			util.FeedTextField(hs, "TxID", event.TxID)
+			util.FeedInt32Field(hs, "From", int32(event.From))
+			util.FeedInt32Field(hs, "To", int32(event.To))
+			util.FeedBinField(hs, "data", event.Data)
 		})
 		util.FeedBinField(hs, "NewlyTx", msg.NewlyTx.Data)
 	})
 }
-*/
 
-func feedSignedResultFields(hasher *crypto.Hasher256, fieldName string, msg *SignedResult) {
+func feedSignResultFields(hasher *crypto.Hasher256, fieldName string, msg *SignResult) {
 	util.FeedField(hasher, fieldName, func(hs *crypto.Hasher256) {
+		util.FeedTextField(hs, "BUsiness", msg.Business)
 		util.FeedInt32Field(hs, "Code", int32(msg.Code))
-		util.FeedInt32Field(hs, "NodeId", msg.NodeId)
-		util.FeedTextField(hs, "TxId", msg.TxId)
-		util.FeedTextField(hs, "To", msg.To)
+		util.FeedInt32Field(hs, "NodeId", msg.NodeID)
+		util.FeedTextField(hs, "TxId", msg.ScTxID)
+		util.FeedInt32Field(hs, "To", int32(msg.To))
 		util.FeedInt64Field(hs, "Term", msg.Term)
 		if len(msg.Data) > 0 {
 			util.FeedField(hs, "SignedData", func(hs *crypto.Hasher256) {
@@ -820,29 +813,12 @@ func UnmarshalTxLookupEntry(bytes []byte) *TxLookupEntry {
 	return rst
 }
 
-func (msg *SignedResult) Id() *crypto.Digest256 {
+func (msg *SignResult) Id() *crypto.Digest256 {
 	hasher := crypto.NewHasher256()
-	feedSignedResultFields(hasher, "SignedResult", msg)
+	feedSignResultFields(hasher, "SignedResult", msg)
 	return hasher.Sum(nil)
 }
 
-func MakeSignedResult(code CodeType, nodeId int32, txId string, data [][]byte,
-	to string, term int64, signer *crypto.SecureSigner) (*SignedResult, error) {
-	msg := &SignedResult{
-		Code:   code,
-		NodeId: nodeId,
-		TxId:   txId,
-		To:     to,
-		Data:   data,
-		Term:   term,
-	}
-	sig, err := signer.Sign(msg.Id().Data)
-	if err != nil {
-		return nil, err
-	}
-	msg.Sig = sig
-	return msg, nil
-}
 func MakeSignResult(business string, code CodeType, nodeId int32,
 	txID string, data [][]byte, to uint32,
 	term int64, signer *crypto.SecureSigner) (*SignResult, error) {
@@ -855,8 +831,15 @@ func MakeSignResult(business string, code CodeType, nodeId int32,
 		Term:     term,
 		Data:     data,
 	}
+	sig, err := signer.Sign(msg.Id().Data)
+	if err != nil {
+		return nil, err
+	}
+	msg.Sig = sig
+	return msg, nil
 	return msg, nil
 }
+
 func MakeSignedStatistic(msgId string, nodeId int32, code CodeType) *SignedStatistic {
 	return &SignedStatistic{
 		SignedMsgId: msgId,
@@ -959,55 +942,6 @@ func (tx *WatchedTxInfo) IsTransferTx() bool {
 	return tx.From == tx.To && strings.HasPrefix(tx.Txid, "TransferTx")
 }
 
-// MakeSignTxMsg 创建一个SignTxMsg并返回 todo
-/*
-func MakeSignTxMsg(term int64, nodeId int32, watchedTx *WatchedTxInfo, newlyTx *NewlyTx,
-	multisigAddress string, signer *crypto.SecureSigner) (*SignTxRequest, error) {
-	msg := &SignTxRequest{
-		Term:            term,
-		NodeId:          nodeId,
-		MultisigAddress: multisigAddress,
-		WatchedTx:       watchedTx,
-		NewlyTx:         newlyTx,
-		Time:            time.Now().Unix(),
-	}
-	sig, err := signer.Sign(msg.Id().Data)
-	if err != nil {
-		return nil, err
-	}
-	msg.Sig = sig
-	return msg, nil
-}
-*/
-// Id 计算SignTxRequest的hashid todo
-/*
-func (msg *SignTxRequest) Id() *crypto.Digest256 {
-	hasher := crypto.NewHasher256()
-	feedSignMsgFields(hasher, "SignMsg", msg)
-	return hasher.Sum(nil)
-}
-*/
-
-/*
-func (msg *SignTxRequest) MsgHash() string {
-	return msg.Id().AsMapKey()
-}
-*/
-/*
-func UnmarshalSignTxRequest(bytes []byte) *SignTxRequest {
-	rst := new(SignTxRequest)
-	err := proto.Unmarshal(bytes, rst)
-	assert.ErrorIsNil(err)
-	return rst
-}
-*/
-
-func (msg *ChainTxIdMsg) Id() *crypto.Digest256 {
-	hasher := crypto.NewHasher256()
-	feedChainTxIdMsgFields(hasher, "ChainTxIdMsg", msg)
-	return hasher.Sum(nil)
-}
-
 // MakeSignReqMsg 创建签名请求
 func MakeSignReqMsg(term int64, nodeID int32, event *WatchedEvent, newlyTx *NewlyTx,
 	multisigAddress string, signer *crypto.SecureSigner) (*SignRequest, error) {
@@ -1020,7 +954,29 @@ func MakeSignReqMsg(term int64, nodeID int32, event *WatchedEvent, newlyTx *Newl
 		NewlyTx:         newlyTx,
 		Time:            time.Now().Unix(),
 	}
+	sig, err := signer.Sign(msg.Id().Data)
+	if err != nil {
+		return nil, err
+	}
+	msg.Sig = sig
 	return msg, nil
+}
+
+// Id 计算SignTxRequest的hashid
+func (msg *SignRequest) Id() *crypto.Digest256 {
+	hasher := crypto.NewHasher256()
+	feedSignMsgFields(hasher, "SignMsg", msg)
+	return hasher.Sum(nil)
+}
+
+func (msg *SignRequest) MsgHash() string {
+	return msg.Id().AsMapKey()
+}
+
+func (msg *ChainTxIdMsg) Id() *crypto.Digest256 {
+	hasher := crypto.NewHasher256()
+	feedChainTxIdMsgFields(hasher, "ChainTxIdMsg", msg)
+	return hasher.Sum(nil)
 }
 
 func UnMarshalSignRequest(bytes []byte) *SignRequest {
