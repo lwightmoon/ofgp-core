@@ -41,10 +41,10 @@ func (node *BraftNode) GetTxBySidechainTxId(scTxId string) *primitives.TxQueryRe
 	return node.txStore.QueryTxInfoBySidechainId(scTxId)
 }
 
-// AddWatchedTx 手动添加交易
-func (node *BraftNode) AddWatchedTx(tx *pb.WatchedTxInfo) error {
-	if !node.txStore.HasWatchedTx(tx) {
-		node.txStore.AddWatchedTx(tx)
+// AddWatchedEvent 添加监听事件
+func (node *BraftNode) AddWatchedEvent(event *pb.WatchedEvent) error {
+	if !node.txStore.HasWatchedEvent(event) {
+		node.txStore.AddWatchedEvent(event)
 	} else {
 		return errors.New("tx already exist")
 	}

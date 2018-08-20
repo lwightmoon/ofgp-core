@@ -319,13 +319,8 @@ func NewBraftNode(localNodeInfo cluster.NodeInfo) *BraftNode {
 		bn.isInReconfig = true
 	})
 
-	bs.SignHandledEvent.Subscribe(func(msg *pb.SignedResult) {
-		ts.DeleteFresh(msg.TxId)
-		pm.Broadcast(msg, false, false)
-	})
-
 	bs.BroadcastSignResEvent.Subscribe(func(msg *pb.SignResult) {
-		//todo delete waiting to sign
+		ts.DeleteWaitSign(msg.ScTxID)
 		pm.Broadcast(msg, false, false)
 	})
 
@@ -341,7 +336,7 @@ func NewBraftNode(localNodeInfo cluster.NodeInfo) *BraftNode {
 		bs.SaveSnapshot(snapShot)
 		for {
 			// 确保老的交易都已经处理完毕
-			if ts.HasFreshWatchedTx() || ld.hasTxToSign {
+			if ts.HasWaitSignTx() || ld.hasTxToSign {
 				time.Sleep(10 * time.Millisecond)
 				continue
 			}
@@ -400,7 +395,7 @@ func NewBraftNode(localNodeInfo cluster.NodeInfo) *BraftNode {
 
 		for {
 			// 确保老的交易都已经处理完毕
-			if ts.HasFreshWatchedTx() || ld.hasTxToSign {
+			if ts.HasWaitSignTx() || ld.hasTxToSign {
 				time.Sleep(10 * time.Millisecond)
 				continue
 			}
@@ -639,7 +634,8 @@ func (bn *BraftNode) watchNewTx(ctx context.Context) {
 			return
 		}
 		if watchedTx != nil {
-			bn.txStore.AddWatchedTx(watchedTx)
+			// todo 监听事件
+			// bn.txStore.AddWatchedTx(watchedTx)
 		}
 	}
 }
@@ -652,7 +648,8 @@ func (bn *BraftNode) dealEthEvent(ev *ew.PushEvent) {
 		nodeLogger.Debug("receive eth burn", "tx", burnData.ScTxid)
 		watchedTx := pb.EthToPbTx(burnData)
 		if watchedTx != nil {
-			bn.txStore.AddWatchedTx(watchedTx)
+			//todo 监听事件
+			// bn.txStore.AddWatchedTx(watchedTx)
 		} else {
 			nodeLogger.Debug("create watchedTx fail", "tx", burnData.ScTxid)
 		}

@@ -75,31 +75,25 @@ func toBlockInfo(block *pb.BlockInfo) *BlockInfo {
 }
 
 type createTxRequest struct {
-	Type             string
-	Amount           int64
-	ChainTxId        string           `json:"chain_txid"`
-	AddressAmountMap map[string]int64 `json:"address_amount"`
+	Business  string `json:"business"`
+	EventType uint32 `json:"event_type"`
+	TxID      string `json:"tx_id"`
+	From      uint32 `json:"from"`
+	To        uint32 `json:"to"`
+	Data      []byte `json:"data"`
 }
 
 type createTxResponse struct {
 	Code int32
 }
 
-func toWatchedTxInfo(req *createTxRequest) *pb.WatchedTxInfo {
-	tx := &pb.WatchedTxInfo{
-		Txid:   req.ChainTxId,
-		Amount: req.Amount,
-		From:   "bch",
-		To:     "eth",
-	}
-
-	for k, v := range req.AddressAmountMap {
-		ai := &pb.AddressInfo{
-			Amount:  v,
-			Address: k,
-		}
-		tx.RechargeList = append(tx.RechargeList, ai)
-	}
+func toWatchedEvent(req *createTxRequest) *pb.WatchedEvent {
+	tx := &pb.WatchedEvent{}
+	tx.Business = req.Business
+	tx.EventType = req.EventType
+	tx.TxID = req.TxID
+	tx.From = req.From
+	tx.Data = req.Data
 	return tx
 }
 

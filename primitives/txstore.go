@@ -57,6 +57,7 @@ func makeBlockCommitted(newBlock *pb.BlockPack) blockCommitted {
 	return blockCommitted{newBlock.Block().Txs, newBlock.Height()}
 }
 
+// txWithTimeMs 待打包交易
 type txWithTimeMs struct {
 	tx                 *pb.Transaction
 	genTs              time.Time
@@ -83,6 +84,43 @@ func (t *txWithTimeMs) resetWaitingTolerance() {
 	}
 	t.txWaitingTolerance = tempTolerance
 	t.calcOverdueTs = time.Now()
+}
+
+func newSignMsgWithtimeMs(msg *message.WaitSignMsg) *signMsgWithtimeMs {
+	return &signMsgWithtimeMs{
+		msg:                msg,
+		genTs:              time.Now(),
+		calcOverdueTs:      time.Now(),
+		txWaitingTolerance: defaultTxWaitingTolerance,
+	}
+}
+
+type signMsgWithtimeMs struct {
+	msg                *message.WaitSignMsg
+	genTs              time.Time
+	calcOverdueTs      time.Time
+	txWaitingTolerance time.Duration
+}
+
+func (msg *signMsgWithtimeMs) IsOverdue() bool {
+	if msg.txWaitingTolerance == 0 {
+		msg.txWaitingTolerance = defaultTxWaitingTolerance
+	}
+	return time.Now().After(msg.calcOverdueTs.Add(txWaitingTolerance))
+}
+
+func (msg *signMsgWithtimeMs) IsOutdate() bool {
+	return time.Now().After(msg.genTs.Add(txTTL))
+}
+
+// resetWaitingTolerance 设置超时时间为原先的两倍直到大于最大超时时间
+func (msg *signMsgWithtimeMs) resetWaitingTolerance() {
+	tempTolerance := 2 * msg.txWaitingTolerance
+	if tempTolerance > maxTxWaitingTolerance {
+		tempTolerance = maxTxWaitingTolerance
+	}
+	msg.txWaitingTolerance = tempTolerance
+	msg.calcOverdueTs = time.Now()
 }
 
 // WatchedTxInfo watcher监听到的交易信息
@@ -156,6 +194,15 @@ func (its *innerTxStore) getByPubTxID(scTxID string) *txWithTimeMs {
 	res := its.txs[index]
 	return res
 }
+func (its *innerTxStore) getTxs() []*pb.Transaction {
+	txs := make([]*pb.Transaction, 0)
+	its.Lock()
+	defer its.Unlock()
+	for _, tx := range txs {
+		txs = append(txs, tx)
+	}
+	return txs
+}
 
 func (its *innerTxStore) delTx(tx *pb.Transaction) {
 	its.Lock()
@@ -170,6 +217,25 @@ func (its *innerTxStore) delTx(tx *pb.Transaction) {
 	}
 }
 
+//是否存在超时待打包交易
+func (its *innerTxStore) hasTimeoutTx(db *dgwdb.LDBDatabase) bool {
+	var innerTxHasOverdue bool
+	its.Lock()
+	defer its.Unlock()
+	for id, txInfo := range its.txs {
+		if txInfo.IsOverdue() {
+			if GetTxLookupEntry(db, id) != nil {
+				delete(its.txs, id)
+				continue
+			}
+			bsLogger.Error("pack tx timeout")
+			innerTxHasOverdue = true
+			txInfo.resetWaitingTolerance()
+		}
+	}
+	return innerTxHasOverdue
+}
+
 // TxStore 公链监听到的交易以及网关本身交易的内存池
 type TxStore struct {
 	TxOverdueEvent *util.Event
@@ -178,21 +244,13 @@ type TxStore struct {
 	addWaitPackTxCh chan *pb.Transaction //添加等待打包ch
 	waitPackingTx   *innerTxStore        //未打包进区块的交易
 
-	txInfoById    map[string]*txWithTimeMs  //未打包进区块的交易
-	watchedTxInfo map[string]*WatchedTxInfo //所有未处理完的主/侧链交易
+	pendingFetchers []txsFetcher
+	currTerm        int64
 
-	//新增的主/侧链交易，主节点一次批量获取到新增，然后转发给从节点
-	freshWatchedTxInfo map[string]*WatchedTxInfo
-	pendingFetchers    []txsFetcher
-	currTerm           int64
-
-	newTermChan      chan int64
-	newCommitChan    chan blockCommitted
-	fetchTxsChan     chan txsFetcher
-	addTxsChan       chan addTxsRequest
-	addWatchedTxChan chan *pb.WatchedTxInfo //todo del
-
-	addFreshChan chan *pb.WatchedTxInfo
+	newTermChan   chan int64
+	newCommitChan chan blockCommitted
+	fetchTxsChan  chan txsFetcher
+	addTxsChan    chan addTxsRequest
 
 	watchedTxEvent     sync.Map //监听到的event
 	addWatchedEventCh  chan *pb.WatchedEvent
@@ -206,20 +264,18 @@ type TxStore struct {
 // NewTxStore 新建一个TxStore对象并返回
 func NewTxStore(db *dgwdb.LDBDatabase) *TxStore {
 	txStore := &TxStore{
-		TxOverdueEvent:     util.NewEvent(),
-		db:                 db,
-		txInfoById:         make(map[string]*txWithTimeMs),
-		watchedTxInfo:      make(map[string]*WatchedTxInfo),
-		freshWatchedTxInfo: make(map[string]*WatchedTxInfo),
-		pendingFetchers:    nil,
-		currTerm:           0,
+		TxOverdueEvent:  util.NewEvent(),
+		db:              db,
+		addWaitPackTxCh: make(chan *pb.Transaction),
+		pendingFetchers: nil,
+		currTerm:        0,
 
-		newTermChan:      make(chan int64),
-		newCommitChan:    make(chan blockCommitted),
-		addTxsChan:       make(chan addTxsRequest),
-		fetchTxsChan:     make(chan txsFetcher),
-		addWatchedTxChan: make(chan *pb.WatchedTxInfo),
-		addFreshChan:     make(chan *pb.WatchedTxInfo),
+		newTermChan:        make(chan int64),
+		newCommitChan:      make(chan blockCommitted),
+		addTxsChan:         make(chan addTxsRequest),
+		fetchTxsChan:       make(chan txsFetcher),
+		addWatchedEventCh:  make(chan *pb.WatchedEvent),
+		addWaitingSignTxCh: make(chan *message.WaitSignMsg),
 		//queryTxsChan:   make(chan txsQuery),
 		heartbeatTimer: time.NewTimer(heartbeatInterval),
 	}
@@ -237,34 +293,6 @@ func (ts *TxStore) Run(ctx context.Context) {
 
 		case newCommit := <-ts.newCommitChan:
 			ts.cleanUpOnNewCommitted(newCommit.txs, newCommit.height)
-		case watchedTx := <-ts.addWatchedTxChan:
-			bsLogger.Debug("add watched tx to mempool", "scTxID", watchedTx.Txid)
-			ts.Lock()
-
-			wtx := &WatchedTxInfo{
-				Tx:                 watchedTx,
-				genTs:              time.Now(),
-				calcOverdueTs:      time.Now(),
-				txWaitingTolerance: defaultTxWaitingTolerance,
-			}
-			//sign时去主链获取的主链交易不需要重新加入
-			if _, exist := ts.watchedTxInfo[watchedTx.Txid]; !exist {
-				ts.watchedTxInfo[watchedTx.Txid] = wtx
-				ts.freshWatchedTxInfo[watchedTx.Txid] = wtx
-			}
-			ts.Unlock()
-
-		case watchedTx := <-ts.addFreshChan:
-
-			wtx := &WatchedTxInfo{
-				Tx:                 watchedTx,
-				genTs:              time.Now(),
-				calcOverdueTs:      time.Now(),
-				txWaitingTolerance: defaultTxWaitingTolerance,
-			}
-			ts.Lock()
-			ts.freshWatchedTxInfo[watchedTx.Txid] = wtx
-			ts.Unlock()
 		case term := <-ts.newTermChan:
 			ts.currTerm = term
 		case watchedEvent := <-ts.addWatchedEventCh: //添加监听到的event
@@ -272,20 +300,19 @@ func (ts *TxStore) Run(ctx context.Context) {
 			ts.watchedTxEvent.Store(watchedEvent.GetTxID(), watchedEvent)
 		case waitSignTx := <-ts.addWaitingSignTxCh: //添加待签名交易
 			bsLogger.Debug("add waitingSign tx", "business", waitSignTx.Business, "scTxID", waitSignTx.ScTxID)
-			ts.waitingSignTx.Store(waitSignTx.ScTxID, waitSignTx)
+			ts.waitingSignTx.Store(waitSignTx.ScTxID, newSignMsgWithtimeMs(waitSignTx))
 		case <-ctx.Done():
 			return
 		}
 	}
 }
 
-// HasWatchedTx 是否已经接收过tx了，是返回true，否返回false
-func (ts *TxStore) HasWatchedTx(tx *pb.WatchedTxInfo) bool {
-	if tx != nil && tx.Txid != "" {
-		ts.RLock()
-		defer ts.RUnlock()
-		_, inWatched := ts.watchedTxInfo[tx.Txid]
-		inDB := ts.HasTxInDB(tx.Txid)
+// HasWatchedEvent 是否已经监听到事件
+func (ts *TxStore) HasWatchedEvent(tx *pb.WatchedEvent) bool {
+
+	if tx != nil && tx.GetTxID() != "" {
+		_, inWatched := ts.watchedTxEvent.Load(tx.GetTxID())
+		inDB := ts.HasTxInDB(tx.GetTxID())
 		return inWatched && inDB
 	}
 	return false
@@ -314,49 +341,13 @@ func (ts *TxStore) TestAddTxs(txs []*pb.Transaction) []int {
 	return <-req.notAddedChan
 }
 
-// AddWatchedTx 添加监听到的公链交易到内存池
-func (ts *TxStore) AddWatchedTx(tx *pb.WatchedTxInfo) {
-	ts.addWatchedTxChan <- tx
+// AddWatchedEvent 添加监听到的事件到内存池
+func (ts *TxStore) AddWatchedEvent(event *pb.WatchedEvent) {
+	ts.addWatchedEventCh <- event
 }
 
-// AddFreshWatchedTx 增加新监听到的交易到待处理列表
-func (ts *TxStore) AddFreshWatchedTx(tx *pb.WatchedTxInfo) {
-	ts.RLock()
-	inMem := ts.hasTxInMemPool(tx.Txid)
-	ts.RUnlock()
-	if tx != nil && !ts.HasTxInDB(tx.Txid) && !inMem { //未同步才添加到fresh
-		go func() {
-			ts.addFreshChan <- tx
-		}()
-	} else {
-		bsLogger.Debug("tx has been in db or mem", "scTxID", tx.Txid)
-	}
-}
-
-// GetFreshWatchedTxs 获取尚未被处理的公链交易
-func (ts *TxStore) GetFreshWatchedTxs() []*WatchedTxInfo {
-	ts.Lock()
-	var rst []*WatchedTxInfo
-	for _, v := range ts.freshWatchedTxInfo {
-		// 本term内已经确定加签失败的交易，下个term再重新发起
-		if IsSignFailed(ts.db, v.Tx.Txid, ts.currTerm) {
-			continue
-		}
-		if ts.HasTxInDB(v.Tx.Txid) || ts.hasTxInMemPool(v.Tx.Txid) { //已从其他节点同步
-			bsLogger.Debug("tx in fresh has been in mem or db", "scTxID", v.Tx.Txid)
-			delete(ts.freshWatchedTxInfo, v.Tx.Txid)
-			continue
-		}
-		bsLogger.Debug("add watched tx to queue", "sctxid", v.Tx.Txid)
-		rst = append(rst, v)
-	}
-	ts.freshWatchedTxInfo = make(map[string]*WatchedTxInfo)
-	ts.Unlock()
-	return rst
-}
-
-// AddTxtoWatchSign 重新加入待签名
-func (ts *TxStore) AddTxtoWatchSign(msg *message.WaitSignMsg) {
+// AddTxtoWaitSign 重新加入待签名
+func (ts *TxStore) AddTxtoWaitSign(msg *message.WaitSignMsg) {
 	scTxID := msg.Event.GetTxID()
 	inMem := ts.IsTxInMem(msg.ScTxID)
 	if msg != nil && !ts.HasTxInDB(scTxID) && !inMem {
@@ -375,7 +366,19 @@ func (ts *TxStore) GetWaitingSignTxs() []*message.WaitSignMsg {
 	var txs []*message.WaitSignMsg
 	ts.waitingSignTx.Range(func(k, v interface{}) bool {
 		tx, ok := v.(*message.WaitSignMsg)
+		//todo 添加已处理check
 		if ok {
+			scTxID := tx.ScTxID
+			// 本term内已经确定加签失败的交易，下个term再重新发起
+			if IsSignFailed(ts.db, scTxID, ts.currTerm) {
+				return true
+			}
+			if ts.HasTxInDB(scTxID) || ts.IsTxInMem(scTxID) {
+				bsLogger.Debug("tx in fresh has been in mem or db", "scTxID", scTxID)
+				ts.waitingSignTx.Delete(scTxID)
+				return true
+			}
+			bsLogger.Debug("add watched tx to queue", "sctxid", scTxID)
 			txs = append(txs, tx)
 		}
 		return true
@@ -384,28 +387,22 @@ func (ts *TxStore) GetWaitingSignTxs() []*message.WaitSignMsg {
 	return txs
 }
 
-// HasFreshWatchedTx 是否还有未处理的公链交易
-func (ts *TxStore) HasFreshWatchedTx() bool {
-	ts.Lock()
-	has := len(ts.freshWatchedTxInfo) > 0
-	ts.Unlock()
+// HasWaitSignTx 待签名交易是否为空
+func (ts *TxStore) HasWaitSignTx() bool {
+	var has bool
+	ts.waitingSignTx.Range(func(k, v interface{}) bool {
+		has = true
+		return false
+	})
 	return has
 }
 
-// DeleteFresh 把交易从待处理的列表中删除
-func (ts *TxStore) DeleteFresh(txId string) {
-	ts.Lock()
-	delete(ts.freshWatchedTxInfo, txId)
-	ts.Unlock()
+// DeleteWaitSign 删除待签名交易
+func (ts *TxStore) DeleteWaitSign(scTxID string) {
+	ts.waitingSignTx.Delete(scTxID)
 }
 
-// DeleteWatchedTx 把交易从内存池中删除, 只会发生在多签地址的迁移交易里面
-func (ts *TxStore) DeleteWatchedTx(txId string) {
-	ts.Lock()
-	delete(ts.watchedTxInfo, txId)
-	ts.Unlock()
-}
-
+// DeleteWatchedEvent 删除监听到的事件
 func (ts *TxStore) DeleteWatchedEvent(scTxID string) {
 	ts.watchedTxEvent.Delete(scTxID)
 }
@@ -450,11 +447,7 @@ func (ts *TxStore) FetchTxsChan() <-chan []*pb.Transaction {
 // GetMemTxs 获取内存池的网关交易
 func (ts *TxStore) GetMemTxs() []*pb.Transaction {
 	var fetched []*pb.Transaction
-	ts.RLock()
-	for _, v := range ts.txInfoById {
-		fetched = append(fetched, v.tx)
-	}
-	ts.RUnlock()
+	fetched = ts.waitPackingTx.getTxs()
 	return fetched
 }
 
@@ -473,19 +466,7 @@ func (ts *TxStore) addTxs(txs []*pb.Transaction) []int {
 	return notAddedIds
 }
 
-func (ts *TxStore) HasTxInMemPool(scTxId string) bool {
-	ts.RLock()
-	defer ts.RUnlock()
-	_, ok := ts.txInfoById[scTxId]
-	return ok
-}
-
-func (ts *TxStore) hasTxInMemPool(scTxId string) bool {
-	_, ok := ts.txInfoById[scTxId]
-	return ok
-}
-
-// IsTxWaitTopack 交易是否等待打包 代替 hasTxInMemPool
+// IsTxInMem 交易是否等待打包 代替 hasTxInMemPool
 func (ts *TxStore) IsTxInMem(scTxID string) bool {
 	tx := ts.waitPackingTx.getByPubTxID(scTxID)
 	return tx != nil
@@ -527,10 +508,8 @@ func (ts *TxStore) cleanUpOnNewCommitted(committedTxs []*pb.Transaction, height 
 
 func (ts *TxStore) queryTxsInfo(scTxIds []string) (rst []*TxQueryResult) {
 	for _, scTxId := range scTxIds {
-		ts.RLock()
-		value, ok := ts.txInfoById[scTxId]
-		ts.RUnlock()
-		if ok {
+		value := ts.waitPackingTx.getByPubTxID(scTxId)
+		if value != nil {
 			rst = append(rst, &TxQueryResult{
 				Tx:     value.tx,
 				Height: -1,
@@ -614,39 +593,27 @@ func (ts *TxStore) heartbeatCheck(ctx context.Context) {
 func (ts *TxStore) doHeartbeat() {
 	innerTxHasOverdue, watchedTxHasOverdue := false, false
 
-	ts.Lock()
-	for id, txInfo := range ts.freshWatchedTxInfo {
-		if txInfo.isOverdue() {
-			// 由于节点之间的watcher不完全同步，也有可能是监听到这个交易之前，主节点已经广播处理了这笔交易了，所以做一下校验
-			if _, has := ts.txInfoById[id]; has {
-				//delete(ts.watchedTxInfo, id)
-				//delete(ts.freshWatchedTxInfo, id)
-				continue
+	ts.waitingSignTx.Range(func(k, v interface{}) bool {
+		msg := v.(*signMsgWithtimeMs)
+		if msg.IsOverdue() {
+			scTxID := msg.msg.ScTxID
+			if ts.waitPackingTx.getByPubTxID(scTxID) != nil {
+				return true
 			}
-			if GetTxIdBySidechainTxId(ts.db, id) != nil {
-				delete(ts.watchedTxInfo, id)
-				delete(ts.freshWatchedTxInfo, id)
-				continue
+			if GetTxIdBySidechainTxId(ts.db, scTxID) != nil {
+				ts.watchedTxEvent.Delete(scTxID) //删除监听到的event
+				ts.waitingSignTx.Delete(scTxID)  //删除等待签名的请求
+				return true
 			}
-			bsLogger.Error("watched tx timeout", "sctxid", id)
+			bsLogger.Error("wait sign tx timeout", "sctxid", scTxID)
 			watchedTxHasOverdue = true
 			// 重新设置超时时间 防止重复accuse
-			txInfo.resetWaitingTolerance()
+			msg.resetWaitingTolerance()
 		}
-	}
+		return true
+	})
 
-	for id, txInfo := range ts.txInfoById {
-		if txInfo.IsOverdue() {
-			if GetTxIdBySidechainTxId(ts.db, id) != nil {
-				delete(ts.txInfoById, id)
-				continue
-			}
-			bsLogger.Error("confirm tx timeout", "sctxid", id)
-			innerTxHasOverdue = true
-			txInfo.resetWaitingTolerance()
-		}
-	}
-	ts.Unlock()
+	innerTxHasOverdue = ts.waitPackingTx.hasTimeoutTx(ts.db)
 
 	if innerTxHasOverdue || watchedTxHasOverdue {
 		ts.TxOverdueEvent.Emit(GetNodeTerm(ts.db))
@@ -727,20 +694,6 @@ func (ts *TxStore) ValidateTx(tx *pb.Transaction) int {
 	}
 }
 */
-
-// ValidateWatchedTx 验证leader传过来的公链交易是否和本节点一致
-func (ts *TxStore) ValidateWatchedTx(tx *pb.WatchedTxInfo) int {
-	ts.RLock()
-	memTx := ts.watchedTxInfo[tx.Txid]
-	ts.RUnlock()
-	if memTx == nil {
-		return NotExist
-	}
-	if tx.EqualTo(memTx.Tx) {
-		return Valid
-	}
-	return Invalid
-}
 
 // ValidateWatchedEvent 验证leader传过来的PushEvent是否与本节点一致
 func (ts *TxStore) ValidateWatchedEvent(event *pb.WatchedEvent) int {

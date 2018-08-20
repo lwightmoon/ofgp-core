@@ -85,12 +85,16 @@ func (node *BraftNode) clearOnFail(signReq *pb.SignRequest) {
 	node.signedResultCache.Delete(scTxID)
 	node.blockStore.DeleteSignReqMsg(scTxID)
 
-	//todo waitingConfirm 如何处理
-	// if !signReq.GetWatchedEvent().IsTransferEvent() && !node.hasTxInWaitting(scTxID) {
-	// 	node.txStore.AddFreshWatchedTx(signReq.WatchedTx)
-	// } else {
-	// 	node.txStore.DeleteWatchedTx(signReq.WatchedTx.Txid)
-	// }
+	if !signReq.GetWatchedEvent().IsTransferEvent() && !node.isTxSigned(scTxID) {
+		waitSignMsg := &message.WaitSignMsg{
+			Business: signReq.Business,
+			ID:       signReq.GetWatchedEvent().GetTxID(),
+			ScTxID:   signReq.GetWatchedEvent().GetTxID(),
+			Event:    signReq.GetWatchedEvent(),
+			Tx:       signReq.GetNewlyTx(),
+		}
+		node.txStore.AddTxtoWaitSign(waitSignMsg)
+	}
 }
 
 /* todo
@@ -239,6 +243,7 @@ func (node *BraftNode) saveSignedResult(ctx context.Context) {
 	}
 }
 
+// isTxSigned 判断是否已被签名
 func (node *BraftNode) isTxSigned(scTxID string) bool {
 	_, ok := node.signedTxs.Load(scTxID)
 	return ok
@@ -263,7 +268,7 @@ func (node *BraftNode) checkSignTimeout() {
 			watchedEvent := signReq.GetWatchedEvent()
 			if !watchedEvent.IsTransferEvent() {
 				if !node.isTxSigned(scTxID) { //如果签名已经共识
-					node.txStore.AddTxtoWatchSign(&message.WaitSignMsg{
+					node.txStore.AddTxtoWaitSign(&message.WaitSignMsg{
 						Business: signReq.Business,
 						ScTxID:   signReq.GetWatchedEvent().GetTxID(),
 						Event:    signReq.WatchedEvent,

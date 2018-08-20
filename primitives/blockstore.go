@@ -64,7 +64,6 @@ type BlockStore struct {
 	NewStrongAccuseEvent       *util.Event
 	StrongAccuseProcessedEvent *util.Event
 	SignedTxEvent              *util.Event
-	SignHandledEvent           *util.Event
 	BroadcastSignResEvent      *util.Event //广播签名结果
 	OnJoinEvent                *util.Event
 	JoinedEvent                *util.Event
@@ -100,7 +99,6 @@ func NewBlockStore(db *dgwdb.LDBDatabase, ts *TxStore, btcWatcher *btcwatcher.Mo
 		NewStrongAccuseEvent:       util.NewEvent(),
 		StrongAccuseProcessedEvent: util.NewEvent(),
 		SignedTxEvent:              util.NewEvent(),
-		SignHandledEvent:           util.NewEvent(),
 		BroadcastSignResEvent:      util.NewEvent(),
 		OnJoinEvent:                util.NewEvent(),
 		JoinedEvent:                util.NewEvent(),
