@@ -267,6 +267,8 @@ func NewBraftNode(localNodeInfo cluster.NodeInfo) *BraftNode {
 		bn.onNewBlockCommitted(newTop)
 		ts.OnNewBlockCommitted(newTop)
 		ac.OnNewCommitted(newTop)
+		//通知commit事件
+		bn.pubCommit(newTop)
 	})
 
 	bs.CommittedInLowerTermEvent.Subscribe(func(msg interface{}) {

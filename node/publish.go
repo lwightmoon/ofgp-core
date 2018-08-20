@@ -6,7 +6,7 @@ import (
 )
 
 // noticeCommit通知commit
-func (bn *BraftNode) noticeCommit(blockPack *pb.BlockPack) {
+func (bn *BraftNode) pubCommit(blockPack *pb.BlockPack) {
 	block := blockPack.Block()
 	height := blockPack.Height()
 	for index, tx := range block.Txs {
@@ -21,7 +21,7 @@ func (bn *BraftNode) noticeCommit(blockPack *pb.BlockPack) {
 }
 
 //noticeSigned 通知已签名
-func (bn *BraftNode) noticeSigned(msg *pb.SignResult, chain uint32, newTx *wire.MsgTx) {
+func (bn *BraftNode) pubSigned(msg *pb.SignResult, chain uint32, newTx *wire.MsgTx) {
 	signedData := SignedData{
 		Chain: chain,
 		ID:    msg.ScTxID,
@@ -32,12 +32,12 @@ func (bn *BraftNode) noticeSigned(msg *pb.SignResult, chain uint32, newTx *wire.
 	bn.pubsub.pub(msg.Business, event)
 }
 
-func (bn *BraftNode) noticeConfirmed(pushEvent PushEvent) {
+func (bn *BraftNode) pubConfirmed(pushEvent PushEvent) {
 	event := newConfirmEvent(pushEvent)
 	bn.pubsub.pub(event.GetBusiness(), event)
 }
 
-func (bn *BraftNode) noticeWatched(pushEvent PushEvent) {
+func (bn *BraftNode) pubWatched(pushEvent PushEvent) {
 	event := newWatchedEvent(pushEvent)
 	bn.pubsub.pub(event.GetBusiness(), event)
 }
