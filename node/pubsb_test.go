@@ -8,13 +8,13 @@ type testEvent struct {
 func (e *testEvent) GetBusiness() string {
 	return "p2p"
 }
-func (e *testEvent) GetEventType() uint8 {
+func (e *testEvent) GetEventType() uint32 {
 	return 0
 }
-func (e *testEvent) GetFrom() uint8 {
+func (e *testEvent) GetFrom() uint32 {
 	return 0
 }
-func (e *testEvent) GetTo() uint8 {
+func (e *testEvent) GetTo() uint32 {
 	return 1
 }
 func (e *testEvent) GetTxID() string {
@@ -22,6 +22,12 @@ func (e *testEvent) GetTxID() string {
 }
 func (e *testEvent) GetData() []byte {
 	return []byte("test event")
+}
+func (e *testEvent) GetAmount() uint64 {
+	return 0
+}
+func (e *testEvent) GetFee() uint64 {
+	return 0
 }
 func TestPubSub(t *testing.T) {
 	pubsub := newPubServer(1)

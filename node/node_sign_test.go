@@ -54,33 +54,32 @@ func TestCheckSignTimeout(t *testing.T) {
 
 	for i := 0; i < 2; i++ {
 		idStr := strconv.Itoa(i)
-		req := &pb.SignTxRequest{
-			WatchedTx: &pb.WatchedTxInfo{
-				Txid: idStr,
+		req := &pb.SignRequest{
+			WatchedEvent: &pb.WatchedEvent{
+				TxID: idStr,
 			},
 			Time: 1,
 		}
-		primitives.SetSignMsg(db, req, req.WatchedTx.Txid)
+		primitives.SetSignReq(db, req, req.WatchedEvent.TxID)
 		node.signedResultCache.Store(idStr, &SignedResultCache{
 			initTime: 1,
 		})
 	}
-	node.waitingConfirmTxs = make(map[string]*waitingConfirmTx)
-	node.waitingConfirmTxs["1"] = &waitingConfirmTx{}
+
 	node.checkSignTimeout()
-	if primitives.GetSignMsg(db, "1") != nil {
+	if primitives.GetSignReq(db, "1") != nil {
 		t.Error("del fail")
 	}
 	time.Sleep(time.Second)
-	for _, tx := range ts.GetFreshWatchedTxs() {
-		t.Logf("readd watched id:%s", tx.Tx.Txid)
+	for _, tx := range ts.GetWaitingSignTxs() {
+		t.Logf("readd watched id:%s", tx.ScTxID)
 	}
 
 }
 
 func TestCache(t *testing.T) {
 	cache := &SignedResultCache{
-		cache:       make(map[int32]*pb.SignedResult),
+		cache:       make(map[int32]*pb.SignResult),
 		totalCount:  0,
 		signedCount: 0,
 		initTime:    time.Now().Unix(),

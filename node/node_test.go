@@ -15,7 +15,6 @@ import (
 	pb "github.com/ofgp/ofgp-core/proto"
 
 	"github.com/spf13/viper"
-	context "golang.org/x/net/context"
 	"google.golang.org/grpc"
 )
 
@@ -146,39 +145,4 @@ func testNodeBasic(t *testing.T, bn *BraftNode) {
 // TODO 测试监听交易是否正常
 func testTx(t *testing.T, bn *BraftNode) {
 
-}
-
-func TestCheckOnChain(t *testing.T) {
-	bn := &BraftNode{}
-	bn.waitingConfirmTxs = map[string]*waitingConfirmTx{
-		"1": &waitingConfirmTx{
-			msgId:     "1",
-			chainType: "btc",
-			chainTxId: "1_chain",
-			timestamp: time.Now(),
-			TokenTo:   1,
-		},
-		"2": &waitingConfirmTx{
-			msgId:     "2",
-			chainType: "btc",
-			chainTxId: "1_chain",
-			TokenTo:   1,
-			timestamp: time.Now(),
-		},
-	}
-	CheckOnChainInterval = 1
-	CheckOnChainCur = 2
-	go func() {
-		time.Sleep(time.Second)
-		bn.mu.Lock()
-		defer bn.mu.Unlock()
-		bn.waitingConfirmTxs["3"] = &waitingConfirmTx{
-			msgId:     "3",
-			chainType: "btc",
-			chainTxId: "3_chain",
-			timestamp: time.Now(),
-			TokenTo:   1,
-		}
-	}()
-	bn.watchWatingConfirmTx(context.TODO())
 }
