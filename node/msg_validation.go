@@ -356,7 +356,7 @@ func checkSignRequest(req *pb.SignRequest) bool {
 }
 
 func checkSignedResult(msg *pb.SignResult) bool {
-	return msg != nil && checkNodeId(msg.NodeID) && len(msg.ScTxID) > 0 && msg.To > 0 &&
+	return msg != nil && checkNodeId(msg.NodeID) && msg.ScTxID != "" && msg.To >= 0 &&
 		checkTerm(msg.Term) && crypto.Verify(cluster.NodeList[msg.NodeID].PublicKey, msg.Id(), msg.Sig)
 }
 

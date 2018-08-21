@@ -169,6 +169,12 @@ type innerTxStore struct {
 	indexer map[string]*crypto.Digest256
 }
 
+func newInnerTxStore() *innerTxStore {
+	return &innerTxStore{
+		txs:     make(map[*crypto.Digest256]*txWithTimeMs),
+		indexer: make(map[string]*crypto.Digest256),
+	}
+}
 func (its *innerTxStore) addTx(tw *txWithTimeMs) {
 	its.Lock()
 	defer its.Unlock()

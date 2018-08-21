@@ -2,6 +2,7 @@ package proto
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -944,7 +945,9 @@ func (tx *WatchedTxInfo) IsTransferTx() bool {
 // MakeSignReqMsg 创建签名请求
 func MakeSignReqMsg(term int64, nodeID int32, event *WatchedEvent, newlyTx *NewlyTx,
 	multisigAddress string, signer *crypto.SecureSigner) (*SignRequest, error) {
-
+	if newlyTx == nil {
+		return nil, errors.New("newlytx can not be nil")
+	}
 	msg := &SignRequest{
 		Term:            term,
 		NodeId:          nodeID,
