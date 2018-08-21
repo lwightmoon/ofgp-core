@@ -10,6 +10,8 @@ type PushEvent interface {
 	GetBusiness() string
 	GetEventType() uint32 //0 初始监听到 1 被确认
 	GetTxID() string
+	GetAmount() uint64 //金额
+	GetFee() uint64    //矿工费
 	GetFrom() uint32
 	GetTo() uint32
 	GetData() []byte

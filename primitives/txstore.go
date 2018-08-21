@@ -648,11 +648,8 @@ func (ts *TxStore) ValidateTx(tx *pb.Transaction) int {
 			bsLogger.Warn("validate vin pub tx fail")
 			return validateRes
 		}
-		validateRes = ts.validatePubTxs(tx.Vout)
-		if validateRes == NotExist || validateRes == Invalid {
-			bsLogger.Warn("validate vout pub tx fail")
-			return validateRes
-		}
+		// 与本机watched的消息一致，但本机还没有监听到公链上的交易结果
+		// 返回CheckChain直接去公链上验证
 		return CheckChain
 	}
 	if memTx.tx.EqualTo(tx) {
