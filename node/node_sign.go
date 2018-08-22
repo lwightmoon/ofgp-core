@@ -168,7 +168,7 @@ func (node *BraftNode) doSave(msg *pb.SignResult) {
 	}
 	if msg.Code == pb.CodeType_SIGNED {
 		if !watcher.VerifySign(newlyTx, msg.Data, cluster.NodeList[msg.NodeID].PublicKey) {
-			leaderLogger.Error("verify sign tx failed", "from", msg.NodeID, "sctxid", scTxID)
+			leaderLogger.Error("verify sign tx failed", "from", msg.NodeID, "sctxid", scTxID, "business", msg.Business)
 			cache.addErrCnt()
 		} else {
 			cache.addCache(msg.NodeID, msg)
