@@ -1,10 +1,15 @@
 package primitives
 
 import (
+	"context"
+	"fmt"
+	"io/ioutil"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/ofgp/ofgp-core/crypto"
+	"github.com/ofgp/ofgp-core/dgwdb"
 	pb "github.com/ofgp/ofgp-core/proto"
 )
 
@@ -89,4 +94,31 @@ func TestInnerTxStore(t *testing.T) {
 		t.Error("del index fail")
 	}
 
+}
+
+var txStore *TxStore
+
+func TestMain(m *testing.M) {
+	tmpDir, _ := ioutil.TempDir("", "testTxStore")
+	fmt.Printf("tmpdir:%s\n", tmpDir)
+	defer os.RemoveAll(tmpDir)
+	db, _ := dgwdb.NewLDBDatabase(tmpDir, 1, 1)
+	txStore = NewTxStore(db)
+	ctx, cancel := context.WithCancel(context.Background())
+	go txStore.Run(ctx)
+	defer cancel()
+	exit := m.Run()
+	os.Exit(exit)
+}
+
+func TestWatchedEvent(t *testing.T) {
+	event := &pb.WatchedEvent{
+		TxID: "test",
+	}
+	txStore.AddWatchedEvent(event)
+	time.Sleep(1 * time.Millisecond)
+	has := txStore.HasWatchedEvent(event)
+	if !has{
+		t.Errorf("has watched:%v", has)
+	}
 }

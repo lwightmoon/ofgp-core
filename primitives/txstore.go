@@ -278,6 +278,7 @@ func NewTxStore(db *dgwdb.LDBDatabase) *TxStore {
 		TxOverdueEvent:  util.NewEvent(),
 		db:              db,
 		addWaitPackTxCh: make(chan *pb.Transaction),
+		waitPackingTx:   newInnerTxStore(),
 		pendingFetchers: nil,
 		currTerm:        0,
 
