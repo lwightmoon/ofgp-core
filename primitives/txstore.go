@@ -325,7 +325,7 @@ func (ts *TxStore) HasWatchedEvent(tx *pb.WatchedEvent) bool {
 	if tx != nil && tx.GetTxID() != "" {
 		_, inWatched := ts.watchedTxEvent.Load(tx.GetTxID())
 		inDB := ts.HasTxInDB(tx.GetTxID())
-		return inWatched && inDB
+		return inWatched || inDB
 	}
 	return false
 }
@@ -377,11 +377,13 @@ func (ts *TxStore) GetWaitingSignTxs() []*message.WaitSignMsg {
 
 	var txs []*message.WaitSignMsg
 	ts.waitingSignTx.Range(func(k, v interface{}) bool {
-		tx, ok := v.(*message.WaitSignMsg)
+		msgWt, ok := v.(*signMsgWithtimeMs)
 		if ok {
+			tx := msgWt.msg
 			scTxID := tx.ScTxID
 			// 本term内已经确定加签失败的交易，下个term再重新发起
 			if IsSignFailed(ts.db, scTxID, ts.currTerm) {
+				bsLogger.Debug("sign failed", "scTxID", scTxID)
 				return true
 			}
 			if ts.HasTxInDB(scTxID) || ts.IsTxInMem(scTxID) {

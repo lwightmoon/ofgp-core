@@ -1,6 +1,7 @@
 package primitives
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io/ioutil"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/ofgp/ofgp-core/crypto"
 	"github.com/ofgp/ofgp-core/dgwdb"
+	"github.com/ofgp/ofgp-core/message"
 	pb "github.com/ofgp/ofgp-core/proto"
 )
 
@@ -118,7 +120,107 @@ func TestWatchedEvent(t *testing.T) {
 	txStore.AddWatchedEvent(event)
 	time.Sleep(1 * time.Millisecond)
 	has := txStore.HasWatchedEvent(event)
-	if !has{
+	if !has {
 		t.Errorf("has watched:%v", has)
+	}
+}
+
+func TestWaitSignMsg(t *testing.T) {
+	event := &pb.WatchedEvent{
+		TxID: "test",
+	}
+	waitSign := &message.WaitSignMsg{
+		Business: "p2p",
+		ScTxID:   "testScTxID",
+		Event:    event,
+		Tx:       &pb.NewlyTx{},
+	}
+	txStore.AddTxtoWaitSign(waitSign)
+	time.Sleep(1 * time.Millisecond)
+	has := txStore.HasWaitSignTx()
+	if !has {
+		t.Error("add wait err")
+	}
+	msgs := txStore.GetWaitingSignTxs()
+	if len(msgs) == 0 {
+		t.Error("get waitSignMsg 0")
+	}
+	for _, msg := range msgs {
+		if msg.ScTxID != "testScTxID" {
+			t.Error("get waitSign tx err")
+		}
+	}
+}
+
+func TestCommited(t *testing.T) {
+	vin1 := []*pb.PublicTx{
+		&pb.PublicTx{
+			TxID: "vin1",
+		},
+	}
+	vout1 := []*pb.PublicTx{
+		&pb.PublicTx{
+			TxID: "vout1",
+		},
+	}
+	tx := &pb.Transaction{
+		Business: "p2p",
+		Vin:      vin1,
+		Vout:     vout1,
+		Time:     time.Now().Unix(),
+		Data:     []byte("test"),
+	}
+	tx.UpdateId()
+	blockPack := &pb.BlockPack{
+		Init: &pb.InitMsg{
+			Height: 1000,
+			Block: &pb.Block{
+				Type: pb.Block_TXS,
+				Txs: []*pb.Transaction{
+					tx,
+				},
+			},
+		},
+	}
+	txStore.OnNewBlockCommitted(blockPack)
+	time.Sleep(20 * time.Millisecond)
+	txID := GetTxIdBySidechainTxId(txStore.db, "vin1")
+	if !bytes.Equal(tx.TxID.Data, txID.Data) {
+		t.Error("commit err")
+	}
+}
+
+func TestAddTxs(t *testing.T) {
+	vin1 := []*pb.PublicTx{
+		&pb.PublicTx{
+			TxID: "vin1",
+		},
+	}
+	vout1 := []*pb.PublicTx{
+		&pb.PublicTx{
+			TxID: "vout1",
+		},
+	}
+	tx := &pb.Transaction{
+		Business: "p2p",
+		Vin:      vin1,
+		Vout:     vout1,
+		Time:     time.Now().Unix(),
+		Data:     []byte("test"),
+	}
+	tx.UpdateId()
+	txs := []*pb.Transaction{
+		tx,
+	}
+	txStore.addTxs(txs)
+	time.Sleep(20 * time.Millisecond)
+	txs = txStore.GetMemTxs()
+	if len(txs) == 0 {
+		t.Error("get txs err")
+	}
+	for _, val := range txs {
+		if !bytes.Equal(val.TxID.Data, tx.TxID.Data) {
+			t.Error("addtxs err")
+		}
 	}
 }
