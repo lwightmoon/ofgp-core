@@ -165,33 +165,35 @@ func makeTxsFetcher() txsFetcher {
 // innerTxStore 存储待打包交易
 type innerTxStore struct {
 	sync.Mutex
-	txs     map[*crypto.Digest256]*txWithTimeMs
-	indexer map[string]*crypto.Digest256
+	txs     map[string]*txWithTimeMs
+	indexer map[string]string
 }
 
 func newInnerTxStore() *innerTxStore {
 	return &innerTxStore{
-		txs:     make(map[*crypto.Digest256]*txWithTimeMs),
-		indexer: make(map[string]*crypto.Digest256),
+		txs:     make(map[string]*txWithTimeMs),
+		indexer: make(map[string]string),
 	}
 }
 func (its *innerTxStore) addTx(tw *txWithTimeMs) {
 	its.Lock()
 	defer its.Unlock()
 	txID := tw.tx.TxID
-	its.txs[txID] = tw
+	key := txID.ToText()
+	its.txs[key] = tw
 
 	for _, ptx := range tw.tx.Vin {
-		its.indexer[ptx.TxID] = txID
+		its.indexer[ptx.TxID] = key
 	}
 	for _, ptx := range tw.tx.Vout {
-		its.indexer[ptx.TxID] = txID
+		its.indexer[ptx.TxID] = key
 	}
 }
 func (its *innerTxStore) getTxByTxID(id *crypto.Digest256) *txWithTimeMs {
 	its.Lock()
 	defer its.Unlock()
-	return its.txs[id]
+	key := id.ToText()
+	return its.txs[key]
 }
 
 func (its *innerTxStore) getByPubTxID(scTxID string) *txWithTimeMs {
@@ -205,8 +207,8 @@ func (its *innerTxStore) getTxs() []*pb.Transaction {
 	txs := make([]*pb.Transaction, 0)
 	its.Lock()
 	defer its.Unlock()
-	for _, tx := range txs {
-		txs = append(txs, tx)
+	for _, tx := range its.txs {
+		txs = append(txs, tx.tx)
 	}
 	return txs
 }
@@ -215,7 +217,8 @@ func (its *innerTxStore) delTx(tx *pb.Transaction) {
 	its.Lock()
 	defer its.Unlock()
 	txID := tx.TxID
-	delete(its.txs, txID)
+	key := txID.ToText()
+	delete(its.txs, key)
 	for _, ptx := range tx.Vin {
 		delete(its.indexer, ptx.TxID)
 	}
@@ -229,10 +232,11 @@ func (its *innerTxStore) hasTimeoutTx(db *dgwdb.LDBDatabase) bool {
 	var innerTxHasOverdue bool
 	its.Lock()
 	defer its.Unlock()
-	for id, txInfo := range its.txs {
+	for k, txInfo := range its.txs {
 		if txInfo.IsOverdue() {
+			id, _ := crypto.TextToDigest256(k)
 			if GetTxLookupEntry(db, id) != nil {
-				delete(its.txs, id)
+				delete(its.txs, k)
 				continue
 			}
 			bsLogger.Error("pack tx timeout")
