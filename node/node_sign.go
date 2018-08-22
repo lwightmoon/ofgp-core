@@ -212,7 +212,7 @@ func (node *BraftNode) doSave(msg *pb.SignResult) {
 
 			ok := watcher.MergeSignTx(newlyTx, sigs)
 			if !ok {
-				leaderLogger.Error("merge sign tx failed", "sctxID", msg.ScTxID)
+				leaderLogger.Error("merge sign tx failed", "business", msg.Business, "sctxID", msg.ScTxID)
 				node.clearOnFail(signReq) //todo merge 失败clearOnFail 处理
 				return
 			}
@@ -226,7 +226,7 @@ func (node *BraftNode) doSave(msg *pb.SignResult) {
 		}
 	} else if cache.getErrCnt() > accuseQuorumN {
 		// 本次交易确认失败，清理缓存的数据，避免干扰后续的重试
-		leaderLogger.Debug("sign accuseQuorumN fail")
+		leaderLogger.Debug("sign accuseQuorumN fail", "business", msg.Business, "scTxID", msg.ScTxID)
 		node.clearOnFail(signReq)
 	}
 }

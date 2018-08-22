@@ -185,6 +185,13 @@ func NewBraftNode(localNodeInfo cluster.NodeInfo) *BraftNode {
 	ts := primitives.NewTxStore(db)
 	bs := primitives.NewBlockStore(db, ts, btcWatcher, bchWatcher, ethWatcher, signer, localNodeInfo.Id)
 
+	var txInvoker *txInvoker
+	if startMode != cluster.ModeWatch && startMode != cluster.ModeTest {
+		ehtOp := newEthOperator(ethWatcher, bs, signer)
+		bchOp := newBchOprator(bchWatcher)
+		btcOp := newBtcOprator(btcWatcher)
+		txInvoker = newTxInvoker(ehtOp, bchOp, btcOp)
+	}
 	//交易相关连接池大小
 	txConnPoolSize := viper.GetInt("DGW.tx_conn_pool_size")
 	if txConnPoolSize == 0 {
@@ -218,6 +225,7 @@ func NewBraftNode(localNodeInfo cluster.NodeInfo) *BraftNode {
 
 		signedResultChan: make(chan *pb.SignResult),
 		pubsub:           newPubServer(1),
+		txInvoker:        txInvoker,
 	}
 	//重新添加监听列表
 	if len(multiSigList) > 0 {

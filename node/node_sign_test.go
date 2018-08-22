@@ -36,6 +36,10 @@ func TestSyncMap(t *testing.T) {
 	})
 }
 
+func TestDoSave(t *testing.T) {
+	
+}
+
 func TestCheckSignTimeout(t *testing.T) {
 	tempDir, err := ioutil.TempDir("", "braft_synced")
 	if err != nil {

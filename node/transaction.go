@@ -20,12 +20,6 @@ type txOperator interface {
 	SendTx(req ISendReq) error
 }
 
-// ethCreater 创建eth交易
-type ethOperator struct {
-	cli    *ew.Client
-	bs     *primitives.BlockStore
-	signer *crypto.SecureSigner
-}
 type AddrInfo struct {
 	Addr   string
 	Amount uint64
@@ -73,6 +67,21 @@ type SendReq struct {
 	Chain string
 	ID    string
 	Tx    *pb.NewlyTx
+}
+
+// ethCreater 创建eth交易
+type ethOperator struct {
+	cli    *ew.Client
+	bs     *primitives.BlockStore
+	signer *crypto.SecureSigner
+}
+
+func newEthOperator(cli *ew.Client, bs *primitives.BlockStore, signer *crypto.SecureSigner) txOperator {
+	return &ethOperator{
+		cli,
+		bs,
+		signer,
+	}
 }
 
 func (eop *ethOperator) CreateTx(req CreateReq) *pb.NewlyTx {
@@ -149,6 +158,12 @@ type btcOprator struct {
 	btcWatcher *btcwatcher.MortgageWatcher
 }
 
+func newBtcOprator(watcher *btcwatcher.MortgageWatcher) txOperator {
+	return &btcOprator{
+		btcWatcher: watcher,
+	}
+}
+
 func (btcOP *btcOprator) CreateTx(req CreateReq) *pb.NewlyTx {
 	return createCoinTx(btcOP.btcWatcher, nil, req.GetFee(), req.GetID())
 }
@@ -160,6 +175,12 @@ func (btcOP *btcOprator) SendTx(req ISendReq) error {
 
 type bchOprator struct {
 	bchWatcher *btcwatcher.MortgageWatcher
+}
+
+func newBchOprator(watcher *btcwatcher.MortgageWatcher) txOperator {
+	return &bchOprator{
+		bchWatcher: watcher,
+	}
 }
 
 func (bchOP *bchOprator) CreateTx(req CreateReq) *pb.NewlyTx {
@@ -178,11 +199,19 @@ type txInvoker struct {
 	btcOp txOperator
 }
 
+func newTxInvoker(ethOp, bchOp, btcOp txOperator) *txInvoker {
+	return &txInvoker{
+		ethOp: ethOp,
+		bchOp: bchOp,
+		btcOp: btcOp,
+	}
+}
+
 func (ti *txInvoker) CreateTx(req CreateReq) *pb.NewlyTx {
 	var newTx *pb.NewlyTx
 	switch req.GetChain() {
 	case message.Bch:
-		newTx = ti.ethOp.CreateTx(req)
+		newTx = ti.bchOp.CreateTx(req)
 	case message.Eth:
 		newTx = ti.ethOp.CreateTx(req)
 	case message.Btc:
@@ -194,7 +223,7 @@ func (ti *txInvoker) CreateTx(req CreateReq) *pb.NewlyTx {
 func (ti *txInvoker) SendTx(req ISendReq) {
 	switch req.GetChain() {
 	case message.Bch:
-		ti.ethOp.SendTx(req)
+		ti.bchOp.SendTx(req)
 	case message.Eth:
 		ti.ethOp.SendTx(req)
 	case message.Btc:
