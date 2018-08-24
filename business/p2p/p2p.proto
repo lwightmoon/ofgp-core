@@ -23,6 +23,7 @@ message p2pTx{
     bytes seq_id = 1;
     p2pInfo initiator = 2;
     p2pInfo matcher = 3;
+    bool finished = 4;
 }
 
 message p2pConfirmMsg{

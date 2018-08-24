@@ -85,6 +85,20 @@ func (msg *p2pMsg) Decode(data []byte) {
 	msg.SeqID = seqID
 }
 
+func (msg *p2pMsg) Encode() []byte {
+	buf := &bytes.Buffer{}
+	binary.Write(buf, binary.BigEndian, msg.Opration)
+	binary.Write(buf, binary.BigEndian, msg.SendAddr)
+	binary.Write(buf, binary.BigEndian, msg.ReceiveAddr)
+	binary.Write(buf, binary.BigEndian, msg.Chain)
+	binary.Write(buf, binary.BigEndian, msg.TokenID)
+	binary.Write(buf, binary.BigEndian, msg.Amount)
+	binary.Write(buf, binary.BigEndian, msg.Fee)
+	binary.Write(buf, binary.BigEndian, msg.ExpiredTime)
+	binary.Write(buf, binary.BigEndian, msg.SeqID)
+	return buf.Bytes()
+}
+
 //GetEventtype()==1 被确认
 type p2pMsgConfirmed struct {
 	Opration  uint8  //2 交易被确认 3 交易回退

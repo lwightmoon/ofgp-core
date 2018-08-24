@@ -64,6 +64,7 @@ type watchedHandler struct {
 // signTx 签名交易
 func (wh *watchedHandler) sendToSignTx(tx *P2PTx, seqID []byte) {
 	wh.db.setP2PTx(tx, seqID)
+	//todo 创建交易，并交给网关签名
 	p2pLogger.Debug("create tx and send to sign")
 }
 func (wh *watchedHandler) HandleEvent(event node.BusinessEvent) {
@@ -91,14 +92,20 @@ func (wh *watchedHandler) HandleEvent(event node.BusinessEvent) {
 				}
 				tx.AddInfo(p2pInfo)
 				wh.db.setP2PTx(tx, seqID)
-			} else { //match tx
+			} else if !tx.Finished { //match tx
 				tx.AddInfo(p2pInfo)
+				tx.SetFinished()
 				wh.sendToSignTx(tx, seqID)
+			} else {
+				p2pLogger.Debug("already finished")
 			}
 			wh.Unlock()
-		} else { //match tx
+		} else if !tx.Finished { //match tx
 			tx.AddInfo(p2pInfo)
+			tx.SetFinished()
 			wh.sendToSignTx(tx, seqID)
+		} else {
+			p2pLogger.Debug("already finished")
 		}
 		p2pLogger.Info("handle watched", "scTxID", event.GetTxID())
 
@@ -121,6 +128,7 @@ func (sh *sigenedHandler) HandleEvent(event node.BusinessEvent) {
 			return
 		}
 		p2pLogger.Debug("receive signedData", "scTxID", signedData.ID)
+		//todo 发送交易
 		p2pLogger.Debug("------sendTx")
 
 	} else if sh.Successor != nil {

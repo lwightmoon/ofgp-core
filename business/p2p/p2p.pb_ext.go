@@ -8,7 +8,9 @@ func (tx *P2PTx) AddInfo(info *P2PInfo) {
 		tx.Matcher = info
 	}
 }
-
+func (tx *P2PTx) SetFinished() {
+	tx.Finished = true
+}
 func (info *P2PInfo) GetScTxID() string {
 	return info.Event.GetTxID()
 }

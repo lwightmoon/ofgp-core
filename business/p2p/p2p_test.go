@@ -4,10 +4,12 @@ import (
 	"io/ioutil"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/ofgp/ofgp-core/cluster"
 	"github.com/ofgp/ofgp-core/dgwdb"
 	"github.com/ofgp/ofgp-core/node"
+	pb "github.com/ofgp/ofgp-core/proto"
 	"github.com/spf13/viper"
 )
 
@@ -70,8 +72,9 @@ func TestMain(m *testing.M) {
 	code := m.Run()
 	defer os.Exit(code)
 }
-func TestProcess(t *testing.T) {
+func TestProcessEmpty(t *testing.T) {
 	_, noderun := node.RunNew(0, nil)
+	defer noderun.Stop()
 	p2p := NewP2P(noderun, p2pDB)
 	go func() {
 		p2p.ch <- &node.WatchedEvent{}
@@ -83,9 +86,52 @@ func TestProcess(t *testing.T) {
 	p2p.processEvent()
 }
 
-func TestEmpty(t *testing.T) {
-	event := &node.CommitedEvent{}
-	data := event.GetData()
-	t.Errorf("data is:%v", data == nil)
-	t.Errorf("-data is:%v", event.Data == nil)
+func TestProcessMatch(t *testing.T) {
+	_, noderun := node.RunNew(0, nil)
+	defer noderun.Stop()
+	p2p := NewP2P(noderun, p2pDB)
+	initalEvent := &node.WatchedEvent{}
+	initialData := &p2pMsg{
+		Opration:    0,
+		SendAddr:    getBytes(20),
+		ReceiveAddr: getBytes(20),
+		Chain:       1,
+		TokenID:     1,
+		Amount:      64,
+		Fee:         1,
+		ExpiredTime: uint32(time.Now().Unix()),
+		SeqID:       getBytes(32),
+	}
+	initalEvent.Business = "p2p"
+	initalEvent.Data = &pb.WatchedEvent{
+		Business: "p2p",
+		TxID:     "initial",
+		Data:     initialData.Encode(),
+	}
+
+	//matchEvent
+	matchEvent := &node.WatchedEvent{}
+	matchEvent.Business = "p2p"
+	matchData := &p2pMsg{
+		Opration:    0,
+		SendAddr:    getBytes(20),
+		ReceiveAddr: getBytes(20),
+		Chain:       2,
+		TokenID:     2,
+		Amount:      46,
+		Fee:         1,
+		ExpiredTime: uint32(time.Now().Unix()),
+		SeqID:       getBytes(32),
+	}
+	matchEvent.Data = &pb.WatchedEvent{
+		Business: "p2p",
+		Data:     matchData.Encode(),
+	}
+	go func() {
+		p2p.ch <- initalEvent
+		p2p.ch <- matchEvent
+		p2p.ch <- matchEvent
+		close(p2p.ch)
+	}()
+	p2p.processEvent()
 }
