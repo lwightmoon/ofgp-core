@@ -39,5 +39,5 @@ func TestDecode(t *testing.T) {
 	buf.Write(data)
 	msg := &p2pMsg{}
 	msg.Decode(buf.Bytes())
-	t.Logf("fee:%v,txID:%v", msg.Fee, msg.TxID)
+	t.Logf("fee:%v", msg.Fee)
 }

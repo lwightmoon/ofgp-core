@@ -77,7 +77,7 @@ func (msg *p2pMsg) Decode(data []byte) {
 //GetEventtype()==1 被确认
 type p2pMsgConfirmed struct {
 	Opration  uint8  //2 交易被确认 3 交易回退
-	ID        []byte //交易标识 32
+	ID        []byte //交易标识 32 对应watchedEvent的txID
 	Chain     uint8  //所在链
 	Confirms  uint8  //确认数
 	Height    uint64 //所在区块高度
