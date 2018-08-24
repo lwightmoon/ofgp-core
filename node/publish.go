@@ -22,7 +22,7 @@ func (bn *BraftNode) pubCommit(blockPack *pb.BlockPack) {
 
 //noticeSigned 通知已签名
 func (bn *BraftNode) pubSigned(msg *pb.SignResult, chain uint32, newTx *wire.MsgTx) {
-	signedData := SignedData{
+	signedData := &SignedData{
 		Chain: chain,
 		ID:    msg.ScTxID,
 		TxID:  msg.ScTxID,

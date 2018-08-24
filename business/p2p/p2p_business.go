@@ -1,6 +1,7 @@
 package p2p
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/ofgp/ofgp-core/log"
@@ -67,10 +68,13 @@ func (wh *watchedHandler) sendToSignTx(tx *P2PTx, seqID []byte) {
 }
 func (wh *watchedHandler) HandleEvent(event node.BusinessEvent) {
 	if watchedEvent, ok := event.(*node.WatchedEvent); ok {
-		data := watchedEvent.GetData()
-		event := data.(*pb.WatchedEvent)
+		event := watchedEvent.GetData()
+		if event == nil {
+			p2pLogger.Error("data is nil", "business", watchedEvent.GetBusiness())
+			return
+		}
 		msg := &p2pMsg{}
-		msg.Decode(event.Data)
+		msg.Decode(event.GetData())
 		p2pMsg := msg.toPBMsg()
 		seqID := msg.SeqID
 
@@ -111,8 +115,11 @@ type sigenedHandler struct {
 func (sh *sigenedHandler) HandleEvent(event node.BusinessEvent) {
 	if signedEvent, ok := event.(*node.SignedEvent); ok {
 		p2pLogger.Info("handle signed")
-		data := signedEvent.GetData()
-		signedData := data.(node.SignedData)
+		signedData := signedEvent.GetData()
+		if signedData == nil {
+			p2pLogger.Error("signed data is nil")
+			return
+		}
 		p2pLogger.Debug("receive signedData", "scTxID", signedData.ID)
 		p2pLogger.Debug("------sendTx")
 
@@ -148,48 +155,47 @@ func (handler *confirmHandler) commitTx(seqID []byte) {
 func (handler *confirmHandler) HandleEvent(event node.BusinessEvent) {
 	if confirmedEvent, ok := event.(*node.ConfirmEvent); ok {
 
-		data := confirmedEvent.GetData()
-		event, ok := data.(*pb.WatchedEvent)
-		if ok {
-			msg := &p2pMsgConfirmed{}
-			msg.Decode(event.GetData())
-			pbMsg := msg.toPBMsg()
-			seqID := handler.db.getTxSeqID(pbMsg.Id)
-			if msg.Opration == confirmed { //确认交易 需要等待发起和匹配交易确认
-				p2pLogger.Info("handle confirm", "scTxID", pbMsg.Id)
-				watchedP2PTx := handler.db.getP2PTx(seqID)
-				if seqID == nil || len(seqID) == 0 {
-					p2pLogger.Error("receive msg haven'n received", "scTxID", pbMsg.Id)
-					return
-				}
-				newTx := handler.db.getP2pNewTx(seqID)
-				if newTx == nil { //set confirm
-					handler.Lock()
-					if newTx = handler.db.getP2pNewTx(seqID); newTx == nil {
-						newTx.SeqId = seqID
-						confirmInfo := &P2PConfirmInfo{
-							Event: event,
-							Msg:   pbMsg,
-						}
-						if pbMsg.Id == watchedP2PTx.Initiator.GetScTxID() {
-							newTx.Initiator = confirmInfo
-						} else {
-							newTx.Matcher = confirmInfo
-						}
-						handler.db.setP2PNewTx(newTx, seqID)
-					} else { //commit
-						handler.commitTx(seqID)
+		event := confirmedEvent.GetData()
+		if event == nil {
+			p2pLogger.Error("confirm data is nil")
+			return
+		}
+
+		msg := &p2pMsgConfirmed{}
+		msg.Decode(event.GetData())
+		pbMsg := msg.toPBMsg()
+		seqID := handler.db.getTxSeqID(pbMsg.Id)
+		if msg.Opration == confirmed { //确认交易 需要等待发起和匹配交易确认
+			p2pLogger.Info("handle confirm", "scTxID", pbMsg.Id)
+			watchedP2PTx := handler.db.getP2PTx(seqID)
+			if seqID == nil || len(seqID) == 0 {
+				p2pLogger.Error("receive msg haven'n received", "scTxID", pbMsg.Id)
+				return
+			}
+			newTx := handler.db.getP2pNewTx(seqID)
+			if newTx == nil { //set confirm
+				handler.Lock()
+				if newTx = handler.db.getP2pNewTx(seqID); newTx == nil {
+					newTx.SeqId = seqID
+					confirmInfo := &P2PConfirmInfo{
+						Event: event,
+						Msg:   pbMsg,
 					}
-					handler.Unlock()
+					if pbMsg.Id == watchedP2PTx.Initiator.GetScTxID() {
+						newTx.Initiator = confirmInfo
+					} else {
+						newTx.Matcher = confirmInfo
+					}
+					handler.db.setP2PNewTx(newTx, seqID)
 				} else { //commit
 					handler.commitTx(seqID)
 				}
-			} else { //回退交易
-
+				handler.Unlock()
+			} else { //commit
+				handler.commitTx(seqID)
 			}
+		} else { //回退交易
 
-		} else {
-			p2pLogger.Error("asset err confirm event")
 		}
 
 	} else if handler.Successor != nil {
@@ -203,10 +209,14 @@ type commitHandler struct {
 
 func (ch *commitHandler) HandleEvent(event node.BusinessEvent) {
 	if val, ok := event.(*node.CommitedEvent); ok {
-		data := val.GetData()
-		commitedData := data.(*node.CommitedData)
+		commitedData := val.GetData()
+		if commitedData == nil {
+			p2pLogger.Error("commit data is nil")
+			return
+		}
+		fmt.Printf("commitdata:%v", commitedData)
 		p2pLogger.Info("handle Commited", "innerTxID", commitedData.TxID.ToText())
 	} else {
-		p2pLogger.Error("could not handle event", "event", event.GetData())
+		p2pLogger.Error("could not handle event")
 	}
 }

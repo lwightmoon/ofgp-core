@@ -54,22 +54,25 @@ func initCuster(tmpDir string) {
 var p2pDB *p2pdb
 
 func TestMain(m *testing.M) {
-	tmpDir, err := ioutil.TempDir("", "braft")
+	tmpDir, err := ioutil.TempDir("", "p2p")
 	if err != nil {
 		panic("create tempdir failed")
 	}
-	initCuster(tmpDir)
+	//create p2pdb
 	db, _ := dgwdb.NewLDBDatabase(tmpDir, 1, 1)
 	p2pDB = &p2pdb{
 		db: db,
 	}
+	nodeDir, _ := ioutil.TempDir("", "braft")
+	initCuster(nodeDir)
+	defer os.RemoveAll(nodeDir)
 	defer os.RemoveAll(tmpDir)
 	code := m.Run()
-	os.Exit(code)
+	defer os.Exit(code)
 }
 func TestProcess(t *testing.T) {
 	_, noderun := node.RunNew(0, nil)
-	p2p := NewP2P(noderun)
+	p2p := NewP2P(noderun, p2pDB)
 	go func() {
 		p2p.ch <- &node.WatchedEvent{}
 		p2p.ch <- &node.SignedEvent{}
@@ -78,4 +81,11 @@ func TestProcess(t *testing.T) {
 		close(p2p.ch)
 	}()
 	p2p.processEvent()
+}
+
+func TestEmpty(t *testing.T) {
+	event := &node.CommitedEvent{}
+	data := event.GetData()
+	t.Errorf("data is:%v", data == nil)
+	t.Errorf("-data is:%v", event.Data == nil)
 }

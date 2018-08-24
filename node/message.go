@@ -3,6 +3,7 @@ package node
 import (
 	"github.com/btcsuite/btcd/wire"
 	"github.com/ofgp/ofgp-core/crypto"
+	pb "github.com/ofgp/ofgp-core/proto"
 )
 
 //watcher交互event
@@ -20,32 +21,51 @@ type PushEvent interface {
 // BusinessEvent 业务交互event
 type BusinessEvent interface {
 	GetBusiness() string
-	GetData() interface{}
 	GetErr() error
+}
+
+type BaseBusinessEvent struct {
+	Business string
+	Err      error
+}
+
+func (e *BaseBusinessEvent) GetBusiness() string {
+	return e.Business
+}
+func (e *BaseBusinessEvent) GetErr() error {
+	return e.Err
 }
 
 // WatchedEvent 交易被监听到
 type WatchedEvent struct {
-	business string
-	data     PushEvent
-	err      error
+	BaseBusinessEvent
+	Data *pb.WatchedEvent
+}
+
+func getWatchedEvent(event PushEvent) *pb.WatchedEvent {
+	return &pb.WatchedEvent{
+		Business:  event.GetBusiness(),
+		EventType: event.GetEventType(),
+		TxID:      event.GetTxID(),
+		Amount:    uint32(event.GetAmount()),
+		Fee:       uint32(event.GetFee()),
+		From:      uint32(event.GetFrom()),
+		To:        uint32(event.GetTo()),
+		Data:      event.GetData(),
+	}
 }
 
 func newWatchedEvent(event PushEvent) *WatchedEvent {
-	return &WatchedEvent{
-		business: event.GetBusiness(),
-		data:     event,
-		err:      nil,
-	}
+	res := &WatchedEvent{}
+	res.Business = event.GetBusiness()
+	res.Err = nil
+	data := getWatchedEvent(event)
+	res.Data = data
+	return res
 }
-func (we *WatchedEvent) GetBusiness() string {
-	return we.business
-}
-func (we *WatchedEvent) GetData() interface{} {
-	return we.data
-}
-func (we *WatchedEvent) GetErr() error {
-	return we.err
+
+func (we *WatchedEvent) GetData() *pb.WatchedEvent {
+	return we.Data
 }
 
 //SignedData 签名数据
@@ -56,52 +76,38 @@ type SignedData struct {
 	Data  *wire.MsgTx //签名后数据
 }
 type SignedEvent struct {
-	business string
-	data     SignedData
-	err      error //1、节点正在同步数据 2、签名失败
+	BaseBusinessEvent
+	Data *SignedData
 }
 
-func newSignedEvent(business string, data SignedData, err error) *SignedEvent {
-	return &SignedEvent{
-		business,
-		data,
-		err,
-	}
+func newSignedEvent(business string, data *SignedData, err error) *SignedEvent {
+	res := &SignedEvent{}
+	res.Business = business
+	res.Data = data
+	res.Err = err
+	return res
 }
 
-func (se *SignedEvent) GetBusiness() string {
-	return se.business
-}
-func (se *SignedEvent) GetData() interface{} {
-	return se.data
-}
-func (se *SignedEvent) GetErr() error {
-	return se.err
+func (se *SignedEvent) GetData() *SignedData {
+	return se.Data
 }
 
 // 交易已确认
 type ConfirmEvent struct {
-	business string
-	data     PushEvent
-	err      error //等待交易确认超时
+	BaseBusinessEvent
+	Data *pb.WatchedEvent
 }
 
 func newConfirmEvent(event PushEvent) *ConfirmEvent {
-	return &ConfirmEvent{
-		business: event.GetBusiness(),
-		data:     event,
-		err:      nil,
-	}
+	res := &ConfirmEvent{}
+	res.Business = event.GetBusiness()
+	data := getWatchedEvent(event)
+	res.Data = data
+	return res
 }
 
-func (ce *ConfirmEvent) GetBusiness() string {
-	return ce.business
-}
-func (ce *ConfirmEvent) GetData() interface{} {
-	return ce.data
-}
-func (ce *ConfirmEvent) GetErr() error {
-	return ce.err
+func (ce *ConfirmEvent) GetData() *pb.WatchedEvent {
+	return ce.Data
 }
 
 type CommitedData struct {
@@ -112,25 +118,18 @@ type CommitedData struct {
 
 // CommitedEvent 交易被提交
 type CommitedEvent struct {
-	business string
-	data     *CommitedData
-	err      error
+	BaseBusinessEvent
+	Data *CommitedData
 }
 
 func newCommitedEvent(business string, data *CommitedData, err error) *CommitedEvent {
-	return &CommitedEvent{
-		business: business,
-		data:     data,
-		err:      err,
-	}
+	res := &CommitedEvent{}
+	res.Business = business
+	res.Data = data
+	res.Err = err
+	return res
 }
 
-func (ce *CommitedEvent) GetBusiness() string {
-	return ce.business
-}
-func (ce *CommitedEvent) GetData() interface{} {
-	return ce.data
-}
-func (ce *CommitedEvent) GetErr() error {
-	return ce.err
+func (ce *CommitedEvent) GetData() *CommitedData {
+	return ce.Data
 }
