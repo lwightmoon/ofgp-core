@@ -3,6 +3,7 @@ package p2p
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
 	"io"
 )
 
@@ -53,8 +54,18 @@ type p2pMsg struct {
 	SeqID       []byte //exchange id 32
 }
 
-func (msg *p2pMsg) toInfo() *P2PInfo {
-	return &P2PInfo{}
+func (msg *p2pMsg) toPBMsg() *P2PMsg {
+	return &P2PMsg{
+		Operation:   uint32(msg.Opration),
+		SendAddr:    hex.EncodeToString(msg.SendAddr),
+		ReceiveAddr: hex.EncodeToString(msg.ReceiveAddr),
+		Chain:       uint32(msg.Chain),
+		TokenId:     uint32(msg.TokenID),
+		Amount:      msg.Amount,
+		Fee:         msg.Fee,
+		ExpiredTime: msg.ExpiredTime,
+		SeqId:       msg.SeqID,
+	}
 }
 
 func (msg *p2pMsg) Decode(data []byte) {
@@ -88,7 +99,15 @@ type p2pMsgConfirmed struct {
 
 // toPBMsg 转为pb数据结构 序列化
 func (msg *p2pMsgConfirmed) toPBMsg() *P2PConfirmMsg {
-	return &P2PConfirmMsg{}
+	return &P2PConfirmMsg{
+		Opration:  uint32(msg.Opration),
+		Id:        hex.EncodeToString(msg.ID),
+		Chain:     uint32(msg.Chain),
+		Height:    msg.Height,
+		BlockHash: hex.EncodeToString(msg.BlockHash),
+		Amount:    msg.Amount,
+		Fee:       msg.Fee,
+	}
 }
 
 func (msg *p2pMsgConfirmed) Decode(data []byte) {

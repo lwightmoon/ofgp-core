@@ -21,7 +21,7 @@ type P2P struct {
 
 const businessName = "p2p"
 
-func NewP2P(node *node.BraftNode) *P2P {
+func NewP2P(node *node.BraftNode, db *p2pdb) *P2P {
 	p2p := &P2P{
 		node: node,
 	}
@@ -30,10 +30,16 @@ func NewP2P(node *node.BraftNode) *P2P {
 	p2p.ch = ch
 
 	//初始化处理链
-	wh := new(watchedHandler)
-	sh := new(sigenedHandler)
-	confirmH := new(confirmHandler)
-	commitH := new(commitHandler)
+	wh := &watchedHandler{
+		db:   db,
+		node: node,
+	}
+	sh := &sigenedHandler{}
+	confirmH := &confirmHandler{
+		db:   db,
+		node: node,
+	}
+	commitH := &commitHandler{}
 	wh.SetSuccessor(sh)
 	sh.SetSuccessor(confirmH)
 	confirmH.SetSuccessor(commitH)
@@ -65,24 +71,29 @@ func (wh *watchedHandler) HandleEvent(event node.BusinessEvent) {
 		event := data.(*pb.WatchedEvent)
 		msg := &p2pMsg{}
 		msg.Decode(event.Data)
-		info := msg.toInfo()
+		p2pMsg := msg.toPBMsg()
 		seqID := msg.SeqID
+
+		p2pInfo := &P2PInfo{
+			Event: event,
+			Msg:   p2pMsg,
+		}
 		if tx := wh.db.getP2PTx(seqID); tx == nil {
 			wh.Lock()
 			tx = wh.db.getP2PTx(seqID)
 			if tx == nil {
-				tx := &P2PTx{
+				tx = &P2PTx{
 					SeqId: seqID,
 				}
-				tx.AddInfo(info)
+				tx.AddInfo(p2pInfo)
 				wh.db.setP2PTx(tx, seqID)
 			} else { //match tx
-				tx.AddInfo(info)
+				tx.AddInfo(p2pInfo)
 				wh.sendToSignTx(tx, seqID)
 			}
 			wh.Unlock()
 		} else { //match tx
-			tx.AddInfo(info)
+			tx.AddInfo(p2pInfo)
 			wh.sendToSignTx(tx, seqID)
 		}
 		p2pLogger.Info("handle watched", "scTxID", event.GetTxID())
