@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ofgp/ofgp-core/cluster"
+	"github.com/ofgp/ofgp-core/dgwdb"
 	"github.com/ofgp/ofgp-core/node"
 	"github.com/spf13/viper"
 )
@@ -50,12 +51,18 @@ func initCuster(tmpDir string) {
 	cluster.Init()
 }
 
+var p2pDB *p2pdb
+
 func TestMain(m *testing.M) {
 	tmpDir, err := ioutil.TempDir("", "braft")
 	if err != nil {
 		panic("create tempdir failed")
 	}
 	initCuster(tmpDir)
+	db, _ := dgwdb.NewLDBDatabase(tmpDir, 1, 1)
+	p2pDB = &p2pdb{
+		db: db,
+	}
 	defer os.RemoveAll(tmpDir)
 	code := m.Run()
 	os.Exit(code)
