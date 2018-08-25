@@ -47,4 +47,5 @@ message p2pNewTx{
     bytes seq_id =1;
     p2pConfirmInfo initiator = 2;
     p2pConfirmInfo matcher = 3;
+    bool finished = 4;
 }

@@ -137,3 +137,16 @@ func (msg *p2pMsgConfirmed) Decode(data []byte) {
 	readInt(r, &msg.Amount)
 	readInt(r, &msg.Fee)
 }
+
+func (msg *p2pMsgConfirmed) Encode() []byte {
+	buf := &bytes.Buffer{}
+	binary.Write(buf, binary.BigEndian, msg.Opration)
+	binary.Write(buf, binary.BigEndian, msg.ID)
+	binary.Write(buf, binary.BigEndian, msg.Chain)
+	binary.Write(buf, binary.BigEndian, msg.Confirms)
+	binary.Write(buf, binary.BigEndian, msg.Height)
+	binary.Write(buf, binary.BigEndian, msg.BlockHash)
+	binary.Write(buf, binary.BigEndian, msg.Amount)
+	binary.Write(buf, binary.BigEndian, msg.Fee)
+	return buf.Bytes()
+}

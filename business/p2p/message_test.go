@@ -67,3 +67,21 @@ func TestEncode(t *testing.T) {
 	msg2.Decode(data)
 	t.Logf("data:%d", msg2.Amount)
 }
+
+func TestConfirmEncode(t *testing.T) {
+	msg := &p2pMsgConfirmed{
+		Opration:  2,
+		ID:        getBytes(32),
+		Chain:     1,
+		Confirms:  7,
+		Height:    10,
+		BlockHash: getBytes(32),
+		Amount:    1024,
+		Fee:       1,
+	}
+	data := msg.Encode()
+	msg1 := &p2pMsgConfirmed{}
+	msg1.Decode(data)
+	t.Logf("data:%d", msg1.Amount)
+
+}

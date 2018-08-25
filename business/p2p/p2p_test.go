@@ -1,6 +1,7 @@
 package p2p
 
 import (
+	"encoding/hex"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -91,6 +92,7 @@ func TestProcessMatch(t *testing.T) {
 	defer noderun.Stop()
 	p2p := NewP2P(noderun, p2pDB)
 	initalEvent := &node.WatchedEvent{}
+	seqID := getBytes(32)
 	initialData := &p2pMsg{
 		Opration:    0,
 		SendAddr:    getBytes(20),
@@ -100,12 +102,13 @@ func TestProcessMatch(t *testing.T) {
 		Amount:      64,
 		Fee:         1,
 		ExpiredTime: uint32(time.Now().Unix()),
-		SeqID:       getBytes(32),
+		SeqID:       seqID,
 	}
 	initalEvent.Business = "p2p"
+	txidInit := hex.EncodeToString(getBytes(32))
 	initalEvent.Data = &pb.WatchedEvent{
 		Business: "p2p",
-		TxID:     "initial",
+		TxID:     txidInit,
 		Data:     initialData.Encode(),
 	}
 
@@ -113,7 +116,7 @@ func TestProcessMatch(t *testing.T) {
 	matchEvent := &node.WatchedEvent{}
 	matchEvent.Business = "p2p"
 	matchData := &p2pMsg{
-		Opration:    0,
+		Opration:    1,
 		SendAddr:    getBytes(20),
 		ReceiveAddr: getBytes(20),
 		Chain:       2,
@@ -121,16 +124,62 @@ func TestProcessMatch(t *testing.T) {
 		Amount:      46,
 		Fee:         1,
 		ExpiredTime: uint32(time.Now().Unix()),
-		SeqID:       getBytes(32),
+		SeqID:       seqID,
 	}
+	temp := getBytes(32)
+	temp[0] = byte(2)
+	txidMatch := hex.EncodeToString(temp)
 	matchEvent.Data = &pb.WatchedEvent{
 		Business: "p2p",
+		TxID:     txidMatch,
 		Data:     matchData.Encode(),
 	}
+
+	//do confirm
+	initalEventConfirm := &node.ConfirmEvent{}
+	id1, _ := hex.DecodeString(txidInit)
+	initialDataConfirm := &p2pMsgConfirmed{
+		Opration:  2,
+		ID:        id1,
+		Chain:     1,
+		Confirms:  7,
+		Height:    10,
+		BlockHash: getBytes(32),
+		Amount:    1024,
+		Fee:       1,
+	}
+	initalEventConfirm.Business = "p2p"
+	initalEventConfirm.Data = &pb.WatchedEvent{
+		Business: "p2p",
+		TxID:     "initialNew",
+		Data:     initialDataConfirm.Encode(),
+	}
+
+	matchEventConfirm := &node.ConfirmEvent{}
+	matchEventConfirm.Business = "p2p"
+	id2, _ := hex.DecodeString(txidMatch)
+	matchDataConfirm := &p2pMsgConfirmed{
+		Opration:  2,
+		ID:        id2,
+		Chain:     2,
+		Confirms:  7,
+		Height:    10,
+		BlockHash: getBytes(32),
+		Amount:    1024,
+		Fee:       1,
+	}
+	matchEventConfirm.Data = &pb.WatchedEvent{
+		TxID:     "matchNew",
+		Business: "p2p",
+		Data:     matchDataConfirm.Encode(),
+	}
+
 	go func() {
 		p2p.ch <- initalEvent
 		p2p.ch <- matchEvent
-		p2p.ch <- matchEvent
+		// p2p.ch <- matchEvent
+		p2p.ch <- initalEventConfirm
+		p2p.ch <- matchEventConfirm
 		close(p2p.ch)
 	}()
 	p2p.processEvent()
