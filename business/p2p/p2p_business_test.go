@@ -2,6 +2,7 @@ package p2p
 
 import (
 	"encoding/hex"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -183,4 +184,36 @@ func TestProcessMatch(t *testing.T) {
 		close(p2p.ch)
 	}()
 	p2p.processEvent()
+}
+
+func TestCreateDgw(t *testing.T) {
+	preTx := &P2PTx{
+		SeqId: []byte("test"),
+		Initiator: &P2PInfo{
+			Event: &pb.WatchedEvent{
+				TxID: "preInit",
+			},
+		},
+		Matcher: &P2PInfo{
+			Event: &pb.WatchedEvent{
+				TxID: "match",
+			},
+		},
+	}
+	tx := &P2PNewTx{
+		SeqId: []byte("test"),
+		Initiator: &P2PConfirmInfo{
+			Event: &pb.WatchedEvent{
+				TxID: "nowInit",
+			},
+		},
+		Matcher: &P2PConfirmInfo{
+			Event: &pb.WatchedEvent{
+				TxID: "nowMatch",
+			},
+		},
+	}
+	innerTx := createDGWTx("test", preTx, tx)
+	fmt.Printf("preInit:%s,preMatch:%s", innerTx.Vin[0].TxID, innerTx.Vin[1].TxID)
+	fmt.Printf("nowInit:%s,nowMatch:%s", innerTx.Vout[0].TxID, innerTx.Vout[1].TxID)
 }

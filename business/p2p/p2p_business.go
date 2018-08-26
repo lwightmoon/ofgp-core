@@ -208,7 +208,7 @@ func getVout(p2pTx *P2PNewTx) []*pb.PublicTx {
 // createDGWTx 创建网关交易
 func createDGWTx(business string, p2pTx *P2PTx, p2pNewTx *P2PNewTx) *pb.Transaction {
 	tx := &pb.Transaction{
-		Business: "",
+		Business: business,
 		Vin:      getVin(p2pTx),
 		Vout:     getVout(p2pNewTx),
 		Time:     time.Now().Unix(),
