@@ -3,6 +3,7 @@ package p2p
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/ofgp/ofgp-core/log"
 
@@ -145,9 +146,73 @@ type confirmHandler struct {
 	node *node.BraftNode
 }
 
+func getPubTxFromInfo(info *P2PInfo) *pb.PublicTx {
+	if info == nil {
+		return nil
+	}
+	event := info.GetEvent()
+	pubTx := &pb.PublicTx{
+		Chain:  event.GetFrom(),
+		TxID:   event.GetTxID(),
+		Amount: int64(event.GetAmount()),
+		Data:   event.GetData(),
+	}
+	return pubTx
+}
+func getVin(p2pTx *P2PTx) []*pb.PublicTx {
+	if p2pTx == nil {
+		return nil
+	}
+	pubtxs := make([]*pb.PublicTx, 0)
+	pubtx := getPubTxFromInfo(p2pTx.Initiator)
+	if pubtx != nil {
+		pubtxs = append(pubtxs, pubtx)
+	}
+	pubtx = getPubTxFromInfo(p2pTx.Matcher)
+	if pubtx != nil {
+		pubtxs = append(pubtxs, pubtx)
+	}
+	return pubtxs
+}
+
+func getPubTxFromConfirmInfo(info *P2PConfirmInfo) *pb.PublicTx {
+	if info == nil {
+		return nil
+	}
+	event := info.GetEvent()
+	pubTx := &pb.PublicTx{
+		Chain:  event.GetFrom(),
+		TxID:   event.GetTxID(),
+		Amount: int64(event.GetAmount()),
+		Data:   event.GetData(),
+	}
+	return pubTx
+}
+
+func getVout(p2pTx *P2PNewTx) []*pb.PublicTx {
+	if p2pTx == nil {
+		return nil
+	}
+	pubtxs := make([]*pb.PublicTx, 0)
+	pubtx := getPubTxFromConfirmInfo(p2pTx.Initiator)
+	if pubtx != nil {
+		pubtxs = append(pubtxs, pubtx)
+	}
+	pubtx = getPubTxFromConfirmInfo(p2pTx.Matcher)
+	if pubtx != nil {
+		pubtxs = append(pubtxs, pubtx)
+	}
+	return pubtxs
+}
+
 // createDGWTx 创建网关交易
-func createDGWTx(p2pTx *P2PTx, p2pNewTx *P2PNewTx) *pb.Transaction {
-	tx := &pb.Transaction{}
+func createDGWTx(business string, p2pTx *P2PTx, p2pNewTx *P2PNewTx) *pb.Transaction {
+	tx := &pb.Transaction{
+		Business: "",
+		Vin:      getVin(p2pTx),
+		Vout:     getVout(p2pNewTx),
+		Time:     time.Now().Unix(),
+	}
 	tx.UpdateId()
 	return tx
 }
@@ -155,12 +220,19 @@ func createDGWTx(p2pTx *P2PTx, p2pNewTx *P2PNewTx) *pb.Transaction {
 // commitTx commit点对点交易
 func (handler *confirmHandler) commitTx(business string, p2pNewTx *P2PNewTx, seqID []byte) {
 	p2pTx := handler.db.getP2PTx(seqID)
-	dgwTx := createDGWTx(p2pTx, p2pNewTx)
+	dgwTx := createDGWTx(business, p2pTx, p2pNewTx)
 	p2pLogger.Debug("commit innter tx", "innerTxID", dgwTx.TxID.ToText(), "initial", p2pTx.Initiator.GetScTxID(), "matched", p2pTx.Matcher.GetScTxID(),
 		"initial_new", p2pNewTx.Initiator.GetTxID(), "match_new", p2pNewTx.Matcher.GetTxID())
 	handler.node.Commit(dgwTx)
 }
 
+func setConfirmInfo(newTx *P2PNewTx, scTxID string, pre *P2PTx, info *P2PConfirmInfo) {
+	if scTxID == pre.Initiator.GetScTxID() {
+		newTx.Initiator = info
+	} else {
+		newTx.Matcher = info
+	}
+}
 func (handler *confirmHandler) HandleEvent(event node.BusinessEvent) {
 	if confirmedEvent, ok := event.(*node.ConfirmEvent); ok {
 
@@ -174,18 +246,24 @@ func (handler *confirmHandler) HandleEvent(event node.BusinessEvent) {
 		msg.Decode(event.GetData())
 		// 业务相关msg
 		pbMsg := msg.toPBMsg()
+		//交易序列号
 		seqID := handler.db.getTxSeqID(pbMsg.Id)
 		if seqID == nil || len(seqID) == 0 {
 			p2pLogger.Warn("get seqID nil", "scTxID", pbMsg.Id)
 			return
 		}
+
+		//交易确认info
 		confirmInfo := &P2PConfirmInfo{
 			Event: event,
 			Msg:   pbMsg,
 		}
+		p2pLogger.Info("handle confirm", "scTxID", pbMsg.Id)
+
+		//匹配的交易
+		watchedP2PTx := handler.db.getP2PTx(seqID)
+
 		if msg.Opration == confirmed { //确认交易 需要等待发起和匹配交易确认
-			p2pLogger.Info("handle confirm", "scTxID", pbMsg.Id)
-			watchedP2PTx := handler.db.getP2PTx(seqID)
 			if seqID == nil || len(seqID) == 0 {
 				p2pLogger.Error("receive msg haven'n received", "scTxID", pbMsg.Id)
 				return
@@ -194,44 +272,39 @@ func (handler *confirmHandler) HandleEvent(event node.BusinessEvent) {
 			if newTx == nil { //set confirm
 				handler.Lock()
 				if newTx = handler.db.getP2pNewTx(seqID); newTx == nil {
-					newTx = &P2PNewTx{
-						SeqId: seqID,
-					}
-					newTx.SeqId = seqID
+					newTx = newP2PNewTx(seqID)
 					p2pLogger.Debug("id compare", "pbmsg", pbMsg.Id, "scTxID", watchedP2PTx.Initiator.GetScTxID())
-					if pbMsg.Id == watchedP2PTx.Initiator.GetScTxID() {
-						newTx.Initiator = confirmInfo
-					} else {
-						newTx.Matcher = confirmInfo
-					}
+					setConfirmInfo(newTx, pbMsg.Id, watchedP2PTx, confirmInfo)
 					handler.db.setP2PNewTx(newTx, seqID)
 				} else if !newTx.Finished { //commit
-					if pbMsg.Id == watchedP2PTx.Initiator.GetScTxID() { //设置已确认的tx
-						newTx.Initiator = confirmInfo
-					} else {
-						newTx.Matcher = confirmInfo
-					}
+					newTx = newP2PNewTx(seqID)
+					setConfirmInfo(newTx, pbMsg.Id, watchedP2PTx, confirmInfo)
 					handler.commitTx(confirmedEvent.Business, newTx, seqID)
 				} else {
 					p2pLogger.Debug("tx already commited")
 				}
 				handler.Unlock()
 			} else if !newTx.Finished { //commit
-				if pbMsg.Id == watchedP2PTx.Initiator.GetScTxID() { //设置已确认的tx
-					newTx.Initiator = confirmInfo
-				} else {
-					newTx.Matcher = confirmInfo
-				}
+				setConfirmInfo(newTx, pbMsg.Id, watchedP2PTx, confirmInfo)
 				handler.commitTx(confirmedEvent.Business, newTx, seqID)
 			} else {
 				p2pLogger.Debug("tx already commited")
 			}
-		} else { //回退交易
-
+		} else { //回退交易 只须commit即可
+			newTx := newP2PNewTx(seqID)
+			setConfirmInfo(newTx, pbMsg.Id, watchedP2PTx, confirmInfo)
+			handler.db.setP2PNewTx(newTx, seqID)
+			handler.commitTx(confirmedEvent.Business, newTx, seqID)
 		}
 
 	} else if handler.Successor != nil {
 		handler.Successor.HandleEvent(event)
+	}
+}
+
+func newP2PNewTx(seqID []byte) *P2PNewTx {
+	return &P2PNewTx{
+		SeqId: seqID,
 	}
 }
 
