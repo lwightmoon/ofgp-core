@@ -393,7 +393,7 @@ func (ld *Leader) watchFormerMultisig(ctx context.Context) {
 	}
 }
 
-// 循环处理监听到的交易 
+// 循环处理监听到的交易
 /*
 func (ld *Leader) createTransaction(ctx context.Context) {
 	tick := time.Tick(time.Duration(100) * time.Millisecond)
@@ -453,7 +453,7 @@ func (ld *Leader) createTransaction(ctx context.Context) {
 
 //集群内广播签名请求
 func (ld *Leader) createSignReq(ctx context.Context) {
-	tick := time.Tick(3 * time.Minute)
+	tick := time.Tick(time.Duration(100) * time.Millisecond)
 	for {
 		select {
 		case <-tick:
