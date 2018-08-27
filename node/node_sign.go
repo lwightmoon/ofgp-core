@@ -120,8 +120,136 @@ func (node *BraftNode) sendTxToChain(newlyTx *wire.MsgTx, watcher *btcwatcher.Mo
 }
 */
 
+func createMortgageTx(req *pb.SignRequest) interface{} {
+	buf := bytes.NewBuffer(req.NewlyTx.Data)
+	newlyTx := new(wire.MsgTx)
+	err := newlyTx.Deserialize(buf)
+	assert.ErrorIsNil(err)
+	return newlyTx
+}
+func checkMortgageTx(watcher *btcwatcher.MortgageWatcher, tx interface{}, res *pb.SignResult) bool {
+	if newlyTx, ok := tx.(*wire.MsgTx); ok {
+		checkRes := watcher.VerifySign(newlyTx, res.Data, cluster.NodeList[res.NodeID].PublicKey)
+		return checkRes
+	}
+	leaderLogger.Error("btc tx type is wrong")
+	return false
+}
+func mergeMortgageTx(watcher *btcwatcher.MortgageWatcher, tx interface{},
+	results []*pb.SignResult, quorumN int) (interface{}, bool) {
+	var btcTx *wire.MsgTx
+	var ok bool
+	if btcTx, ok = tx.(*wire.MsgTx); !ok {
+		return nil, false
+	}
+	var sigs [][][]byte
+	for _, res := range results {
+		sigs = append(sigs, res.Data)
+		if len(sigs) == int(quorumN) {
+			break
+		}
+	}
+	ok = watcher.MergeSignTx(btcTx, sigs)
+	return tx, ok
+}
+
+type collector interface {
+	createTx(req *pb.SignRequest) interface{}
+	check(tx interface{}, res *pb.SignResult) bool
+	merge(tx interface{}, results []*pb.SignResult, quorumN int) (interface{}, bool)
+}
+
+// btcResCollector btc收集签名结果
+type btcResCollector struct {
+	watcher *btcwatcher.MortgageWatcher
+}
+
+func newBtcResCollector(watcher *btcwatcher.MortgageWatcher) *btcResCollector {
+	return &btcResCollector{
+		watcher: watcher,
+	}
+}
+func (brc *btcResCollector) createTx(req *pb.SignRequest) interface{} {
+	return createMortgageTx(req)
+}
+func (brc *btcResCollector) check(tx interface{}, res *pb.SignResult) bool {
+	return checkMortgageTx(brc.watcher, tx, res)
+}
+
+func (brc *btcResCollector) merge(tx interface{}, results []*pb.SignResult, quorumN int) (interface{}, bool) {
+	return mergeMortgageTx(brc.watcher, tx, results, quorumN)
+}
+
+//bchResCollector bch收集签名结果
+type bchResCollector struct {
+	watcher *btcwatcher.MortgageWatcher
+}
+
+func newBchResCollector(watcher *btcwatcher.MortgageWatcher) *bchResCollector {
+	return &bchResCollector{
+		watcher: watcher,
+	}
+}
+
+func (brc *bchResCollector) createTx(req *pb.SignRequest) interface{} {
+	return createMortgageTx(req)
+}
+func (brc *bchResCollector) check(tx interface{}, res *pb.SignResult) bool {
+	return checkMortgageTx(brc.watcher, tx, res)
+}
+
+func (brc *bchResCollector) merge(tx interface{}, results []*pb.SignResult, quorumN int) (interface{}, bool) {
+	return mergeMortgageTx(brc.watcher, tx, results, quorumN)
+}
+
+type ethResCollector struct {
+}
+
+func newEthResCollector() *ethResCollector {
+	return &ethResCollector{}
+}
+
+func (erc *ethResCollector) createTx(req *pb.SignRequest) interface{} {
+	return nil
+}
+func (erc *ethResCollector) check(tx interface{}, res *pb.SignResult) bool {
+	return true
+}
+func (erc *ethResCollector) merge(tx interface{}, results []*pb.SignResult, quorumN int) (interface{}, bool) {
+	return nil, true
+}
+
+type collectorFactory struct {
+	bch *bchResCollector
+	btc *btcResCollector
+	eth *ethResCollector
+}
+
+func newCollectorFactory(bch *bchResCollector, btc *btcResCollector, eth *ethResCollector) *collectorFactory {
+	return &collectorFactory{
+		bch: bch,
+		btc: btc,
+		eth: eth,
+	}
+}
+
+func (factory *collectorFactory) getCollector(chain uint32) collector {
+	switch chain {
+	case message.Bch:
+		return factory.bch
+	case message.Btc:
+		return factory.btc
+	case message.Eth:
+		return factory.eth
+	default:
+		leaderLogger.Error("can't get collector")
+		return nil
+	}
+}
+
 func (node *BraftNode) doSave(msg *pb.SignResult) {
-	var watcher *btcwatcher.MortgageWatcher
+	// var watcher *btcwatcher.MortgageWatcher
+	collector := node.collectorFactory.getCollector(msg.GetTo())
 	scTxID := msg.GetScTxID()
 	if node.blockStore.IsSignFailed(scTxID, msg.Term) {
 		leaderLogger.Debug("signmsg is failed in this term", "sctxid", scTxID, "term", msg.Term)
@@ -157,17 +285,23 @@ func (node *BraftNode) doSave(msg *pb.SignResult) {
 		}
 		return
 	}
-	buf := bytes.NewBuffer(signReq.NewlyTx.Data)
-	newlyTx := new(wire.MsgTx)
-	err := newlyTx.Deserialize(buf)
-	assert.ErrorIsNil(err)
-	if msg.To == message.Bch {
-		watcher = node.bchWatcher
-	} else {
-		watcher = node.btcWatcher
-	}
+	// buf := bytes.NewBuffer(signReq.NewlyTx.Data)
+	// newlyTx := new(wire.MsgTx)
+	// err := newlyTx.Deserialize(buf)
+	// assert.ErrorIsNil(err)
+	// if msg.To == message.Bch {
+	// 	watcher = node.bchWatcher
+	// } else {
+	// 	watcher = node.btcWatcher
+	// }
+	newlyTx := collector.createTx(signReq)
+
 	if msg.Code == pb.CodeType_SIGNED {
-		if !watcher.VerifySign(newlyTx, msg.Data, cluster.NodeList[msg.NodeID].PublicKey) {
+		// if !watcher.VerifySign(newlyTx, msg.Data, cluster.NodeList[msg.NodeID].PublicKey) {
+		// 	leaderLogger.Error("verify sign tx failed", "from", msg.NodeID, "sctxid", scTxID, "business", msg.Business)
+		// 	cache.addErrCnt()
+		// }
+		if !collector.check(newlyTx, msg) {
 			leaderLogger.Error("verify sign tx failed", "from", msg.NodeID, "sctxid", scTxID, "business", msg.Business)
 			cache.addErrCnt()
 		} else {
@@ -199,18 +333,28 @@ func (node *BraftNode) doSave(msg *pb.SignResult) {
 	if cache.getSignedCount() >= quorumN && !cache.isDone() && signReq != nil {
 		if cache.setDone() {
 			cache.doneTime = time.Now()
-			var sigs [][][]byte
+			// var sigs [][][]byte
+			// for idx := range cluster.NodeList {
+			// 	if result, has := cache.getCache(int32(idx)); has {
+			// 		leaderLogger.Debug("will merge sign info", "from", idx)
+			// 		sigs = append(sigs, result.Data)
+			// 		if len(sigs) == int(quorumN) {
+			// 			break
+			// 		}
+			// 	}
+			// }
+			// 获取cache的签名结果
+			signResults := make([]*pb.SignResult, 0)
 			for idx := range cluster.NodeList {
 				if result, has := cache.getCache(int32(idx)); has {
-					leaderLogger.Debug("will merge sign info", "from", idx)
-					sigs = append(sigs, result.Data)
-					if len(sigs) == int(quorumN) {
+					signResults = append(signResults, result)
+					if len(signResults) == int(quorumN) {
 						break
 					}
 				}
 			}
-
-			ok := watcher.MergeSignTx(newlyTx, sigs)
+			// ok := watcher.MergeSignTx(newlyTx, sigs)
+			newlyTx, ok = collector.merge(newlyTx, signResults, int(quorumN))
 			if !ok {
 				leaderLogger.Error("merge sign tx failed", "business", msg.Business, "sctxID", msg.ScTxID)
 				node.clearOnFail(signReq) //todo merge 失败clearOnFail 处理
@@ -218,7 +362,6 @@ func (node *BraftNode) doSave(msg *pb.SignResult) {
 			}
 			//标记已签名 替换SignedEvent
 			node.markTxSigned(msg.ScTxID)
-
 			//通知相关业务已被签名
 			node.pubSigned(msg, msg.To, newlyTx)
 			// sendTxToChain的时间可能会比较长，因为涉及到链上交易，所以需要提前把锁释放

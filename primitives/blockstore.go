@@ -678,6 +678,29 @@ func (bs *BlockStore) handleSignReq(tasks *task.Queue, msg *pb.SignRequest) {
 				return
 			}
 			tasks.Add(func() { bs.BroadcastSignResEvent.Emit(signResult) })
+		} else if targetChain == message.Eth {
+			scTxID := msg.GetWatchedEvent().GetTxID()
+			business := msg.GetWatchedEvent().GetBusiness()
+			//todo check eth
+			_, err := bs.ethWatcher.SendTranxByInput(bs.signer.PubKeyHex, bs.signer.PubkeyHash, msg.NewlyTx.Data)
+			if err != nil {
+				bsLogger.Error("sign eth err", "err", err, "scTxID", scTxID)
+				signRes, err := pb.MakeSignResult("", pb.CodeType_REJECT, bs.localNodeId, scTxID, nil, targetChain, nodeTerm, bs.signer)
+				if err != nil {
+					bsLogger.Debug("sign suc make signedResult err", "err", err, "scTxID", scTxID)
+					return
+				}
+				tasks.Add(func() { bs.BroadcastSignResEvent.Emit(signRes) })
+				return
+			}
+			bsLogger.Debug("sign eth tx done", "scTxID", scTxID)
+			SetSignReq(bs.db, msg, scTxID)
+			signRes, err := pb.MakeSignResult(business, pb.CodeType_SIGNED, bs.localNodeId, scTxID, nil, targetChain, nodeTerm, bs.signer)
+			if err != nil {
+				bsLogger.Debug("sign suc make signedResult err", "err", err, "scTxID", scTxID)
+				return
+			}
+			tasks.Add(func() { bs.BroadcastSignResEvent.Emit(signRes) })
 		}
 	}
 

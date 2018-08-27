@@ -1,7 +1,6 @@
 package node
 
 import (
-	"github.com/btcsuite/btcd/wire"
 	pb "github.com/ofgp/ofgp-core/proto"
 )
 
@@ -21,7 +20,7 @@ func (bn *BraftNode) pubCommit(blockPack *pb.BlockPack) {
 }
 
 //noticeSigned 通知已签名
-func (bn *BraftNode) pubSigned(msg *pb.SignResult, chain uint32, newTx *wire.MsgTx) {
+func (bn *BraftNode) pubSigned(msg *pb.SignResult, chain uint32, newTx interface{}) {
 	signedData := &SignedData{
 		Chain: chain,
 		ID:    msg.ScTxID,

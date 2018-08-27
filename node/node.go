@@ -106,6 +106,7 @@ type BraftNode struct {
 	signedResultCache sync.Map            //缓存签名结果
 	pubsub            *pubServer          //与业务交互
 	txInvoker         *txInvoker          //创建发送交易相关
+	collectorFactory  *collectorFactory   //收集签名结果
 }
 
 func getFederationAddress() cluster.MultiSigInfo {
@@ -186,11 +187,18 @@ func NewBraftNode(localNodeInfo cluster.NodeInfo) *BraftNode {
 	bs := primitives.NewBlockStore(db, ts, btcWatcher, bchWatcher, ethWatcher, signer, localNodeInfo.Id)
 
 	var txInvoker *txInvoker
+	var collectorFactory *collectorFactory
 	if startMode != cluster.ModeWatch && startMode != cluster.ModeTest {
-		ehtOp := newEthOperator(ethWatcher, bs, signer)
+		ethOp := newEthOperator(ethWatcher, bs, signer)
 		bchOp := newBchOprator(bchWatcher)
 		btcOp := newBtcOprator(btcWatcher)
-		txInvoker = newTxInvoker(ehtOp, bchOp, btcOp)
+		txInvoker = newTxInvoker(ethOp, bchOp, btcOp)
+
+		bchCollector := newBchResCollector(bchWatcher)
+		btcCollector := newBtcResCollector(btcWatcher)
+		ethCollector := newEthResCollector()
+		collectorFactory = newCollectorFactory(bchCollector, btcCollector, ethCollector)
+
 	}
 	//交易相关连接池大小
 	txConnPoolSize := viper.GetInt("DGW.tx_conn_pool_size")
@@ -226,6 +234,7 @@ func NewBraftNode(localNodeInfo cluster.NodeInfo) *BraftNode {
 		signedResultChan: make(chan *pb.SignResult),
 		pubsub:           newPubServer(1),
 		txInvoker:        txInvoker,
+		collectorFactory: collectorFactory,
 	}
 	//重新添加监听列表
 	if len(multiSigList) > 0 {

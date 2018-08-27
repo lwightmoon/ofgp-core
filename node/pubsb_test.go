@@ -1,6 +1,10 @@
 package node
 
-import "testing"
+import (
+	"testing"
+
+	pb "github.com/ofgp/ofgp-core/proto"
+)
 
 type testEvent struct {
 }
@@ -33,15 +37,13 @@ func TestPubSub(t *testing.T) {
 	pubsub := newPubServer(1)
 	topic := "topic1"
 	ch := pubsub.subScribe(topic)
-	pubsub.pub(topic, &WatchedEvent{
-		business: "p2p",
-		data:     &testEvent{},
-		err:      nil,
-	})
+	event := &WatchedEvent{}
+	event.Business = "p2p"
+	event.Data = &pb.WatchedEvent{}
+	pubsub.pub(topic, event)
 	ev := <-ch
 	if val, ok := ev.(*WatchedEvent); ok {
 		data := val.GetData()
-		val2, _ := data.(PushEvent)
-		t.Logf("%s,%s", val2.GetBusiness(), val2.GetData())
+		t.Logf("%s", data.Business)
 	}
 }

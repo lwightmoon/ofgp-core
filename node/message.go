@@ -1,7 +1,6 @@
 package node
 
 import (
-	"github.com/btcsuite/btcd/wire"
 	"github.com/ofgp/ofgp-core/crypto"
 	pb "github.com/ofgp/ofgp-core/proto"
 )
@@ -73,7 +72,7 @@ type SignedData struct {
 	Chain uint32
 	ID    string //业务id
 	TxID  string
-	Data  *wire.MsgTx //签名后数据
+	Data  interface{} //签名后数据 跟具体的链相关
 }
 type SignedEvent struct {
 	BaseBusinessEvent

@@ -10,8 +10,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/btcsuite/btcd/wire"
 	"github.com/ofgp/ofgp-core/cluster"
 	"github.com/ofgp/ofgp-core/dgwdb"
+	"github.com/ofgp/ofgp-core/message"
 	"github.com/ofgp/ofgp-core/primitives"
 	pb "github.com/ofgp/ofgp-core/proto"
 )
@@ -37,7 +39,7 @@ func TestSyncMap(t *testing.T) {
 }
 
 func TestDoSave(t *testing.T) {
-	
+
 }
 
 func TestCheckSignTimeout(t *testing.T) {
@@ -101,4 +103,33 @@ func TestCache(t *testing.T) {
 	}
 	wg.Wait()
 	t.Logf("totalcnt:%d", cache.getTotalCount())
+}
+
+type tempCollector struct {
+}
+
+func (brc *tempCollector) createTx(req *pb.SignRequest) interface{} {
+	newlyTx := new(wire.MsgTx)
+	return newlyTx
+}
+func (brc *tempCollector) check(tx interface{}, res *pb.SignResult) bool {
+	if newlyTx, ok := tx.(*wire.MsgTx); ok {
+		leaderLogger.Info("btc tx type is right", "tx", newlyTx)
+		return true
+	}
+	leaderLogger.Error("btc tx type is wrong")
+	return false
+}
+func TestTempCheck(t *testing.T) {
+	temp := &tempCollector{}
+	newTx := temp.createTx(nil)
+	checkRes := temp.check(newTx, &pb.SignResult{})
+	t.Logf("sign check res:%t", checkRes)
+}
+
+func TestChainType(t *testing.T) {
+	res := &pb.SignResult{
+		To: 0,
+	}
+	t.Logf("is bch:%t", res.To == message.Bch)
 }
