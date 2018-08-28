@@ -76,7 +76,7 @@ type ethOperator struct {
 	signer *crypto.SecureSigner
 }
 
-func newEthOperator(cli *ew.Client, bs *primitives.BlockStore, signer *crypto.SecureSigner) txOperator {
+func newEthOperator(cli *ew.Client, bs *primitives.BlockStore, signer *crypto.SecureSigner) *ethOperator {
 	return &ethOperator{
 		cli,
 		bs,
@@ -158,7 +158,7 @@ type btcOprator struct {
 	btcWatcher *btcwatcher.MortgageWatcher
 }
 
-func newBtcOprator(watcher *btcwatcher.MortgageWatcher) txOperator {
+func newBtcOprator(watcher *btcwatcher.MortgageWatcher) *btcOprator {
 	return &btcOprator{
 		btcWatcher: watcher,
 	}
@@ -177,7 +177,7 @@ type bchOprator struct {
 	bchWatcher *btcwatcher.MortgageWatcher
 }
 
-func newBchOprator(watcher *btcwatcher.MortgageWatcher) txOperator {
+func newBchOprator(watcher *btcwatcher.MortgageWatcher) *bchOprator {
 	return &bchOprator{
 		bchWatcher: watcher,
 	}
@@ -194,12 +194,12 @@ func (bchOP *bchOprator) SendTx(req ISendReq) error {
 
 // txInvoker 命令执行
 type txInvoker struct {
-	ethOp txOperator
-	bchOp txOperator
-	btcOp txOperator
+	ethOp *ethOperator
+	bchOp *bchOprator
+	btcOp *btcOprator
 }
 
-func newTxInvoker(ethOp, bchOp, btcOp txOperator) *txInvoker {
+func newTxInvoker(ethOp *ethOperator, bchOp *bchOprator, btcOp *btcOprator) *txInvoker {
 	return &txInvoker{
 		ethOp: ethOp,
 		bchOp: bchOp,
