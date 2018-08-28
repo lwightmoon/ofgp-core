@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"os"
 	"strconv"
 	"sync"
 	"testing"
@@ -39,7 +40,56 @@ func TestSyncMap(t *testing.T) {
 }
 
 func TestDoSave(t *testing.T) {
-
+	tmpDir, err := ioutil.TempDir("", "p2p")
+	if err != nil {
+		panic("create tempdir failed")
+	}
+	defer os.RemoveAll(tmpDir)
+	//create p2pdb
+	db, _ := dgwdb.NewLDBDatabase(tmpDir, 1, 1)
+	bs := primitives.NewBlockStore(db, nil, nil, nil, nil, nil, 0)
+	cf := &collectorFactory{
+		eth: newEthResCollector(),
+	}
+	node := &BraftNode{
+		blockStore:       bs,
+		collectorFactory: cf,
+		pubsub:           newPubServer(1),
+	}
+	business := "p2p"
+	go func() {
+		ch := node.pubsub.subScribe(business)
+		val := <-ch
+		t.Logf("result msg:%v", val.GetBusiness())
+	}()
+	n := 5
+	var wg sync.WaitGroup
+	wg.Add(n)
+	cluster.QuorumN = n
+	for i := 0; i < n; i++ {
+		txID := "testID"
+		signReq := &pb.SignRequest{
+			WatchedEvent: &pb.WatchedEvent{
+				Business: business,
+				To:       2,
+				TxID:     txID,
+			},
+		}
+		primitives.SetSignReq(db, signReq, txID)
+		signRes := &pb.SignResult{
+			Business: "p2p",
+			Code:     pb.CodeType_SIGNED,
+			NodeID:   int32(i),
+			ScTxID:   txID,
+			To:       2,
+			Term:     0,
+			Data:     nil,
+		}
+		go node.doSave(signRes)
+		wg.Done()
+	}
+	wg.Wait()
+	time.Sleep(2 * time.Second)
 }
 
 func TestCheckSignTimeout(t *testing.T) {

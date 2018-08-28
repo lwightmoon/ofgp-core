@@ -277,6 +277,7 @@ func (node *BraftNode) doSave(msg *pb.SignResult) {
 	cache.addTotalCount()
 	// 由于网络延迟，有可能先收到了其他节点的签名结果，后收到签名请求，这个时候只做好保存即可
 	if signReq == nil {
+		leaderLogger.Debug("signReq is nil", "scTxID", scTxID)
 		if msg.Code == pb.CodeType_SIGNED {
 			cache.addSignedCount()
 			cache.addCache(msg.NodeID, msg)
