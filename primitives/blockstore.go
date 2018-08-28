@@ -1147,6 +1147,12 @@ func (bs *BlockStore) validateEthSignTx(req *pb.SignTxRequest) int {
 	return validatePass
 }
 */
+func (bs *BlockStore) validateEthSignReq(req *pb.SignRequest) int {
+	baseCheckRes := bs.baseCheckSignReq(req)
+	if baseCheckRes != validatePass {
+		return baseCheckRes
+	}
+}
 
 /* todo
 func (bs *BlockStore) validateWatchedTx(tx *pb.WatchedTxInfo) bool {

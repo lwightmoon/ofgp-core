@@ -183,8 +183,20 @@ func newBchOprator(watcher *btcwatcher.MortgageWatcher) *bchOprator {
 	}
 }
 
+func getBtcAddrInfos(addrInfos []AddrInfo) []*btcwatcher.AddressInfo {
+	res := make([]*btcwatcher.AddressInfo, 0)
+	for _, addrInfo := range addrInfos {
+		btcAddrInfo := &btcwatcher.AddressInfo{
+			Address: addrInfo.Addr,
+			Amount:  int64(addrInfo.Amount),
+		}
+		res := append(res, nil)
+	}
+	return res
+}
 func (bchOP *bchOprator) CreateTx(req CreateReq) *pb.NewlyTx {
-	return createCoinTx(bchOP.bchWatcher, nil, req.GetFee(), req.GetID())
+	addrInfos := getBtcAddrInfos(req.GetAddrInfos())
+	return createCoinTx(bchOP.bchWatcher, addrInfos, req.GetFee(), req.GetID())
 }
 
 func (bchOP *bchOprator) SendTx(req ISendReq) error {
