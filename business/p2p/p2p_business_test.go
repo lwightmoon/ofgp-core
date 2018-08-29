@@ -10,6 +10,7 @@ import (
 
 	"github.com/ofgp/ofgp-core/cluster"
 	"github.com/ofgp/ofgp-core/dgwdb"
+	"github.com/ofgp/ofgp-core/message"
 	"github.com/ofgp/ofgp-core/node"
 	pb "github.com/ofgp/ofgp-core/proto"
 	"github.com/spf13/viper"
@@ -95,7 +96,6 @@ func TestProcessMatch(t *testing.T) {
 	initalEvent := &node.WatchedEvent{}
 	seqID := getBytes(32)
 	initialData := &p2pMsg{
-		Opration:    0,
 		SendAddr:    getBytes(20),
 		ReceiveAddr: getBytes(20),
 		Chain:       1,
@@ -103,7 +103,7 @@ func TestProcessMatch(t *testing.T) {
 		Amount:      64,
 		Fee:         1,
 		ExpiredTime: uint32(time.Now().Unix()),
-		SeqID:       seqID,
+		RequireAddr: seqID,
 	}
 	initalEvent.Business = "p2p"
 	txidInit := hex.EncodeToString(getBytes(32))
@@ -117,7 +117,6 @@ func TestProcessMatch(t *testing.T) {
 	matchEvent := &node.WatchedEvent{}
 	matchEvent.Business = "p2p"
 	matchData := &p2pMsg{
-		Opration:    1,
 		SendAddr:    getBytes(20),
 		ReceiveAddr: getBytes(20),
 		Chain:       2,
@@ -125,7 +124,7 @@ func TestProcessMatch(t *testing.T) {
 		Amount:      46,
 		Fee:         1,
 		ExpiredTime: uint32(time.Now().Unix()),
-		SeqID:       seqID,
+		RequireAddr: seqID,
 	}
 	temp := getBytes(32)
 	temp[0] = byte(2)
@@ -187,33 +186,58 @@ func TestProcessMatch(t *testing.T) {
 }
 
 func TestCreateDgw(t *testing.T) {
-	preTx := &P2PTx{
-		SeqId: []byte("test"),
-		Initiator: &P2PInfo{
-			Event: &pb.WatchedEvent{
-				TxID: "preInit",
-			},
-		},
-		Matcher: &P2PInfo{
-			Event: &pb.WatchedEvent{
-				TxID: "match",
-			},
-		},
+	info:= &P2PInfo{
+
 	}
-	tx := &P2PNewTx{
-		SeqId: []byte("test"),
-		Initiator: &P2PConfirmInfo{
-			Event: &pb.WatchedEvent{
-				TxID: "nowInit",
-			},
-		},
-		Matcher: &P2PConfirmInfo{
-			Event: &pb.WatchedEvent{
-				TxID: "nowMatch",
-			},
-		},
+	infos:= []*P2PInfo{
+		info,
 	}
-	innerTx := createDGWTx("test", preTx, tx)
+	confirmInfo:= &P2PConfirmInfo{
+
+	}
+	confirmInfos:=[]*P2PConfirmInfo{
+		confirmInfo,
+	}
+	innerTx := createDGWTx("test", infos, confirmInfos)
 	fmt.Printf("preInit:%s,preMatch:%s", innerTx.Vin[0].TxID, innerTx.Vin[1].TxID)
 	fmt.Printf("nowInit:%s,nowMatch:%s", innerTx.Vout[0].TxID, innerTx.Vout[1].TxID)
+}
+
+func TestIndex(t *testing.T) {
+	root := &TxNode{
+		Value:  "root",
+		Childs: make(map[string]*TxNode),
+	}
+	index := &txIndex{
+		root,
+	}
+	requireAddr := getBytes(20)
+	p2pMsg := &p2pMsg{
+		SendAddr:    getBytes(20),
+		ReceiveAddr: getBytes(20),
+		Chain:       1,
+		TokenID:     1,
+		Amount:      64,
+		Fee:         1,
+		ExpiredTime: uint32(time.Now().Unix()),
+		RequireAddr: requireAddr,
+	}
+	msgUse := p2pMsg.toPBMsg()
+	msgUse.SendAddr = "sendAddr"
+	event := &pb.WatchedEvent{
+		TxID:   "testTxID",
+		Amount: 1,
+		From:   message.Bch,
+		To:     message.Eth,
+		Data:   p2pMsg.Encode(),
+	}
+	p2pInfo := &P2PInfo{
+		Event: event,
+		Msg:   msgUse,
+	}
+	index.Add(p2pInfo)
+	p2pInfo.Event.TxID = "testTxID2"
+	index.Add(p2pInfo)
+	txIDs := index.GetTxID(1, msgUse.SendAddr, msgUse.Amount)
+	t.Logf("get txIDs:%s", txIDs)
 }

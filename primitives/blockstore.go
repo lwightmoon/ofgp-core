@@ -1152,6 +1152,7 @@ func (bs *BlockStore) validateEthSignReq(req *pb.SignRequest) int {
 	if baseCheckRes != validatePass {
 		return baseCheckRes
 	}
+	return validatePass
 }
 
 /* todo

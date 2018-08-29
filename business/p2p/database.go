@@ -8,69 +8,75 @@ import (
 )
 
 var (
-	p2pTxPrefix   = []byte("p2pTx")
-	txIDMapPrefix = []byte("txIDMap")
-	confirmPrefix = []byte("confirmed")
+	p2pInfoPrefix = []byte("p2pInfo")
 )
 
 type p2pdb struct {
 	db *dgwdb.LDBDatabase
 }
 
-func (db *p2pdb) setP2PTx(tx *P2PTx, seqID []byte) {
-	key := append(p2pTxPrefix, seqID...)
+// getID 获取db存储key
+
+func (db *p2pdb) setP2PInfo(tx *P2PInfo) {
+	txID := tx.Event.TxID
+	key := append(p2pInfoPrefix, []byte(txID)...)
 	data, err := proto.Marshal(tx)
 	if err != nil {
-		log.Printf("set p2ptx err:%v", err)
+		log.Printf("set P2PInfo err:%v", err)
 		return
 	}
 	db.db.Put(key, data)
 }
 
-func (db *p2pdb) getP2PTx(seqID []byte) *P2PTx {
-	key := append(p2pTxPrefix, seqID...)
+func (db *p2pdb) getP2PInfo(txID string) *P2PInfo {
+	key := append(p2pInfoPrefix, []byte(txID)...)
 	data, err := db.db.Get(key)
 	if err != nil {
-		log.Printf("get p2ptx err:%v", err)
+		log.Printf("get P2PInfo err:%v", err)
 		return nil
 	}
-	tx := &P2PTx{}
-	proto.Unmarshal(data, tx)
-	return tx
+	info := &P2PInfo{}
+	err = proto.Unmarshal(data, info)
+	if err != nil {
+		log.Printf("decode P2PInfo from db err:%v", err)
+		return nil
+	}
+	return info
+}
+func (db *p2pdb) getP2PInfos(txIDs []string) []*P2PInfo {
+	infos := make([]*P2PInfo, 0)
+	for _, txID := range txIDs {
+		info := db.getP2PInfo(txID)
+		if info != nil {
+			infos = append(infos, info)
+		}
+	}
+	return infos
 }
 
-func (db *p2pdb) setP2PNewTx(tx *P2PNewTx, seqID []byte) {
-	key := append(confirmPrefix, seqID...)
-	data, err := proto.Marshal(tx)
+// 保存等待确认的交易
+func (db *p2pdb) setWaitConfirm(txID string, msg *WaitConfirmMsg) {
+	key := append(p2pInfoPrefix, []byte(txID)...)
+	data, err := proto.Marshal(msg)
 	if err != nil {
-		log.Printf("set p2pNewtx err:%v", err)
+		log.Printf("set P2PInfo err:%v", err)
 		return
 	}
 	db.db.Put(key, data)
 }
 
-func (db *p2pdb) getP2pNewTx(seqID []byte) *P2PNewTx {
-	key := append(confirmPrefix, seqID...)
+func (db *p2pdb) getWaitConfirm(txID string) *WaitConfirmMsg {
+	key := append(p2pInfoPrefix, []byte(txID)...)
 	data, err := db.db.Get(key)
 	if err != nil {
-		log.Printf("get p2ptx err:%v", err)
+		log.Printf("get waitConfirm err:%v", err)
 		return nil
 	}
-	tx := &P2PNewTx{}
-	proto.Unmarshal(data, tx)
-	return tx
-}
-
-func (db *p2pdb) setTxSeqIDMap(txID string, seqID []byte) {
-	key := append(txIDMapPrefix, []byte(txID)...)
-	db.db.Put(key, seqID)
-}
-
-func (db *p2pdb) getTxSeqID(txID string) []byte {
-	key := append(txIDMapPrefix, []byte(txID)...)
-	data, err := db.db.Get(key)
+	msg := &WaitConfirmMsg{}
+	err = proto.Unmarshal(data, msg)
 	if err != nil {
-		log.Printf("get seqID err:%v", err)
+		log.Printf("decode P2PInfo from db err:%v", err)
+		return nil
 	}
-	return data
+	return msg
 }

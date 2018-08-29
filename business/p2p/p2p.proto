@@ -4,7 +4,6 @@ import  "github.com/ofgp/ofgp-core/proto/braft.proto";
 package p2p;
 
 message p2pMsg {
-    uint32 operation = 1;
     string send_addr = 2;
     string receive_addr = 3;
     uint32 chain = 4;
@@ -12,19 +11,14 @@ message p2pMsg {
     uint64 amount = 6;
     uint64 fee = 7;
     uint32 expired_time=8;
-    bytes seq_id =9;
+    string require_addr =9;
 }
+// 待匹配交易
 message p2pInfo {
    proto.WatchedEvent  event = 1;
    p2pMsg msg = 2;
 }
 
-message p2pTx{
-    bytes seq_id = 1;
-    p2pInfo initiator = 2;
-    p2pInfo matcher = 3;
-    bool finished = 4;
-}
 
 message p2pConfirmMsg{
     uint32 opration = 1;
@@ -36,16 +30,19 @@ message p2pConfirmMsg{
     uint64 amount = 7;
     uint64 fee = 8;
 }
-
+message waitConfirmMsg{
+    string matched_tx_id = 1; //匹配的交易id
+    p2pConfirmInfo info = 2; //匹配成功发送的交易
+}
 //被确认交易
 message p2pConfirmInfo{
    proto.WatchedEvent  event = 1;
    p2pConfirmMsg msg = 2;
 }
 
-message p2pNewTx{
-    bytes seq_id =1;
-    p2pConfirmInfo initiator = 2;
-    p2pConfirmInfo matcher = 3;
-    bool finished = 4;
+
+// 创建待匹配交易索引
+message txNode{
+    string value = 1;
+    map<string,txNode> childs = 2;
 }

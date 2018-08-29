@@ -190,7 +190,7 @@ func getBtcAddrInfos(addrInfos []AddrInfo) []*btcwatcher.AddressInfo {
 			Address: addrInfo.Addr,
 			Amount:  int64(addrInfo.Amount),
 		}
-		res := append(res, nil)
+		res = append(res, btcAddrInfo)
 	}
 	return res
 }

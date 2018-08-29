@@ -1,54 +1,39 @@
 package p2p
 
 import (
-	"bytes"
 	"fmt"
-	"testing"
+	"time"
 
+	"github.com/ofgp/ofgp-core/message"
 	pb "github.com/ofgp/ofgp-core/proto"
 )
 
-func TestP2PTx(t *testing.T) {
-	p2pInfo1 := &P2PInfo{
-		Event: &pb.WatchedEvent{
-			Business: "p2p",
-			TxID:     "inof1",
-		},
-		Msg: &P2PMsg{
-			SendAddr:    "sendarr1",
-			ReceiveAddr: "receive1",
-		},
+func ExampleP2PInfo() {
+	requireAddr := getBytes(20)
+	p2pMsg := &p2pMsg{
+		SendAddr:    getBytes(20),
+		ReceiveAddr: getBytes(20),
+		Chain:       1,
+		TokenID:     1,
+		Amount:      64,
+		Fee:         1,
+		ExpiredTime: uint32(time.Now().Unix()),
+		RequireAddr: requireAddr,
 	}
-	p2pInfo2 := &P2PInfo{
-		Event: &pb.WatchedEvent{
-			Business: "p2p",
-			TxID:     "inof2",
-		},
-		Msg: &P2PMsg{
-			SendAddr:    "sendarr2",
-			ReceiveAddr: "receive2",
-		},
+	msgUse := p2pMsg.toPBMsg()
+	event := &pb.WatchedEvent{
+		TxID:   "testTxID",
+		Amount: 1,
+		From:   message.Bch,
+		To:     message.Eth,
+		Data:   p2pMsg.Encode(),
 	}
-
-	tx := &P2PTx{
-		SeqId:     []byte("testSeqID"),
-		Initiator: p2pInfo1,
-		Matcher:   p2pInfo2,
+	p2pInfo := &P2PInfo{
+		Event: event,
+		Msg:   msgUse,
 	}
-	p2pDB.setP2PTx(tx, tx.SeqId)
-	id := tx.SeqId
-	res := p2pDB.getP2PTx(id)
-	if res.Initiator.Event.TxID != "inof1" {
-		fmt.Println(res.Initiator.Event.TxID)
-		t.Error("tx set get err")
-	}
-}
-
-func TestID(t *testing.T) {
-	seqID := []byte("testSeqID")
-	p2pDB.setTxSeqIDMap("txIDtest", seqID)
-	queryID := p2pDB.getTxSeqID("txIDtest")
-	if !bytes.Equal(seqID, queryID) {
-		t.Error("get seqID err")
-	}
+	p2pDB.setP2PInfo(p2pInfo)
+	info := p2pDB.getP2PInfo(event.TxID, message.Bch)
+	fmt.Printf("get p2pInfo txID:%s\n", info.Event.TxID)
+	// Output: get p2pInfo txID:testTxID
 }

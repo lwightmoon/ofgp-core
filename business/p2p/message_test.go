@@ -52,7 +52,6 @@ func getBytes(size int) []byte {
 }
 func TestEncode(t *testing.T) {
 	msg := &p2pMsg{
-		Opration:    0,
 		SendAddr:    getBytes(20),
 		ReceiveAddr: getBytes(20),
 		Chain:       1,
@@ -60,7 +59,7 @@ func TestEncode(t *testing.T) {
 		Amount:      64,
 		Fee:         1,
 		ExpiredTime: uint32(time.Now().Unix()),
-		SeqID:       getBytes(32),
+		RequireAddr: getBytes(32),
 	}
 	data := msg.Encode()
 	msg2 := &p2pMsg{}
