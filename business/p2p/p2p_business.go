@@ -1,6 +1,7 @@
 package p2p
 
 import (
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -33,8 +34,9 @@ func NewP2P(node *node.BraftNode, db *p2pdb) *P2P {
 
 	//初始化处理链
 	wh := &watchedHandler{
-		db:   db,
-		node: node,
+		db:    db,
+		node:  node,
+		index: newTxIndex(),
 	}
 	sh := &sigenedHandler{}
 	confirmH := &confirmHandler{
@@ -64,11 +66,12 @@ type watchedHandler struct {
 }
 
 // // signTx 签名交易
-// func (wh *watchedHandler) sendToSignTx(tx *P2PTx, seqID []byte) {
-// 	wh.db.setP2PTx(tx, seqID)
-// 	//todo 创建交易，并交给网关签名
-// 	p2pLogger.Debug("create tx and send to sign")
-// }
+func (wh *watchedHandler) sendToSignTx(infos []*P2PInfo) {
+	//todo 创建交易，并交给网关签名
+	for _, info := range infos {
+		p2pLogger.Debug("create tx and send to sign", "scTxID", info.GetScTxID())
+	}
+}
 
 // getP2PInfo p2p交易数据
 func getP2PInfo(event *pb.WatchedEvent) *P2PInfo {
@@ -81,7 +84,12 @@ func getP2PInfo(event *pb.WatchedEvent) *P2PInfo {
 	}
 	return info
 }
-
+func (wh *watchedHandler) cleanMatchedInfos(infos []*P2PInfo) {
+	for _, info := range infos {
+		wh.index.Del(info)
+		wh.db.delP2PInfo(info.GetScTxID())
+	}
+}
 func (wh *watchedHandler) HandleEvent(event node.BusinessEvent) {
 	if watchedEvent, ok := event.(*node.WatchedEvent); ok {
 		txEvent := watchedEvent.GetData()
@@ -91,20 +99,27 @@ func (wh *watchedHandler) HandleEvent(event node.BusinessEvent) {
 		}
 		info := getP2PInfo(txEvent)
 		wh.db.setP2PInfo(info)
+		p2pLogger.Debug("add coniditon", "chian", info.Event.From, "addr", info.Msg.SendAddr, "amount", info.Event.Amount)
 		wh.index.Add(info)
 		chain, addr, amount := info.getExchangeInfo()
+		p2pLogger.Debug("search coniditon", "chian", chain, "addr", addr, "amount", amount)
 		// 使用要求的数据匹配交易数据
 		txIDs := wh.index.GetTxID(chain, addr, amount)
-		if txIDs == nil || len(txIDs) == 0 {
+		p2pLogger.Debug("matchIDs", "txIDs", txIDs)
+		if txIDs != nil {
 			for _, txID := range txIDs {
-				matchedInfo := wh.db.getP2PInfo(txID, chain)
+				matchedInfo := wh.db.getP2PInfo(txID)
 				if matchedInfo == nil {
 					p2pLogger.Error("get p2pInfo nil", "business", event.GetBusiness(), "scTxID", txEvent.GetTxID())
 					continue
 				}
-				p2pLogger.Debug("handle watchedEvent", "create tx and send to sign")
+				infos := []*P2PInfo{info, matchedInfo}
+				wh.sendToSignTx(infos)
+				wh.cleanMatchedInfos(infos)
 				break
 			}
+		} else {
+			p2pLogger.Debug("handle watchedEvent not matched", "scTxID", txEvent.GetTxID())
 		}
 
 	} else if wh.Successor != nil {
@@ -208,6 +223,8 @@ func createDGWTx(business string, infos []*P2PInfo, confirmInfos []*P2PConfirmIn
 func (handler *confirmHandler) commitTx(business string, infos []*P2PInfo, confirmInfos []*P2PConfirmInfo) {
 	p2pLogger.Debug("commit dgw tx", "business", business)
 	dgwTx := createDGWTx(business, infos, confirmInfos)
+	txJSON, _ := json.Marshal(dgwTx)
+	p2pLogger.Debug("commit data", "data", txJSON)
 	handler.node.Commit(dgwTx)
 }
 

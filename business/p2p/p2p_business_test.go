@@ -94,22 +94,28 @@ func TestProcessMatch(t *testing.T) {
 	defer noderun.Stop()
 	p2p := NewP2P(noderun, p2pDB)
 	initalEvent := &node.WatchedEvent{}
-	seqID := getBytes(32)
+	requireAddr := getBytes(20)
+	sendAddr := getBytes(20)
+	sendAddr[0] = byte(255)
+	requireAddr[0] = byte(254)
+
 	initialData := &p2pMsg{
-		SendAddr:    getBytes(20),
+		SendAddr:    sendAddr,
 		ReceiveAddr: getBytes(20),
 		Chain:       1,
 		TokenID:     1,
 		Amount:      64,
 		Fee:         1,
 		ExpiredTime: uint32(time.Now().Unix()),
-		RequireAddr: seqID,
+		RequireAddr: requireAddr,
 	}
 	initalEvent.Business = "p2p"
 	txidInit := hex.EncodeToString(getBytes(32))
 	initalEvent.Data = &pb.WatchedEvent{
 		Business: "p2p",
 		TxID:     txidInit,
+		From:     2,
+		Amount:   46,
 		Data:     initialData.Encode(),
 	}
 
@@ -117,14 +123,14 @@ func TestProcessMatch(t *testing.T) {
 	matchEvent := &node.WatchedEvent{}
 	matchEvent.Business = "p2p"
 	matchData := &p2pMsg{
-		SendAddr:    getBytes(20),
+		SendAddr:    requireAddr,
 		ReceiveAddr: getBytes(20),
 		Chain:       2,
 		TokenID:     2,
 		Amount:      46,
 		Fee:         1,
 		ExpiredTime: uint32(time.Now().Unix()),
-		RequireAddr: seqID,
+		RequireAddr: sendAddr,
 	}
 	temp := getBytes(32)
 	temp[0] = byte(2)
@@ -132,6 +138,8 @@ func TestProcessMatch(t *testing.T) {
 	matchEvent.Data = &pb.WatchedEvent{
 		Business: "p2p",
 		TxID:     txidMatch,
+		From:     1,
+		Amount:   64,
 		Data:     matchData.Encode(),
 	}
 
@@ -177,25 +185,22 @@ func TestProcessMatch(t *testing.T) {
 	go func() {
 		p2p.ch <- initalEvent
 		p2p.ch <- matchEvent
-		// p2p.ch <- matchEvent
-		p2p.ch <- initalEventConfirm
-		p2p.ch <- matchEventConfirm
+		p2p.ch <- matchEvent
+		// p2p.ch <- initalEventConfirm
+		// p2p.ch <- matchEventConfirm
 		close(p2p.ch)
 	}()
 	p2p.processEvent()
+	ioutil.ReadAll(os.Stdout)
 }
 
 func TestCreateDgw(t *testing.T) {
-	info:= &P2PInfo{
-
-	}
-	infos:= []*P2PInfo{
+	info := &P2PInfo{}
+	infos := []*P2PInfo{
 		info,
 	}
-	confirmInfo:= &P2PConfirmInfo{
-
-	}
-	confirmInfos:=[]*P2PConfirmInfo{
+	confirmInfo := &P2PConfirmInfo{}
+	confirmInfos := []*P2PConfirmInfo{
 		confirmInfo,
 	}
 	innerTx := createDGWTx("test", infos, confirmInfos)
@@ -238,6 +243,11 @@ func TestIndex(t *testing.T) {
 	index.Add(p2pInfo)
 	p2pInfo.Event.TxID = "testTxID2"
 	index.Add(p2pInfo)
-	txIDs := index.GetTxID(1, msgUse.SendAddr, msgUse.Amount)
+	txIDs := index.GetTxID(message.Bch, msgUse.SendAddr, uint64(event.Amount))
 	t.Logf("get txIDs:%s", txIDs)
+	index.Del(p2pInfo)
+	t.Logf("del res:%v", index.root.Childs)
+	p2pInfo.Event.TxID = "testTxID"
+	index.Del(p2pInfo)
+	t.Logf("del res:%v", index.root.Childs)
 }

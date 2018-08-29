@@ -33,7 +33,7 @@ func ExampleP2PInfo() {
 		Msg:   msgUse,
 	}
 	p2pDB.setP2PInfo(p2pInfo)
-	info := p2pDB.getP2PInfo(event.TxID, message.Bch)
+	info := p2pDB.getP2PInfo(event.TxID)
 	fmt.Printf("get p2pInfo txID:%s\n", info.Event.TxID)
 	// Output: get p2pInfo txID:testTxID
 }

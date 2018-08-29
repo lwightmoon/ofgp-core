@@ -78,7 +78,7 @@ func (msg *p2pMsg) Decode(data []byte) {
 	readInt(r, &msg.Amount)
 	readInt(r, &msg.Fee)
 	readInt(r, &msg.ExpiredTime)
-	requireAddr := read(r, 32)
+	requireAddr := read(r, 20)
 	msg.RequireAddr = requireAddr
 }
 

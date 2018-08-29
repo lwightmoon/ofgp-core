@@ -53,6 +53,13 @@ func (db *p2pdb) getP2PInfos(txIDs []string) []*P2PInfo {
 	}
 	return infos
 }
+func (db *p2pdb) delP2PInfo(txID string) {
+	key := append(p2pInfoPrefix, []byte(txID)...)
+	err := db.db.Delete(key)
+	if err != nil {
+		p2pLogger.Error("p2p db err", "err", err, "scTxID", txID)
+	}
+}
 
 // 保存等待确认的交易
 func (db *p2pdb) setWaitConfirm(txID string, msg *WaitConfirmMsg) {

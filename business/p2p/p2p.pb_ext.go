@@ -33,18 +33,53 @@ type txIndex struct {
 	root *TxNode
 }
 
+func newTxIndex() *txIndex {
+	return &txIndex{
+		root: &TxNode{
+			Value:  "root",
+			Childs: make(map[string]*TxNode),
+		},
+	}
+}
 func (ti *txIndex) Add(info *P2PInfo) {
 	chain := fmt.Sprintf("%d", info.Event.From)
 	child := ti.root.add(chain)
 	sendAddr := info.Msg.SendAddr
 	child = child.add(sendAddr)
-	amount := fmt.Sprintf("%d", info.Msg.Amount)
+	amount := fmt.Sprintf("%d", info.Event.Amount)
 	child = child.add(amount)
 	txID := info.Event.TxID
-	p2pLogger.Debug("index", "txID", txID)
 	child.add(txID)
 }
 
+func (ti *txIndex) Del(info *P2PInfo) {
+	chain := fmt.Sprintf("%d", info.Event.From)
+	sendAddr := info.Msg.SendAddr
+	amount := fmt.Sprintf("%d", info.Event.Amount)
+	addrNode := ti.root.getNode(chain)
+	txID := info.GetScTxID()
+	if addrNode == nil {
+		return
+	}
+	amountNode := addrNode.getNode(sendAddr)
+	if amountNode == nil {
+		return
+	}
+	txIDNode := amountNode.getNode(amount)
+	if txIDNode == nil {
+		return
+	}
+	delete(txIDNode.Childs, txID)
+	if len(txIDNode.Childs) == 0 {
+		delete(amountNode.Childs, amount)
+	}
+	if len(amountNode.Childs) == 0 {
+		delete(addrNode.Childs, sendAddr)
+	}
+	if len(addrNode.Childs) == 0 {
+		delete(ti.root.Childs, chain)
+	}
+}
 func (tn *TxNode) add(val string) *TxNode {
 	if node, ok := tn.Childs[val]; ok {
 		return node
