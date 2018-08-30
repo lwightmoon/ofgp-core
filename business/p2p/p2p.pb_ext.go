@@ -52,6 +52,11 @@ func newTxIndex() *txIndex {
 		},
 	}
 }
+func (ti *txIndex) AddInfos(infos []*P2PInfo) {
+	for _, info := range infos {
+		ti.Add(info)
+	}
+}
 func (ti *txIndex) Add(info *P2PInfo) {
 	chain := fmt.Sprintf("%d", info.Event.From)
 	child := ti.root.add(chain)

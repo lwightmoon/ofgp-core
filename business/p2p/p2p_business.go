@@ -33,11 +33,16 @@ func NewP2P(node *node.BraftNode, db *p2pdb) *P2P {
 	ch := node.SubScribe(businessName)
 	p2p.ch = ch
 
-	//初始化处理链
+	//创建交易匹配索引
+	p2pInfos := db.getAllP2PInfos()
+	index := newTxIndex()
+
+	index.AddInfos(p2pInfos)
+
 	wh := &watchedHandler{
 		db:    db,
 		node:  node,
-		index: newTxIndex(),
+		index: index,
 	}
 	sh := &sigenedHandler{}
 	confirmH := &confirmHandler{
