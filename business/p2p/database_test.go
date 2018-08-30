@@ -2,6 +2,7 @@ package p2p
 
 import (
 	"fmt"
+	"testing"
 	"time"
 
 	"github.com/ofgp/ofgp-core/message"
@@ -36,4 +37,12 @@ func ExampleP2PInfo() {
 	info := p2pDB.getP2PInfo(event.TxID)
 	fmt.Printf("get p2pInfo txID:%s\n", info.Event.TxID)
 	// Output: get p2pInfo txID:testTxID
+}
+
+func TestWaitConfirm(t *testing.T) {
+	p2pDB.setWaitConfirm("init", &WaitConfirmMsg{
+		MatchedTxId: "matched",
+	})
+	res := p2pDB.getWaitConfirm("init")
+	fmt.Printf("matched:%s,info:%t", res.GetMatchedTxId(), res.Info == nil)
 }

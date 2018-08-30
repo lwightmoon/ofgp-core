@@ -21,3 +21,4 @@ func (node *BraftNode) SendTx(req ISendReq) {
 func (node *BraftNode) Commit(req *pb.Transaction) {
 	node.txStore.CreateInnerTx(req)
 }
+

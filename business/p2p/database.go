@@ -8,7 +8,8 @@ import (
 )
 
 var (
-	p2pInfoPrefix = []byte("p2pInfo")
+	p2pInfoPrefix     = []byte("p2pInfo")
+	waitConfirmPrefix = []byte("waitConfirm")
 )
 
 type p2pdb struct {
@@ -22,7 +23,7 @@ func (db *p2pdb) setP2PInfo(tx *P2PInfo) {
 	key := append(p2pInfoPrefix, []byte(txID)...)
 	data, err := proto.Marshal(tx)
 	if err != nil {
-		log.Printf("set P2PInfo err:%v", err)
+		p2pLogger.Error("set P2PInfo", "err", err)
 		return
 	}
 	db.db.Put(key, data)
@@ -32,13 +33,13 @@ func (db *p2pdb) getP2PInfo(txID string) *P2PInfo {
 	key := append(p2pInfoPrefix, []byte(txID)...)
 	data, err := db.db.Get(key)
 	if err != nil {
-		log.Printf("get P2PInfo err:%v", err)
+		p2pLogger.Error("get P2PInfo", "err", err)
 		return nil
 	}
 	info := &P2PInfo{}
 	err = proto.Unmarshal(data, info)
 	if err != nil {
-		log.Printf("decode P2PInfo from db err:%v", err)
+		p2pLogger.Error("decode P2PInfo from db ", "err", err)
 		return nil
 	}
 	return info
@@ -57,26 +58,26 @@ func (db *p2pdb) delP2PInfo(txID string) {
 	key := append(p2pInfoPrefix, []byte(txID)...)
 	err := db.db.Delete(key)
 	if err != nil {
-		p2pLogger.Error("p2p db err", "err", err, "scTxID", txID)
+		p2pLogger.Error("del p2pInfo", "err", err, "scTxID", txID)
 	}
 }
 
 // 保存等待确认的交易
 func (db *p2pdb) setWaitConfirm(txID string, msg *WaitConfirmMsg) {
-	key := append(p2pInfoPrefix, []byte(txID)...)
+	key := append(waitConfirmPrefix, []byte(txID)...)
 	data, err := proto.Marshal(msg)
 	if err != nil {
-		log.Printf("set P2PInfo err:%v", err)
+		p2pLogger.Error("set P2PInfo err", "err", err)
 		return
 	}
 	db.db.Put(key, data)
 }
 
 func (db *p2pdb) getWaitConfirm(txID string) *WaitConfirmMsg {
-	key := append(p2pInfoPrefix, []byte(txID)...)
+	key := append(waitConfirmPrefix, []byte(txID)...)
 	data, err := db.db.Get(key)
 	if err != nil {
-		log.Printf("get waitConfirm err:%v", err)
+		p2pLogger.Error("get waitConfirm", "err", err, "scTxID", txID)
 		return nil
 	}
 	msg := &WaitConfirmMsg{}
@@ -86,4 +87,12 @@ func (db *p2pdb) getWaitConfirm(txID string) *WaitConfirmMsg {
 		return nil
 	}
 	return msg
+}
+
+func (db *p2pdb) delWaitConfirm(txID string) {
+	key := append(waitConfirmPrefix, []byte(txID)...)
+	err := db.db.Delete(key)
+	if err != nil {
+		p2pLogger.Error("del waitConfirm", "err", err, "scTxID", txID)
+	}
 }

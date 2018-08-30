@@ -84,11 +84,20 @@ func getP2PInfo(event *pb.WatchedEvent) *P2PInfo {
 	}
 	return info
 }
-func (wh *watchedHandler) cleanMatchedInfos(infos []*P2PInfo) {
-	for _, info := range infos {
-		wh.index.Del(info)
-		wh.db.delP2PInfo(info.GetScTxID())
+
+// setWaitConfirm 设置 txID 和 matchedTxID 的双向对应关系
+func (wh *watchedHandler) setWaitConfirm(txID, matchedTxID string) {
+	waitConfirmMsg := &WaitConfirmMsg{
+		MatchedTxId: matchedTxID,
 	}
+	wh.db.setWaitConfirm(txID, waitConfirmMsg)
+	waitConfirmMsg.MatchedTxId = txID
+	wh.db.setWaitConfirm(matchedTxID, waitConfirmMsg)
+}
+
+// 判断交易是否已被匹配
+func (wh *watchedHandler) isMatched(txID string) bool {
+	return wh.db.getWaitConfirm(txID) != nil
 }
 func (wh *watchedHandler) HandleEvent(event node.BusinessEvent) {
 	if watchedEvent, ok := event.(*node.WatchedEvent); ok {
@@ -97,10 +106,15 @@ func (wh *watchedHandler) HandleEvent(event node.BusinessEvent) {
 			p2pLogger.Error("data is nil", "business", watchedEvent.GetBusiness())
 			return
 		}
+		if wh.isMatched(txEvent.GetTxID()) {
+			p2pLogger.Warn("tx has already been matched", "scTxID", txEvent.GetTxID)
+			return
+		}
 		info := getP2PInfo(txEvent)
 		wh.db.setP2PInfo(info)
 		p2pLogger.Debug("add coniditon", "chian", info.Event.From, "addr", info.Msg.SendAddr, "amount", info.Event.Amount)
 		wh.index.Add(info)
+		//要求匹配的条件
 		chain, addr, amount := info.getExchangeInfo()
 		p2pLogger.Debug("search coniditon", "chian", chain, "addr", addr, "amount", amount)
 		// 使用要求的数据匹配交易数据
@@ -114,8 +128,13 @@ func (wh *watchedHandler) HandleEvent(event node.BusinessEvent) {
 					continue
 				}
 				infos := []*P2PInfo{info, matchedInfo}
+				//创建交易发送等地啊签名
 				wh.sendToSignTx(infos)
-				wh.cleanMatchedInfos(infos)
+
+				//保存已匹配的两笔交易的txid
+				wh.setWaitConfirm(info.GetScTxID(), matchedInfo.GetScTxID())
+				//删除索引 防止重复匹配
+				wh.index.Del(info)
 				break
 			}
 		} else {
@@ -224,7 +243,7 @@ func (handler *confirmHandler) commitTx(business string, infos []*P2PInfo, confi
 	p2pLogger.Debug("commit dgw tx", "business", business)
 	dgwTx := createDGWTx(business, infos, confirmInfos)
 	txJSON, _ := json.Marshal(dgwTx)
-	p2pLogger.Debug("commit data", "data", txJSON)
+	p2pLogger.Debug("commit data", "data", string(txJSON))
 	handler.node.Commit(dgwTx)
 }
 
@@ -238,6 +257,13 @@ func getP2PConfirmInfo(event *pb.WatchedEvent) *P2PConfirmInfo {
 	}
 	return info
 }
+
+func (handler *confirmHandler) cleanOnConfirmed(infos []*P2PInfo) {
+	for _, info := range infos {
+		handler.db.delP2PInfo(info.GetScTxID())
+		handler.db.delWaitConfirm(info.GetScTxID())
+	}
+}
 func (handler *confirmHandler) HandleEvent(event node.BusinessEvent) {
 	if confirmedEvent, ok := event.(*node.ConfirmEvent); ok {
 		txEvent := confirmedEvent.GetData()
@@ -248,30 +274,40 @@ func (handler *confirmHandler) HandleEvent(event node.BusinessEvent) {
 		//交易确认info
 		info := getP2PConfirmInfo(txEvent)
 		p2pLogger.Info("handle confirm", "scTxID", info.Msg.Id)
+		//之前的交易id
 		oldTxID := info.Msg.Id
 		if info.Msg.Opration == confirmed { //确认交易 需要等待发起和匹配交易确认
 			waitConfirm := handler.db.getWaitConfirm(oldTxID)
+			if waitConfirm == nil {
+				p2pLogger.Error("never matched tx", "scTxID", oldTxID)
+				return
+			}
 			waitConfirm.Info = info
 			handler.db.setWaitConfirm(oldTxID, waitConfirm)
 
 			//先前匹配的交易id
 			oldMatchedTxID := waitConfirm.GetMatchedTxId()
-
 			oldWaitConfirm := handler.db.getWaitConfirm(oldMatchedTxID)
-			if oldWaitConfirm.Info != nil { //exchange两笔交易都已confirm
+			if oldWaitConfirm.Info != nil { //与oldTxID匹配的交易已被confirm
 				confirmInfos := []*P2PConfirmInfo{info, oldWaitConfirm.Info}
 				oldTxIDs := []string{oldTxID, oldMatchedTxID}
+				p2pLogger.Debug("get old info", "txIDs", oldTxIDs)
 				p2pInfos := handler.db.getP2PInfos(oldTxIDs)
 				handler.commitTx(event.GetBusiness(), p2pInfos, confirmInfos)
+				handler.cleanOnConfirmed(p2pInfos)
 			} else {
 				p2pLogger.Info("wait another tx confirm", "scTxID", oldTxID)
 			}
 
-		} else { //回退交易 commit当前confirmInfo和对应的p2pInfo
+		} else if info.Msg.Opration == back { //回退交易 commit当前confirmInfo和对应的p2pInfo
+			p2pLogger.Debug("hanle confirm back", "scTxID", info.Msg.Id)
 			confirmInfos := []*P2PConfirmInfo{info}
 			oldTxIDs := []string{oldTxID}
 			p2pInfos := handler.db.getP2PInfos(oldTxIDs)
 			handler.commitTx(event.GetBusiness(), p2pInfos, confirmInfos)
+			handler.cleanOnConfirmed(p2pInfos)
+		} else {
+			p2pLogger.Error("oprationtype wrong", "opration", info.Msg.Opration)
 		}
 
 	} else if handler.Successor != nil {

@@ -8,9 +8,7 @@ import (
 )
 
 const (
-	require = iota //event type
-	match
-	confirmed
+	confirmed = iota //event type
 	back
 )
 
