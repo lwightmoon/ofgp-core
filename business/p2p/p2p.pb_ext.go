@@ -2,6 +2,7 @@ package p2p
 
 import (
 	"fmt"
+	"time"
 )
 
 // getExchangeInfo 获取交换数据
@@ -18,6 +19,16 @@ func (info *P2PInfo) GetScTxID() string {
 	}
 	p2pLogger.Error("event nil p2pInfo")
 	return ""
+}
+
+func (info *P2PInfo) IsExpired() bool {
+	return info.Msg.ExpiredTime > uint32(time.Now().Unix())
+}
+func (info *P2PInfo) GetExchangeTxParam() {
+
+}
+func (info *P2PInfo) GetBackTxParam() {
+
 }
 
 func (info *P2PConfirmInfo) GetTxID() string {

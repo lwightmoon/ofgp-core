@@ -62,6 +62,24 @@ func (db *p2pdb) delP2PInfo(txID string) {
 	}
 }
 
+// getAllP2PInfos 获取所有p2p交易数据
+func (db *p2pdb) getAllP2PInfos() []*P2PInfo {
+	infos := make([]*P2PInfo, 0)
+	iter := db.db.NewIteratorWithPrefix(p2pInfoPrefix)
+	var err error
+	for iter.Next() {
+		info := &P2PInfo{}
+		err = proto.Unmarshal(iter.Value(), info)
+		if err != nil {
+			p2pLogger.Error("get p2pInfos unmarshal err", "err", err)
+			continue
+		}
+		infos = append(infos, info)
+	}
+	defer iter.Release()
+	return infos
+}
+
 // 保存等待确认的交易
 func (db *p2pdb) setWaitConfirm(txID string, msg *WaitConfirmMsg) {
 	key := append(waitConfirmPrefix, []byte(txID)...)

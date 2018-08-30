@@ -46,3 +46,34 @@ func TestWaitConfirm(t *testing.T) {
 	res := p2pDB.getWaitConfirm("init")
 	fmt.Printf("matched:%s,info:%t", res.GetMatchedTxId(), res.Info == nil)
 }
+
+func TestGetAllInfo(t *testing.T) {
+	requireAddr := getBytes(20)
+	p2pMsg := &p2pMsg{
+		SendAddr:    getBytes(20),
+		ReceiveAddr: getBytes(20),
+		Chain:       1,
+		TokenID:     1,
+		Amount:      64,
+		Fee:         1,
+		ExpiredTime: uint32(time.Now().Unix()),
+		RequireAddr: requireAddr,
+	}
+	msgUse := p2pMsg.toPBMsg()
+	event := &pb.WatchedEvent{
+		TxID:   "testTxID",
+		Amount: 1,
+		From:   message.Bch,
+		To:     message.Eth,
+		Data:   p2pMsg.Encode(),
+	}
+	p2pInfo := &P2PInfo{
+		Event: event,
+		Msg:   msgUse,
+	}
+	p2pDB.setP2PInfo(p2pInfo)
+	infos := p2pDB.getAllP2PInfos()
+	for _, info := range infos {
+		t.Logf("info:%s", info.GetScTxID())
+	}
+}

@@ -17,9 +17,10 @@ import (
 var p2pLogger = log.New(viper.GetString("loglevel"), "node")
 
 type P2P struct {
-	ch      chan node.BusinessEvent
-	node    *node.BraftNode
-	handler business.IHandler
+	ch           chan node.BusinessEvent
+	node         *node.BraftNode
+	handler      business.IHandler
+	matchChecker *matchTimeoutChecker
 }
 
 const businessName = "p2p"
@@ -48,6 +49,8 @@ func NewP2P(node *node.BraftNode, db *p2pdb) *P2P {
 	sh.SetSuccessor(confirmH)
 	confirmH.SetSuccessor(commitH)
 	p2p.handler = wh
+	p2p.matchChecker = newMatchTimeoutChecker(10*time.Second, db)
+	p2p.matchChecker.run()
 	return p2p
 }
 
@@ -96,8 +99,8 @@ func (wh *watchedHandler) setWaitConfirm(txID, matchedTxID string) {
 }
 
 // 判断交易是否已被匹配
-func (wh *watchedHandler) isMatched(txID string) bool {
-	return wh.db.getWaitConfirm(txID) != nil
+func isMatched(db *p2pdb, txID string) bool {
+	return db.getWaitConfirm(txID) != nil
 }
 func (wh *watchedHandler) HandleEvent(event node.BusinessEvent) {
 	if watchedEvent, ok := event.(*node.WatchedEvent); ok {
@@ -106,11 +109,16 @@ func (wh *watchedHandler) HandleEvent(event node.BusinessEvent) {
 			p2pLogger.Error("data is nil", "business", watchedEvent.GetBusiness())
 			return
 		}
-		if wh.isMatched(txEvent.GetTxID()) {
+		if isMatched(wh.db, txEvent.GetTxID()) {
 			p2pLogger.Warn("tx has already been matched", "scTxID", txEvent.GetTxID)
 			return
 		}
 		info := getP2PInfo(txEvent)
+		if info.IsExpired() { //匹配交易超时
+			p2pLogger.Warn("tx has already been expired", "scTxID", txEvent.GetTxID)
+			//todo 发送回退交易
+			return
+		}
 		wh.db.setP2PInfo(info)
 		p2pLogger.Debug("add coniditon", "chian", info.Event.From, "addr", info.Msg.SendAddr, "amount", info.Event.Amount)
 		wh.index.Add(info)
@@ -125,6 +133,11 @@ func (wh *watchedHandler) HandleEvent(event node.BusinessEvent) {
 				matchedInfo := wh.db.getP2PInfo(txID)
 				if matchedInfo == nil {
 					p2pLogger.Error("get p2pInfo nil", "business", event.GetBusiness(), "scTxID", txEvent.GetTxID())
+					continue
+				}
+				if matchedInfo.IsExpired() { //被匹配记录超时
+					p2pLogger.Warn("tx matched has already been matched", "scTxID", txEvent.GetTxID)
+					//todo 发送回退交易
 					continue
 				}
 				infos := []*P2PInfo{info, matchedInfo}
