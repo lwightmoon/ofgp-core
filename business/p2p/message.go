@@ -95,7 +95,6 @@ func (msg *p2pMsg) Encode() []byte {
 
 //GetEventtype()==1 被确认
 type p2pMsgConfirmed struct {
-	Opration  uint8  //0 交易被确认 1 交易回退
 	ID        []byte //交易标识 32 对应watchedEvent的txID
 	Chain     uint8  //所在链
 	Confirms  uint8  //确认数
@@ -108,7 +107,6 @@ type p2pMsgConfirmed struct {
 // toPBMsg 转为pb数据结构 序列化
 func (msg *p2pMsgConfirmed) toPBMsg() *P2PConfirmMsg {
 	return &P2PConfirmMsg{
-		Opration:  uint32(msg.Opration),
 		Id:        hex.EncodeToString(msg.ID),
 		Chain:     uint32(msg.Chain),
 		Height:    msg.Height,
@@ -120,7 +118,6 @@ func (msg *p2pMsgConfirmed) toPBMsg() *P2PConfirmMsg {
 
 func (msg *p2pMsgConfirmed) Decode(data []byte) {
 	r := bytes.NewReader(data)
-	readInt(r, &msg.Opration)
 	id := read(r, 32)
 	msg.ID = id
 	readInt(r, &msg.Chain)
@@ -134,7 +131,6 @@ func (msg *p2pMsgConfirmed) Decode(data []byte) {
 
 func (msg *p2pMsgConfirmed) Encode() []byte {
 	buf := &bytes.Buffer{}
-	binary.Write(buf, binary.BigEndian, msg.Opration)
 	binary.Write(buf, binary.BigEndian, msg.ID)
 	binary.Write(buf, binary.BigEndian, msg.Chain)
 	binary.Write(buf, binary.BigEndian, msg.Confirms)

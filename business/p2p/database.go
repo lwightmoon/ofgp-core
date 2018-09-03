@@ -97,7 +97,7 @@ func (db *p2pdb) getWaitConfirm(txID string) *WaitConfirmMsg {
 	key := append(waitConfirmPrefix, []byte(txID)...)
 	data, err := db.db.Get(key)
 	if err != nil {
-		p2pLogger.Error("get waitConfirm", "err", err, "scTxID", txID)
+		// p2pLogger.Error("get waitConfirm", "err", err, "scTxID", txID)
 		return nil
 	}
 	msg := &WaitConfirmMsg{}

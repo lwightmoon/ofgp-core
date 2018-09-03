@@ -23,7 +23,7 @@ func (info *P2PInfo) GetScTxID() string {
 
 // IsExpired 是否匹配交易超时
 func (info *P2PInfo) IsExpired() bool {
-	return info.Msg.ExpiredTime > uint32(time.Now().Unix())
+	return uint32(time.Now().Unix()) > info.Msg.ExpiredTime
 }
 
 // isConfirmTimeout 是否超时未被确认

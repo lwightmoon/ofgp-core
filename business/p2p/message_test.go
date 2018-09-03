@@ -69,7 +69,6 @@ func TestEncode(t *testing.T) {
 
 func TestConfirmEncode(t *testing.T) {
 	msg := &p2pMsgConfirmed{
-		Opration:  2,
 		ID:        getBytes(32),
 		Chain:     1,
 		Confirms:  7,

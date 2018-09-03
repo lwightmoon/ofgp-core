@@ -44,7 +44,7 @@ func NewP2P(node *node.BraftNode, db *p2pdb) *P2P {
 		db:                 db,
 		node:               node,
 		index:              index,
-		checkMatchInterval: time.Duration(10) * time.Second,
+		checkMatchInterval: time.Duration(1) * time.Second,
 	}
 	// check匹配超时
 	wh.runCheckMatchTimeout()
@@ -195,11 +195,11 @@ func (wh *watchedHandler) HandleEvent(event node.BusinessEvent) {
 		}
 
 		wh.db.setP2PInfo(info)
-		p2pLogger.Debug("add coniditon", "chian", info.Event.From, "addr", info.Msg.SendAddr, "amount", info.Event.Amount)
+		// p2pLogger.Debug("add coniditon", "chian", info.Event.From, "addr", info.Msg.SendAddr, "amount", info.Event.Amount)
 		wh.index.Add(info)
 		//要求匹配的条件
 		chain, addr, amount := info.getExchangeInfo()
-		p2pLogger.Debug("search coniditon", "chian", chain, "addr", addr, "amount", amount)
+		// p2pLogger.Debug("search coniditon", "chian", chain, "addr", addr, "amount", amount)
 		// 使用要求的数据匹配交易数据
 		txIDs := wh.index.GetTxID(chain, addr, amount)
 		p2pLogger.Debug("matchIDs", "txIDs", txIDs)
@@ -385,12 +385,13 @@ func (handler *confirmHandler) HandleEvent(event node.BusinessEvent) {
 		p2pLogger.Info("handle confirm", "scTxID", info.Msg.Id)
 		//之前的交易id
 		oldTxID := info.Msg.Id
-		if info.Msg.Opration == confirmed { //确认交易 需要等待发起和匹配交易确认
-			waitConfirm := handler.db.getWaitConfirm(oldTxID)
-			if waitConfirm == nil {
-				p2pLogger.Error("never matched tx", "scTxID", oldTxID)
-				return
-			}
+		waitConfirm := handler.db.getWaitConfirm(oldTxID)
+		if waitConfirm == nil {
+			p2pLogger.Error("never matched tx", "scTxID", oldTxID)
+			return
+		}
+		if waitConfirm.Opration == confirmed { //确认交易 需要等待发起和匹配交易确认
+
 			waitConfirm.Info = info
 			handler.db.setWaitConfirm(oldTxID, waitConfirm)
 
@@ -408,7 +409,7 @@ func (handler *confirmHandler) HandleEvent(event node.BusinessEvent) {
 				p2pLogger.Info("wait another tx confirm", "scTxID", oldTxID)
 			}
 
-		} else if info.Msg.Opration == back { //回退交易 commit当前confirmInfo和对应的p2pInfo
+		} else if waitConfirm.Opration == back { //回退交易 commit当前confirmInfo和对应的p2pInfo
 			p2pLogger.Debug("hanle confirm back", "scTxID", info.Msg.Id)
 			confirmInfos := []*P2PConfirmInfo{info}
 			oldTxIDs := []string{oldTxID}
@@ -416,7 +417,7 @@ func (handler *confirmHandler) HandleEvent(event node.BusinessEvent) {
 			handler.commitTx(event.GetBusiness(), p2pInfos, confirmInfos)
 			handler.cleanOnConfirmed(p2pInfos)
 		} else {
-			p2pLogger.Error("oprationtype wrong", "opration", info.Msg.Opration)
+			p2pLogger.Error("oprationtype wrong", "opration", waitConfirm.Opration)
 		}
 
 	} else if handler.Successor != nil {
