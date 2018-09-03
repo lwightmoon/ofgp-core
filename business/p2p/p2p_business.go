@@ -103,9 +103,10 @@ func getP2PInfo(event *pb.WatchedEvent) *P2PInfo {
 }
 
 // setWaitConfirm 设置 txID 和 matchedTxID 的双向对应关系
-func setWaitConfirm(db *p2pdb, op uint32, txID string) {
+func setWaitConfirm(db *p2pdb, op, chain uint32, txID string) {
 	waitConfirmMsg := &WaitConfirmMsg{
 		Opration: op,
+		Chain:    chain,
 		Info:     nil,
 	}
 	db.setWaitConfirm(txID, waitConfirmMsg)
@@ -149,7 +150,7 @@ func (wh *watchedHandler) checkMatchTimeout() {
 			//check 交易是否在链上存在
 			//创建并发送回退交易
 			p2pLogger.Debug("match timeout", "scTxID", info.GetScTxID())
-			setWaitConfirm(wh.db, uint32(back), info.GetScTxID())
+			setWaitConfirm(wh.db, uint32(back), info.Event.GetTo(), info.GetScTxID())
 		}
 	}
 }
@@ -213,7 +214,7 @@ func (wh *watchedHandler) HandleEvent(event node.BusinessEvent) {
 						Tx:       newTx,
 					})
 					//设置等待确认
-					setWaitConfirm(wh.db, uint32(confirmed), scTxID)
+					setWaitConfirm(wh.db, uint32(confirmed), info.Event.GetTo(), scTxID)
 				}
 				//保存已匹配的两笔交易的txid
 				wh.db.setMatched(info.GetScTxID(), matchedInfo.GetScTxID())

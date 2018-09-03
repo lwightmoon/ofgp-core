@@ -34,7 +34,8 @@ message p2pConfirmMsg{
 
 message waitConfirmMsg{
     uint32 opration = 1; //标识回退交易或者匹配交易
-    p2pConfirmInfo info = 2; //匹配成功发送的交易
+    uint32 chain = 2;
+    p2pConfirmInfo info = 3; //匹配成功发送的交易
 }
 
 //被确认交易

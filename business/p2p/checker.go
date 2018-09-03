@@ -3,14 +3,29 @@ package p2p
 import (
 	"time"
 
+	"github.com/ofgp/ofgp-core/message"
 	"github.com/ofgp/ofgp-core/node"
 )
 
 type confirmTimeoutChecker struct {
-	db       *p2pdb
-	interval time.Duration
-	timeout  int64
-	node     *node.BraftNode
+	db               *p2pdb
+	interval         time.Duration
+	confirmTolerance int64
+	node             *node.BraftNode
+}
+
+func (checker *confirmTimeoutChecker) getConfirmTimeout(chain uint32) int64 {
+	switch chain {
+	case message.Bch:
+		fallthrough
+	case message.Btc:
+		return int64(node.BchConfirms)*60 + checker.confirmTolerance
+	case message.Eth:
+		return int64(node.BchConfirms)*15 + checker.confirmTolerance
+	default:
+		return checker.confirmTolerance
+	}
+
 }
 
 func (checker *confirmTimeoutChecker) check() {
@@ -21,7 +36,7 @@ func (checker *confirmTimeoutChecker) check() {
 			p2pLogger.Warn("waitConfirm is nil", "scTxID", tx.TxId)
 			continue
 		}
-		if (time.Now().Unix()-tx.Time) > checker.timeout && waitConfirm.Info == nil { //超时
+		if (time.Now().Unix()-tx.Time) > checker.getConfirmTimeout(waitConfirm.Chain) && waitConfirm.Info == nil { //超时
 			p2pInfo := checker.db.getP2PInfo(tx.TxId)
 			if p2pInfo == nil {
 				p2pLogger.Error("check confirm timeout p2pInfo is nil", "scTxID", tx.TxId)
