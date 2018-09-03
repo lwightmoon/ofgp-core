@@ -6,44 +6,11 @@ import (
 	"github.com/ofgp/ofgp-core/node"
 )
 
-type matchTimeoutChecker struct {
-	checkInterval  time.Duration
-	confirmTimeout int64
-	db             *p2pdb
-	node           *node.BraftNode
-}
-
-func newMatchTimeoutChecker(interval time.Duration, db *p2pdb) *matchTimeoutChecker {
-	return &matchTimeoutChecker{
-		checkInterval: interval,
-		db:            db,
-	}
-}
-func (checker *matchTimeoutChecker) check() {
-	infos := checker.db.getAllP2PInfos()
-	for _, info := range infos {
-		if info.IsExpired() && !isMatched(checker.db, info.GetScTxID()) {
-			info.GetBackTxParam()
-			//todo创建发送回退交易
-			//删除
-		}
-	}
-}
-
-func (checker *matchTimeoutChecker) run() {
-	ticker := time.NewTicker(checker.checkInterval).C
-	go func() {
-		for {
-			<-ticker
-			checker.check()
-		}
-	}()
-}
-
 type confirmTimeoutChecker struct {
 	db       *p2pdb
 	interval time.Duration
 	timeout  int64
+	node     *node.BraftNode
 }
 
 func (checker *confirmTimeoutChecker) check() {
@@ -60,10 +27,13 @@ func (checker *confirmTimeoutChecker) check() {
 				p2pLogger.Error("check confirm timeout p2pInfo is nil", "scTxID", tx.TxId)
 				continue
 			}
+			//check交易是否在链上存在
+			//存在则返回
 			switch waitConfirm.Opration {
 			case confirmed: //匹配交易
 				//todo
 				//重新发起匹配交易
+
 			case back: //回退交易
 				//todo
 				//重新发起回退交易

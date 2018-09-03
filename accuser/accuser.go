@@ -31,13 +31,14 @@ type Accuser struct {
 	signer      *crypto.SecureSigner
 	peerManager *cluster.PeerManager
 
-	bsTriggerChan    chan int64 //from blockstore, sure to accuse
-	tsTriggerChan    chan int64
-	newCommittedChan chan *pb.BlockPack
-	newTermChan      chan int64
-	heartbeatTimer   *time.Timer
-	lastAccuseTime   time.Time
-	lastAccuseTerm   int64
+	bsTriggerChan       chan int64 //from blockstore, sure to accuse
+	tsTriggerChan       chan int64
+	businessTriggerChan chan int64
+	newCommittedChan    chan *pb.BlockPack
+	newTermChan         chan int64
+	heartbeatTimer      *time.Timer
+	lastAccuseTime      time.Time
+	lastAccuseTerm      int64
 
 	termToAccuse              int64
 	lastTermBlockTime         time.Time
@@ -53,11 +54,12 @@ func NewAccuser(nodeInfo cluster.NodeInfo, signer *crypto.SecureSigner,
 		signer:      signer,
 		peerManager: pm,
 
-		bsTriggerChan:    make(chan int64),
-		tsTriggerChan:    make(chan int64),
-		newCommittedChan: make(chan *pb.BlockPack),
-		newTermChan:      make(chan int64),
-		heartbeatTimer:   time.NewTimer(heartbeatInterval),
+		bsTriggerChan:       make(chan int64),
+		tsTriggerChan:       make(chan int64),
+		businessTriggerChan: make(chan int64),
+		newCommittedChan:    make(chan *pb.BlockPack),
+		newTermChan:         make(chan int64),
+		heartbeatTimer:      time.NewTimer(heartbeatInterval),
 
 		lastAccuseTime: time.Now().Add(-2 * accuseCooldown),
 		lastAccuseTerm: -1,
@@ -78,6 +80,10 @@ func (ac *Accuser) TriggerByBlockStore(term int64) {
 // TriggerByTxStore txstore发起accuse
 func (ac *Accuser) TriggerByTxStore(term int64) {
 	ac.tsTriggerChan <- term
+}
+
+func (ac *Accuser) TriggerByBusiness(term int64) {
+	ac.businessTriggerChan <- term
 }
 
 // OnNewCommitted 新区块commit之后的回调处理

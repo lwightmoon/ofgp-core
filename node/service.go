@@ -32,7 +32,7 @@ func (node *BraftNode) IsSended(chain uint32, scTxID string) bool {
 }
 
 // CleanSigned 清理签名数据 业务方重试使用
-func (node *BraftNode) ClearOnFail(msg *message.WaitSignMsg, scTxID string, term int64) {
+func (node *BraftNode) OnConfirmFail(msg *message.WaitSignMsg, scTxID string, term int64) {
 	if node.txStore.IsTxInMem(scTxID) && node.txStore.HasTxInDB(scTxID) {
 		return
 	}
@@ -47,4 +47,6 @@ func (node *BraftNode) ClearOnFail(msg *message.WaitSignMsg, scTxID string, term
 	//删除已签名标记
 	node.signedTxs.Delete(scTxID)
 	node.txStore.AddTxtoWaitSign(msg)
+
+	node.accuser.TriggerByBusiness(term)
 }

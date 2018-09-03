@@ -130,13 +130,40 @@ func (db *p2pdb) getMatched(txID string) string {
 	matched, _ := db.db.Get(key)
 	return string(matched)
 }
+func (db *p2pdb) delMatched(txID string) {
+	key := append(matchedPrefix, []byte(txID)...)
+	err := db.db.Delete(txID)
+	if err != nil {
+		p2pLogger.Error("delMatched err", "err", err, "scTxID", txID)
+	}
+}
 
 // 设置等待check
 func (db *p2pdb) setSendedTx(tx *SendedTx) {
-
+	key := append(sendedPrefix, []byte(tx.TxId)...)
+	data, err := proto.Marshal(tx)
+	if err != nil {
+		p2pLogger.Error("marshal sended err", "err", err, "scTxID", tx.TxId)
+		return
+	}
+	err = db.db.Put(key, data)
+	if err != nil {
+		p2pLogger.Error("set sended err", "err", err, "scTxID", tx.TxId)
+	}
+}
+func (db *p2pdb) delSendedTx(txId string) {
+	key := append(sendedPrefix, []byte(tx.TxId)...)
+	db.db.Delete(key)
 }
 
-func (db *p2pdb) getAllSendedTx() []SendedTx {
-	txIDs := make([]string, 0)
-	return txIDs
+func (db *p2pdb) getAllSendedTx() []*SendedTx {
+	txs := make([]*SendedTx, 0)
+	iter := db.db.NewIterator()
+	for iter.Next() {
+		data := iter.Value()
+		tx := &SendedTx{}
+		proto.Unmarshal(data, tx)
+		txs = append(txs, tx)
+	}
+	return txs
 }

@@ -121,15 +121,6 @@ func isMatching(db *p2pdb, txID string) bool {
 	return db.getWaitConfirm(txID) != nil
 }
 
-// 判断是否匹配成功
-func isMatched(db *p2pdb, txID string) bool {
-	waitConfirm := db.getWaitConfirm(txID)
-	if waitConfirm == nil {
-		return false
-	}
-	return waitConfirm.Info != nil && isConfirmed(db, waitConfirm.MatchedTxId)
-}
-
 func (wh *watchedHandler) checkP2PInfo(info *P2PInfo) bool {
 	txID := info.GetScTxID()
 	if isMatching(wh.db, txID) {
@@ -146,12 +137,15 @@ func (wh *watchedHandler) checkP2PInfo(info *P2PInfo) bool {
 
 //checkMatchTimeout 交易是否匹配超时
 func (wh *watchedHandler) checkMatchTimeout() {
+	wh.Lock()
+	defer wh.Unlock()
 	infos := wh.db.getAllP2PInfos()
 	for _, info := range infos {
 		now := time.Now().Unix()
 		// match 超时
-		if info.IsExpired() {
+		if !isMatching(wh.db, info.GetScTxID()) && info.IsExpired() {
 			//todo
+			//check 交易是否在链上存在
 			//创建并发送回退交易
 			setWaitConfirm(wh.db, uint32(back), info.GetScTxID())
 		}
@@ -159,6 +153,8 @@ func (wh *watchedHandler) checkMatchTimeout() {
 }
 
 func (wh *watchedHandler) HandleEvent(event node.BusinessEvent) {
+	wh.Lock()
+	defer wh.Unlock()
 	if watchedEvent, ok := event.(*node.WatchedEvent); ok {
 		txEvent := watchedEvent.GetData()
 		if event == nil {
@@ -342,8 +338,11 @@ func getP2PConfirmInfo(event *pb.WatchedEvent) *P2PConfirmInfo {
 
 func (handler *confirmHandler) cleanOnConfirmed(infos []*P2PInfo) {
 	for _, info := range infos {
-		handler.db.delP2PInfo(info.GetScTxID())
-		handler.db.delWaitConfirm(info.GetScTxID())
+		scTxID := info.GetScTxID()
+		handler.db.delP2PInfo(scTxID)
+		handler.db.delWaitConfirm(scTxID)
+		handler.db.delMatched(scTxID)
+		handler.db.delSendedTx(scTxID)
 	}
 }
 

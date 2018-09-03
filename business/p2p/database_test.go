@@ -83,3 +83,15 @@ func TestMatch(t *testing.T) {
 	matched := p2pDB.getMatched("a")
 	t.Logf("get matched:%s", matched)
 }
+
+func TestSendedTx(t *testing.T) {
+	p2pDB.setSendedTx(&SendedTx{
+		TxId:     "testTxID",
+		Time:     time.Now().Unix(),
+		SignTerm: 1,
+	})
+	txs := p2pDB.getAllSendedTx()
+	for _, tx := range txs {
+		t.Logf("txid:%s", tx.TxId)
+	}
+}
