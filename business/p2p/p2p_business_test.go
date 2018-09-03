@@ -147,7 +147,7 @@ func TestProcessMatch(t *testing.T) {
 	initalEventConfirm := &node.ConfirmEvent{}
 	id1, _ := hex.DecodeString(txidInit)
 	initialDataConfirm := &p2pMsgConfirmed{
-		Opration:  back,
+		Opration:  confirmed,
 		ID:        id1,
 		Chain:     1,
 		Confirms:  7,
@@ -168,7 +168,7 @@ func TestProcessMatch(t *testing.T) {
 	matchEventConfirm.Business = "p2p"
 	id2, _ := hex.DecodeString(txidMatch)
 	matchDataConfirm := &p2pMsgConfirmed{
-		Opration:  2,
+		Opration:  confirmed,
 		ID:        id2,
 		Chain:     2,
 		Confirms:  7,

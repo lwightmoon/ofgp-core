@@ -132,7 +132,7 @@ func (db *p2pdb) getMatched(txID string) string {
 }
 func (db *p2pdb) delMatched(txID string) {
 	key := append(matchedPrefix, []byte(txID)...)
-	err := db.db.Delete(txID)
+	err := db.db.Delete(key)
 	if err != nil {
 		p2pLogger.Error("delMatched err", "err", err, "scTxID", txID)
 	}
@@ -151,8 +151,8 @@ func (db *p2pdb) setSendedTx(tx *SendedTx) {
 		p2pLogger.Error("set sended err", "err", err, "scTxID", tx.TxId)
 	}
 }
-func (db *p2pdb) delSendedTx(txId string) {
-	key := append(sendedPrefix, []byte(tx.TxId)...)
+func (db *p2pdb) delSendedTx(txID string) {
+	key := append(sendedPrefix, []byte(txID)...)
 	db.db.Delete(key)
 }
 

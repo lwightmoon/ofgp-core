@@ -41,10 +41,10 @@ func ExampleP2PInfo() {
 
 func TestWaitConfirm(t *testing.T) {
 	p2pDB.setWaitConfirm("init", &WaitConfirmMsg{
-		MatchedTxId: "matched",
+		Opration: confirmed,
 	})
 	res := p2pDB.getWaitConfirm("init")
-	fmt.Printf("matched:%s,info:%t", res.GetMatchedTxId(), res.Info == nil)
+	fmt.Printf("operation:%d,info:%t", res.GetOpration(), res.Info == nil)
 }
 
 func TestGetAllInfo(t *testing.T) {
@@ -90,6 +90,12 @@ func TestSendedTx(t *testing.T) {
 		Time:     time.Now().Unix(),
 		SignTerm: 1,
 	})
+	p2pDB.setSendedTx(&SendedTx{
+		TxId:     "testTxID2",
+		Time:     time.Now().Unix(),
+		SignTerm: 2,
+	})
+	p2pDB.delSendedTx("testTxID2")
 	txs := p2pDB.getAllSendedTx()
 	for _, tx := range txs {
 		t.Logf("txid:%s", tx.TxId)

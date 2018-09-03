@@ -18,10 +18,9 @@ import (
 var p2pLogger = log.New(viper.GetString("loglevel"), "node")
 
 type P2P struct {
-	ch           chan node.BusinessEvent
-	node         *node.BraftNode
-	handler      business.IHandler
-	matchChecker *matchTimeoutChecker
+	ch      chan node.BusinessEvent
+	node    *node.BraftNode
+	handler business.IHandler
 }
 
 const businessName = "p2p"
@@ -41,10 +40,14 @@ func NewP2P(node *node.BraftNode, db *p2pdb) *P2P {
 	index.AddInfos(p2pInfos)
 
 	wh := &watchedHandler{
-		db:    db,
-		node:  node,
-		index: index,
+		db:                 db,
+		node:               node,
+		index:              index,
+		checkMatchInterval: time.Duration(10) * time.Second,
 	}
+	// check匹配超时
+	wh.runCheckMatchTimeout()
+
 	sh := &sigenedHandler{}
 	confirmH := &confirmHandler{
 		db:   db,
@@ -55,8 +58,6 @@ func NewP2P(node *node.BraftNode, db *p2pdb) *P2P {
 	sh.SetSuccessor(confirmH)
 	confirmH.SetSuccessor(commitH)
 	p2p.handler = wh
-	p2p.matchChecker = newMatchTimeoutChecker(10*time.Second, db)
-	p2p.matchChecker.run()
 	return p2p
 }
 
@@ -73,7 +74,7 @@ type watchedHandler struct {
 	index *txIndex
 	node  *node.BraftNode
 	business.Handler
-	matchTimeout int64
+	checkMatchInterval time.Duration
 }
 
 func createTx(node *node.BraftNode, op int, info *P2PInfo) interface{} {
@@ -121,6 +122,7 @@ func isMatching(db *p2pdb, txID string) bool {
 	return db.getWaitConfirm(txID) != nil
 }
 
+// checkP2PInfo check点对点交易是否合法
 func (wh *watchedHandler) checkP2PInfo(info *P2PInfo) bool {
 	txID := info.GetScTxID()
 	if isMatching(wh.db, txID) {
@@ -141,15 +143,25 @@ func (wh *watchedHandler) checkMatchTimeout() {
 	defer wh.Unlock()
 	infos := wh.db.getAllP2PInfos()
 	for _, info := range infos {
-		now := time.Now().Unix()
 		// match 超时
 		if !isMatching(wh.db, info.GetScTxID()) && info.IsExpired() {
 			//todo
 			//check 交易是否在链上存在
 			//创建并发送回退交易
+			p2pLogger.Debug("match timeout", "scTxID", info.GetScTxID())
 			setWaitConfirm(wh.db, uint32(back), info.GetScTxID())
 		}
 	}
+}
+
+func (wh *watchedHandler) runCheckMatchTimeout() {
+	ticker := time.NewTicker(wh.checkMatchInterval).C
+	go func() {
+		for {
+			<-ticker
+			wh.checkMatchTimeout()
+		}
+	}()
 }
 
 func (wh *watchedHandler) HandleEvent(event node.BusinessEvent) {
