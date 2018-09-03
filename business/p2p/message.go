@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	confirmed = iota //event type
+	confirmed = iota //交易操作类型
 	back
 )
 

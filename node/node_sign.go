@@ -364,7 +364,7 @@ func (node *BraftNode) doSave(msg *pb.SignResult) {
 			//标记已签名 替换SignedEvent
 			node.markTxSigned(msg.ScTxID)
 			//通知相关业务已被签名
-			node.pubSigned(msg, msg.To, newlyTx)
+			node.pubSigned(msg, msg.To, newlyTx, signReq.Term)
 			// sendTxToChain的时间可能会比较长，因为涉及到链上交易，所以需要提前把锁释放
 			// node.sendTxToChain(newlyTx, watcher, sigs, msg, signReqmsg)
 		}

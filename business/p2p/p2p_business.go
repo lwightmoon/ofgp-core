@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ofgp/ofgp-core/log"
+	"github.com/ofgp/ofgp-core/message"
 
 	"github.com/ofgp/ofgp-core/business"
 	"github.com/ofgp/ofgp-core/node"
@@ -66,15 +67,21 @@ func (p2p *P2P) processEvent() {
 }
 
 type watchedHandler struct {
+	service *service
 	sync.Mutex
 	db    *p2pdb
 	index *txIndex
 	node  *node.BraftNode
 	business.Handler
+	matchTimeout int64
+}
+
+func createTx(node *node.BraftNode, op int, info *P2PInfo) interface{} {
+	return nil
 }
 
 // // signTx 签名交易
-func (wh *watchedHandler) sendToSignTx(infos []*P2PInfo) {
+func sendToSignTx(node *node.BraftNode, infos []*P2PInfo) {
 	//todo 创建交易，并交给网关签名
 	for _, info := range infos {
 		p2pLogger.Debug("create tx and send to sign", "scTxID", info.GetScTxID())
@@ -89,24 +96,68 @@ func getP2PInfo(event *pb.WatchedEvent) *P2PInfo {
 	info := &P2PInfo{
 		Event: event,
 		Msg:   p2pMsg,
+		Time:  time.Now().Unix(),
 	}
 	return info
 }
 
 // setWaitConfirm 设置 txID 和 matchedTxID 的双向对应关系
-func (wh *watchedHandler) setWaitConfirm(txID, matchedTxID string) {
+func setWaitConfirm(db *p2pdb, op uint32, txID string) {
 	waitConfirmMsg := &WaitConfirmMsg{
-		MatchedTxId: matchedTxID,
+		Opration: op,
+		Info:     nil,
 	}
-	wh.db.setWaitConfirm(txID, waitConfirmMsg)
-	waitConfirmMsg.MatchedTxId = txID
-	wh.db.setWaitConfirm(matchedTxID, waitConfirmMsg)
+	db.setWaitConfirm(txID, waitConfirmMsg)
 }
 
-// 判断交易是否已被匹配
-func isMatched(db *p2pdb, txID string) bool {
+// isConfirmed 判断交易是否已被确认
+func isConfirmed(db *p2pdb, txID string) bool {
+	waitConfirm := db.getWaitConfirm(txID)
+	return waitConfirm != nil && waitConfirm.Info != nil
+}
+
+// isMatching 是否在匹配中
+func isMatching(db *p2pdb, txID string) bool {
 	return db.getWaitConfirm(txID) != nil
 }
+
+// 判断是否匹配成功
+func isMatched(db *p2pdb, txID string) bool {
+	waitConfirm := db.getWaitConfirm(txID)
+	if waitConfirm == nil {
+		return false
+	}
+	return waitConfirm.Info != nil && isConfirmed(db, waitConfirm.MatchedTxId)
+}
+
+func (wh *watchedHandler) checkP2PInfo(info *P2PInfo) bool {
+	txID := info.GetScTxID()
+	if isMatching(wh.db, txID) {
+		p2pLogger.Warn("tx is matching or has already been matched", "scTxID", txID)
+		return false
+	}
+	if info.IsExpired() {
+		p2pLogger.Warn("tx has already been expired", "scTxID", txID)
+		//todo 发送回退交易
+		return false
+	}
+	return true
+}
+
+//checkMatchTimeout 交易是否匹配超时
+func (wh *watchedHandler) checkMatchTimeout() {
+	infos := wh.db.getAllP2PInfos()
+	for _, info := range infos {
+		now := time.Now().Unix()
+		// match 超时
+		if info.IsExpired() {
+			//todo
+			//创建并发送回退交易
+			setWaitConfirm(wh.db, uint32(back), info.GetScTxID())
+		}
+	}
+}
+
 func (wh *watchedHandler) HandleEvent(event node.BusinessEvent) {
 	if watchedEvent, ok := event.(*node.WatchedEvent); ok {
 		txEvent := watchedEvent.GetData()
@@ -114,16 +165,12 @@ func (wh *watchedHandler) HandleEvent(event node.BusinessEvent) {
 			p2pLogger.Error("data is nil", "business", watchedEvent.GetBusiness())
 			return
 		}
-		if isMatched(wh.db, txEvent.GetTxID()) {
-			p2pLogger.Warn("tx has already been matched", "scTxID", txEvent.GetTxID)
-			return
-		}
 		info := getP2PInfo(txEvent)
-		if info.IsExpired() { //匹配交易超时
-			p2pLogger.Warn("tx has already been expired", "scTxID", txEvent.GetTxID)
-			//todo 发送回退交易
+		if !wh.checkP2PInfo(info) {
+			p2pLogger.Debug("check p2pinfo fail", "scTxID", info.GetScTxID)
 			return
 		}
+
 		wh.db.setP2PInfo(info)
 		p2pLogger.Debug("add coniditon", "chian", info.Event.From, "addr", info.Msg.SendAddr, "amount", info.Event.Amount)
 		wh.index.Add(info)
@@ -140,17 +187,28 @@ func (wh *watchedHandler) HandleEvent(event node.BusinessEvent) {
 					p2pLogger.Error("get p2pInfo nil", "business", event.GetBusiness(), "scTxID", txEvent.GetTxID())
 					continue
 				}
-				if matchedInfo.IsExpired() { //被匹配记录超时
-					p2pLogger.Warn("tx matched has already been matched", "scTxID", txEvent.GetTxID)
-					//todo 发送回退交易
+				if !wh.checkP2PInfo(matchedInfo) {
+					p2pLogger.Debug("check matched p2pinfo fail", "scTxID", info.GetScTxID)
 					continue
 				}
-				infos := []*P2PInfo{info, matchedInfo}
-				//创建交易发送等地啊签名
-				wh.sendToSignTx(infos)
 
+				infos := []*P2PInfo{info, matchedInfo}
+				//创建交易发送签名
+				for _, info := range infos {
+					newTx := wh.service.createTx(confirmed, info)
+					scTxID := info.GetScTxID()
+					wh.service.sendtoSign(&message.WaitSignMsg{
+						Business: watchedEvent.Business,
+						ID:       scTxID,
+						ScTxID:   scTxID,
+						Event:    info.Event,
+						Tx:       newTx,
+					})
+					//设置等待确认
+					setWaitConfirm(wh.db, uint32(confirmed), scTxID)
+				}
 				//保存已匹配的两笔交易的txid
-				wh.setWaitConfirm(info.GetScTxID(), matchedInfo.GetScTxID())
+				wh.db.setMatched(info.GetScTxID(), matchedInfo.GetScTxID())
 				//删除索引 防止重复匹配
 				wh.index.Del(info)
 				break
@@ -166,6 +224,7 @@ func (wh *watchedHandler) HandleEvent(event node.BusinessEvent) {
 }
 
 type sigenedHandler struct {
+	chcker *confirmTimeoutChecker
 	business.Handler
 }
 
@@ -177,6 +236,11 @@ func (sh *sigenedHandler) HandleEvent(event node.BusinessEvent) {
 			p2pLogger.Error("signed data is nil")
 			return
 		}
+		sh.chcker.add(&SendedTx{
+			TxId:     signedData.ID,
+			Time:     time.Now().Unix(),
+			SignTerm: signedData.Term,
+		})
 		p2pLogger.Debug("receive signedData", "scTxID", signedData.ID)
 		//todo 发送交易
 		p2pLogger.Debug("------sendTx")
@@ -282,6 +346,7 @@ func (handler *confirmHandler) cleanOnConfirmed(infos []*P2PInfo) {
 		handler.db.delWaitConfirm(info.GetScTxID())
 	}
 }
+
 func (handler *confirmHandler) HandleEvent(event node.BusinessEvent) {
 	if confirmedEvent, ok := event.(*node.ConfirmEvent); ok {
 		txEvent := confirmedEvent.GetData()
@@ -304,7 +369,7 @@ func (handler *confirmHandler) HandleEvent(event node.BusinessEvent) {
 			handler.db.setWaitConfirm(oldTxID, waitConfirm)
 
 			//先前匹配的交易id
-			oldMatchedTxID := waitConfirm.GetMatchedTxId()
+			oldMatchedTxID := handler.db.getMatched(oldTxID)
 			oldWaitConfirm := handler.db.getWaitConfirm(oldMatchedTxID)
 			if oldWaitConfirm.Info != nil { //与oldTxID匹配的交易已被confirm
 				confirmInfos := []*P2PConfirmInfo{info, oldWaitConfirm.Info}

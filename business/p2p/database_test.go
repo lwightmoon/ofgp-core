@@ -77,3 +77,9 @@ func TestGetAllInfo(t *testing.T) {
 		t.Logf("info:%s", info.GetScTxID())
 	}
 }
+
+func TestMatch(t *testing.T) {
+	p2pDB.setMatched("a", "b")
+	matched := p2pDB.getMatched("a")
+	t.Logf("get matched:%s", matched)
+}

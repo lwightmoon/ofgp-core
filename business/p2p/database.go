@@ -10,6 +10,8 @@ import (
 var (
 	p2pInfoPrefix     = []byte("p2pInfo")
 	waitConfirmPrefix = []byte("waitConfirm")
+	matchedPrefix     = []byte("matched")
+	sendedPrefix      = []byte("sended")
 )
 
 type p2pdb struct {
@@ -113,4 +115,28 @@ func (db *p2pdb) delWaitConfirm(txID string) {
 	if err != nil {
 		p2pLogger.Error("del waitConfirm", "err", err, "scTxID", txID)
 	}
+}
+
+// 设置匹配的txID
+func (db *p2pdb) setMatched(txID1, txID2 string) {
+	key1 := append(matchedPrefix, []byte(txID1)...)
+	key2 := append(matchedPrefix, []byte(txID2)...)
+	db.db.Put(key1, []byte(txID2))
+	db.db.Put(key2, []byte(txID1))
+}
+
+func (db *p2pdb) getMatched(txID string) string {
+	key := append(matchedPrefix, []byte(txID)...)
+	matched, _ := db.db.Get(key)
+	return string(matched)
+}
+
+// 设置等待check
+func (db *p2pdb) setSendedTx(tx *SendedTx) {
+
+}
+
+func (db *p2pdb) getAllSendedTx() []SendedTx {
+	txIDs := make([]string, 0)
+	return txIDs
 }

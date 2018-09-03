@@ -21,14 +21,22 @@ func (info *P2PInfo) GetScTxID() string {
 	return ""
 }
 
+// IsExpired 是否匹配交易超时
 func (info *P2PInfo) IsExpired() bool {
 	return info.Msg.ExpiredTime > uint32(time.Now().Unix())
+}
+
+// isConfirmTimeout 是否超时未被确认
+func (info *P2PInfo) isConfirmTimeout(timeout int64) bool {
+	if time.Now().Unix()-info.Time > timeout {
+		return true
+	}
+	return false
 }
 func (info *P2PInfo) GetExchangeTxParam() {
 
 }
 func (info *P2PInfo) GetBackTxParam() {
-
 }
 
 func (info *P2PConfirmInfo) GetTxID() string {
