@@ -18,9 +18,10 @@ import (
 var p2pLogger = log.New(viper.GetString("loglevel"), "node")
 
 type P2P struct {
-	ch      chan node.BusinessEvent
-	node    *node.BraftNode
-	handler business.IHandler
+	ch             chan node.BusinessEvent
+	node           *node.BraftNode
+	handler        business.IHandler
+	confirmChecker *confirmTimeoutChecker
 }
 
 const businessName = "p2p"
@@ -58,6 +59,9 @@ func NewP2P(node *node.BraftNode, db *p2pdb) *P2P {
 	sh.SetSuccessor(confirmH)
 	confirmH.SetSuccessor(commitH)
 	p2p.handler = wh
+
+	confirmChecker := newConfirmChecker(db, 15*time.Second, 60, node)
+	p2p.confirmChecker = confirmChecker
 	return p2p
 }
 
@@ -145,11 +149,21 @@ func (wh *watchedHandler) checkMatchTimeout() {
 	infos := wh.db.getAllP2PInfos()
 	for _, info := range infos {
 		// match 超时
+		scTxID := info.GetScTxID()
+		event := info.Event
 		if !isMatching(wh.db, info.GetScTxID()) && info.IsExpired() {
 			//todo
 			//check 交易是否在链上存在
 			//创建并发送回退交易
 			p2pLogger.Debug("match timeout", "scTxID", info.GetScTxID())
+			newTx := wh.service.createTx(confirmed, info)
+			wh.service.sendtoSign(&message.WaitSignMsg{
+				Business: event.Business,
+				ID:       scTxID,
+				ScTxID:   scTxID,
+				Event:    event,
+				Tx:       newTx,
+			})
 			setWaitConfirm(wh.db, uint32(back), info.Event.GetTo(), info.GetScTxID())
 		}
 	}

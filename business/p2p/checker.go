@@ -14,6 +14,17 @@ type confirmTimeoutChecker struct {
 	node             *node.BraftNode
 }
 
+func newConfirmChecker(db *p2pdb, interval time.Duration, confirmTolerance int64, node *node.BraftNode) *confirmTimeoutChecker {
+	checker := &confirmTimeoutChecker{
+		db:               db,
+		interval:         interval,
+		confirmTolerance: confirmTolerance,
+		node:             node,
+	}
+	checker.run()
+	return checker
+}
+
 func (checker *confirmTimeoutChecker) getConfirmTimeout(chain uint32) int64 {
 	switch chain {
 	case message.Bch:
@@ -63,6 +74,12 @@ func (checker *confirmTimeoutChecker) add(tx *SendedTx) {
 	checker.db.setSendedTx(tx)
 }
 
-func (checker *confirmTimeoutChecker) del(scTxID string) {
-
+func (checker *confirmTimeoutChecker) run() {
+	ticker := time.NewTicker(checker.interval).C
+	go func() {
+		for {
+			<-ticker
+			checker.check()
+		}
+	}()
 }
