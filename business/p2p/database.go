@@ -5,6 +5,7 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/ofgp/ofgp-core/dgwdb"
+	"github.com/syndtr/goleveldb/leveldb"
 )
 
 var (
@@ -109,6 +110,18 @@ func (db *p2pdb) getWaitConfirm(txID string) *WaitConfirmMsg {
 	return msg
 }
 
+// getAllWaitConfirm 获取所有waitconfirm
+func (db *p2pdb) getAllWaitConfirm() []*WaitConfirmMsg {
+	waits := make([]*WaitConfirmMsg, 0)
+	iter := db.db.NewIteratorWithPrefix(waitConfirmPrefix)
+	for iter.Next() {
+		wait := &WaitConfirmMsg{}
+		proto.Unmarshal(iter.Value(), wait)
+		waits = append(waits, wait)
+	}
+	return waits
+}
+
 func (db *p2pdb) delWaitConfirm(txID string) {
 	key := append(waitConfirmPrefix, []byte(txID)...)
 	err := db.db.Delete(key)
@@ -139,7 +152,7 @@ func (db *p2pdb) delMatched(txID string) {
 }
 
 // 设置等待check
-func (db *p2pdb) setSendedTx(tx *SendedTx) {
+func (db *p2pdb) setSendedInfo(tx *SendedInfo) {
 	key := append(sendedPrefix, []byte(tx.TxId)...)
 	data, err := proto.Marshal(tx)
 	if err != nil {
@@ -151,19 +164,31 @@ func (db *p2pdb) setSendedTx(tx *SendedTx) {
 		p2pLogger.Error("set sended err", "err", err, "scTxID", tx.TxId)
 	}
 }
-func (db *p2pdb) delSendedTx(txID string) {
+
+func (db *p2pdb) getSendedInfo(txID string) *SendedInfo {
 	key := append(sendedPrefix, []byte(txID)...)
-	db.db.Delete(key)
+	data, err := db.db.Get(key)
+	if err != nil {
+		return nil
+	}
+	sendedInfo := &SendedInfo{}
+	proto.Unmarshal(data, sendedInfo)
+	return sendedInfo
 }
 
-func (db *p2pdb) getAllSendedTx() []*SendedTx {
-	txs := make([]*SendedTx, 0)
-	iter := db.db.NewIterator()
-	for iter.Next() {
-		data := iter.Value()
-		tx := &SendedTx{}
-		proto.Unmarshal(data, tx)
-		txs = append(txs, tx)
+func (db *p2pdb) clear(scTxID string) {
+	batch := new(leveldb.Batch)
+	idbytes := []byte(scTxID)
+	p2pInfo := append(p2pInfoPrefix, idbytes...)
+	waitConfirm := append(waitConfirmPrefix, idbytes...)
+	matched := append(matchedPrefix, idbytes...)
+	sended := append(sendedPrefix, idbytes...)
+	batch.Delete(p2pInfo)
+	batch.Delete(waitConfirm)
+	batch.Delete(matched)
+	batch.Delete(sended)
+	err := db.db.LDB().Write(batch, nil)
+	if err != nil {
+		p2pLogger.Error("clear data err", "err", err)
 	}
-	return txs
 }

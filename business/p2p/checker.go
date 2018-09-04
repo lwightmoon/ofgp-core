@@ -40,19 +40,27 @@ func (checker *confirmTimeoutChecker) getConfirmTimeout(chain uint32) int64 {
 }
 
 func (checker *confirmTimeoutChecker) check() {
-	txs := checker.db.getAllSendedTx()
-	for _, tx := range txs {
-		waitConfirm := checker.db.getWaitConfirm(tx.TxId)
-		if waitConfirm == nil { //check未完成时被确认
-			p2pLogger.Warn("waitConfirm is nil", "scTxID", tx.TxId)
-			continue
-		}
-		if (time.Now().Unix()-tx.Time) > checker.getConfirmTimeout(waitConfirm.Chain) && waitConfirm.Info == nil { //超时
-			p2pInfo := checker.db.getP2PInfo(tx.TxId)
-			if p2pInfo == nil {
-				p2pLogger.Error("check confirm timeout p2pInfo is nil", "scTxID", tx.TxId)
+	waitTxs := checker.db.getAllWaitConfirm()
+	for _, waitConfirm := range waitTxs {
+		scTxID := waitConfirm.ScTxId
+		if (time.Now().Unix()-waitConfirm.Time) > checker.getConfirmTimeout(waitConfirm.Chain) && waitConfirm.Info == nil { //超时
+
+			if checker.node.IsDone(scTxID) {
+				p2pLogger.Warn("already finished", "scTxID", scTxID)
 				continue
 			}
+			// waitConfirm := checker.db.getWaitConfirm(scTxID)
+			// if waitConfirm == nil {
+			// 	p2pLogger.Warn("waitconfirm has been deled", "scTxID", scTxID)
+			// 	continue
+			// }
+			p2pInfo := checker.db.getP2PInfo(scTxID)
+			if p2pInfo == nil {
+				p2pLogger.Error("check confirm timeout p2pInfo is nil", "scTxID", scTxID)
+				continue
+			}
+			// sendedInfo := checker.db.getSendedInfo(scTxID)
+			// checker.node.OnConfirmFail()
 			//check交易是否在链上存在
 			//存在则返回
 			switch waitConfirm.Opration {
@@ -67,11 +75,6 @@ func (checker *confirmTimeoutChecker) check() {
 			//todo 发起accuse 交易确认超时
 		}
 	}
-}
-
-// 将已经发送的交易加入check队列
-func (checker *confirmTimeoutChecker) add(tx *SendedTx) {
-	checker.db.setSendedTx(tx)
 }
 
 func (checker *confirmTimeoutChecker) run() {

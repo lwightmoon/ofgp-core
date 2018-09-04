@@ -22,13 +22,11 @@ func (node *BraftNode) Commit(req *pb.Transaction) {
 	node.txStore.CreateInnerTx(req)
 }
 
-// IsSended 判断交易是否发送成功 业务方重试check使用
-func (node *BraftNode) IsSended(chain uint32, scTxID string) bool {
+// IsDone 判断网关是否处理完成
+func (node *BraftNode) IsDone(scTxID string) bool {
 	inMem := node.txStore.IsTxInMem(scTxID)
 	indb := node.txStore.HasTxInDB(scTxID)
-	//todo
-	//调用GetTxByHash()check是否已经发送成功
-	return !(inMem && indb)
+	return inMem || indb
 }
 
 // CleanSigned 清理签名数据 业务方重试使用

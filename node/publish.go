@@ -10,7 +10,7 @@ func (bn *BraftNode) pubCommit(blockPack *pb.BlockPack) {
 	height := blockPack.Height()
 	for index, tx := range block.Txs {
 		commitedData := &CommitedData{
-			TxID:   tx.TxID,
+			Tx:     tx,
 			Height: height,
 			Index:  index,
 		}

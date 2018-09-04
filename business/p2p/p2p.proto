@@ -33,9 +33,11 @@ message p2pConfirmMsg{
 }
 
 message waitConfirmMsg{
-    uint32 opration = 1; //标识回退交易或者匹配交易
-    uint32 chain = 2;
-    p2pConfirmInfo info = 3; //匹配成功发送的交易
+    string sc_tx_id = 1;
+    uint32 opration = 2; //标识回退交易或者匹配交易
+    uint32 chain = 3;
+    p2pConfirmInfo info = 4; //匹配成功发送的交易
+    int64 time = 5;
 }
 
 //被确认交易
@@ -43,10 +45,9 @@ message p2pConfirmInfo{
    proto.WatchedEvent  event = 1;
    p2pConfirmMsg msg = 2;
 }
-message sendedTx{
+message sendedInfo{
     string tx_id = 1;
-    int64 time = 2;
-    int64 sign_term = 3;
+    int64 sign_term = 2;
 }
 
 

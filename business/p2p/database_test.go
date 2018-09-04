@@ -85,19 +85,25 @@ func TestMatch(t *testing.T) {
 }
 
 func TestSendedTx(t *testing.T) {
-	p2pDB.setSendedTx(&SendedTx{
+	p2pDB.setSendedInfo(&SendedInfo{
 		TxId:     "testTxID",
-		Time:     time.Now().Unix(),
 		SignTerm: 1,
 	})
-	p2pDB.setSendedTx(&SendedTx{
-		TxId:     "testTxID2",
-		Time:     time.Now().Unix(),
+
+	info := p2pDB.getSendedInfo("testTxID")
+	t.Logf("txid:%s,term:%d", info.TxId, info.GetSignTerm())
+}
+
+func TestClear(t *testing.T) {
+	scTxID := "testTxID2"
+	p2pDB.setMatched(scTxID, "b")
+	p2pDB.setSendedInfo(&SendedInfo{
+		TxId:     scTxID,
 		SignTerm: 2,
 	})
-	p2pDB.delSendedTx("testTxID2")
-	txs := p2pDB.getAllSendedTx()
-	for _, tx := range txs {
-		t.Logf("txid:%s", tx.TxId)
+	p2pDB.clear(scTxID)
+	matched := p2pDB.getMatched(scTxID)
+	if matched != "" {
+		t.Fail()
 	}
 }

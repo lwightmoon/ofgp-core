@@ -188,7 +188,7 @@ func TestProcessMatch(t *testing.T) {
 		p2p.ch <- matchEvent
 		// p2p.ch <- matchEvent
 		p2p.ch <- initalEventConfirm
-		// p2p.ch <- matchEventConfirm
+		p2p.ch <- matchEventConfirm
 		close(p2p.ch)
 	}()
 	p2p.processEvent()

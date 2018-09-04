@@ -1,7 +1,6 @@
 package node
 
 import (
-	"github.com/ofgp/ofgp-core/crypto"
 	pb "github.com/ofgp/ofgp-core/proto"
 )
 
@@ -111,9 +110,9 @@ func (ce *ConfirmEvent) GetData() *pb.WatchedEvent {
 }
 
 type CommitedData struct {
-	TxID   *crypto.Digest256 //网关交易id
-	Height int64             //网关区块高度
-	Index  int               //在区块中的索引
+	Tx     *pb.Transaction
+	Height int64 //网关区块高度
+	Index  int   //在区块中的索引
 }
 
 // CommitedEvent 交易被提交

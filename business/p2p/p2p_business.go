@@ -151,7 +151,7 @@ func (wh *watchedHandler) checkMatchTimeout() {
 		// match 超时
 		scTxID := info.GetScTxID()
 		event := info.Event
-		if !isMatching(wh.db, info.GetScTxID()) && info.IsExpired() {
+		if !isMatching(wh.db, info.GetScTxID()) && !wh.node.IsDone(scTxID) && info.IsExpired() {
 			//todo
 			//check 交易是否在链上存在
 			//创建并发送回退交易
@@ -249,6 +249,7 @@ func (wh *watchedHandler) HandleEvent(event node.BusinessEvent) {
 type sigenedHandler struct {
 	chcker *confirmTimeoutChecker
 	business.Handler
+	db *p2pdb
 }
 
 func (sh *sigenedHandler) HandleEvent(event node.BusinessEvent) {
@@ -259,9 +260,8 @@ func (sh *sigenedHandler) HandleEvent(event node.BusinessEvent) {
 			p2pLogger.Error("signed data is nil")
 			return
 		}
-		sh.chcker.add(&SendedTx{
-			TxId:     signedData.ID,
-			Time:     time.Now().Unix(),
+		sh.db.setSendedInfo(&SendedInfo{
+			TxId:     signedData.TxID,
 			SignTerm: signedData.Term,
 		})
 		p2pLogger.Debug("receive signedData", "scTxID", signedData.ID)
@@ -363,16 +363,6 @@ func getP2PConfirmInfo(event *pb.WatchedEvent) *P2PConfirmInfo {
 	return info
 }
 
-func (handler *confirmHandler) cleanOnConfirmed(infos []*P2PInfo) {
-	for _, info := range infos {
-		scTxID := info.GetScTxID()
-		handler.db.delP2PInfo(scTxID)
-		handler.db.delWaitConfirm(scTxID)
-		handler.db.delMatched(scTxID)
-		handler.db.delSendedTx(scTxID)
-	}
-}
-
 func (handler *confirmHandler) HandleEvent(event node.BusinessEvent) {
 	if confirmedEvent, ok := event.(*node.ConfirmEvent); ok {
 		txEvent := confirmedEvent.GetData()
@@ -404,7 +394,6 @@ func (handler *confirmHandler) HandleEvent(event node.BusinessEvent) {
 				p2pLogger.Debug("get old info", "txIDs", oldTxIDs)
 				p2pInfos := handler.db.getP2PInfos(oldTxIDs)
 				handler.commitTx(event.GetBusiness(), p2pInfos, confirmInfos)
-				handler.cleanOnConfirmed(p2pInfos)
 			} else {
 				p2pLogger.Info("wait another tx confirm", "scTxID", oldTxID)
 			}
@@ -415,7 +404,6 @@ func (handler *confirmHandler) HandleEvent(event node.BusinessEvent) {
 			oldTxIDs := []string{oldTxID}
 			p2pInfos := handler.db.getP2PInfos(oldTxIDs)
 			handler.commitTx(event.GetBusiness(), p2pInfos, confirmInfos)
-			handler.cleanOnConfirmed(p2pInfos)
 		} else {
 			p2pLogger.Error("oprationtype wrong", "opration", waitConfirm.Opration)
 		}
@@ -427,17 +415,22 @@ func (handler *confirmHandler) HandleEvent(event node.BusinessEvent) {
 
 type commitHandler struct {
 	business.Handler
+	db *p2pdb
 }
 
 func (ch *commitHandler) HandleEvent(event node.BusinessEvent) {
 	if val, ok := event.(*node.CommitedEvent); ok {
 		commitedData := val.GetData()
-		if commitedData == nil {
+		if commitedData == nil || commitedData.Tx == nil {
 			p2pLogger.Error("commit data is nil")
 			return
 		}
+		for _, scTx := range commitedData.Tx.Vin {
+			scTxID := scTx.TxID
+			ch.db.clear(scTxID)
+		}
 		fmt.Printf("commitdata:%v", commitedData)
-		p2pLogger.Info("handle Commited", "innerTxID", commitedData.TxID.ToText())
+		p2pLogger.Info("handle Commited", "innerTxID")
 	} else {
 		p2pLogger.Error("could not handle event")
 	}
