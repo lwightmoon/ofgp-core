@@ -29,6 +29,10 @@ func (node *BraftNode) IsDone(scTxID string) bool {
 	return inMem || indb
 }
 
+func (node *BraftNode) GetTxByHash(txid string) {
+
+}
+
 // CleanSigned 清理签名数据 业务方重试使用
 func (node *BraftNode) OnConfirmFail(msg *message.WaitSignMsg, scTxID string, term int64) {
 	if node.txStore.IsTxInMem(scTxID) && node.txStore.HasTxInDB(scTxID) {
