@@ -15,8 +15,6 @@ imports:
   version: 31079b6807923eb23992c421b114992b95131b55
 - name: github.com/cpacia/bchutil
   version: 12e86f41eb040d3b85b5d8e3a3a4bed035517c52
-- name: github.com/fsnotify/fsnotify
-  version: c2828203cd70a50dcccfb2761f8b1f8ceef9a8e9
 - name: github.com/go-stack/stack
   version: 259ab82a6cad3992b4e21ff5cac294ccb06474bc
 - name: github.com/golang/protobuf
