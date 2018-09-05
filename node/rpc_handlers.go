@@ -3,12 +3,12 @@ package node
 import (
 	"encoding/hex"
 
+	"github.com/ofgp/ofgp-core/config"
 	pb "github.com/ofgp/ofgp-core/proto"
 
 	"github.com/ofgp/ofgp-core/cluster"
 	"github.com/ofgp/ofgp-core/crypto"
 
-	"github.com/spf13/viper"
 	context "golang.org/x/net/context"
 )
 
@@ -137,8 +137,9 @@ func (bn *BraftNode) NotifySignResult(ctx context.Context, msg *pb.SignResult) (
 // NotifyJoin 处理新节点加入的请求
 func (bn *BraftNode) NotifyJoin(ctx context.Context, msg *pb.JoinRequest) (*pb.Void, error) {
 	nodeLogger.Debug("Received notify join request")
-	host := viper.GetString("DGW.new_node_host")
-	pubkey := viper.GetString("DGW.new_node_pubkey")
+	dgwConf := config.GetDGWConf()
+	host := dgwConf.NewNodeHost
+	pubkey := dgwConf.NewNodePubkey
 	if !checkJoinRequest(msg, host, pubkey) {
 		nodeLogger.Error(errInvalidRequest.Error())
 		return nil, errInvalidRequest
@@ -150,8 +151,9 @@ func (bn *BraftNode) NotifyJoin(ctx context.Context, msg *pb.JoinRequest) (*pb.V
 //join check是否同步完成
 func (bn *BraftNode) NotifyJoinCheckSynced(ctx context.Context, msg *pb.JoinRequest) (*pb.JoinResponse, error) {
 	nodeLogger.Debug("received NotifyJoinCheckSynced request")
-	host := viper.GetString("DGW.new_node_host")
-	pubkey := viper.GetString("DGW.new_node_pubkey")
+	dgwConf := config.GetDGWConf()
+	host := dgwConf.NewNodeHost
+	pubkey := dgwConf.NewNodePubkey
 	if !checkJoinRequest(msg, host, pubkey) {
 		nodeLogger.Error(errInvalidRequest.Error())
 		return nil, errInvalidRequest

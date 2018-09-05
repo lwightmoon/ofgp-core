@@ -5,11 +5,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ofgp/ofgp-core/config"
 	"github.com/ofgp/ofgp-core/crypto"
 	"github.com/ofgp/ofgp-core/log"
 	pb "github.com/ofgp/ofgp-core/proto"
 
-	"github.com/spf13/viper"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
@@ -25,7 +25,7 @@ var (
 	errInvalidNode       = fmt.Errorf("Node is invalid or node not found")
 	errConnPoolExhausted = fmt.Errorf("Connection pool exhausted")
 
-	pmLogger = log.New(viper.GetString("loglevel"), "pm")
+	pmLogger = log.New(config.GetLogLevel(), "pm")
 )
 
 // PeerNode 维持节点的链接

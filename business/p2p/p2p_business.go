@@ -6,16 +6,16 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ofgp/ofgp-core/config"
 	"github.com/ofgp/ofgp-core/log"
 	"github.com/ofgp/ofgp-core/message"
 
 	"github.com/ofgp/ofgp-core/business"
 	"github.com/ofgp/ofgp-core/node"
 	pb "github.com/ofgp/ofgp-core/proto"
-	"github.com/spf13/viper"
 )
 
-var p2pLogger = log.New(viper.GetString("loglevel"), "node")
+var p2pLogger = log.New(config.GetLogLevel(), "node")
 
 type P2P struct {
 	ch             chan node.BusinessEvent

@@ -4,13 +4,12 @@ import (
 	"context"
 	"time"
 
+	"github.com/ofgp/ofgp-core/config"
 	pb "github.com/ofgp/ofgp-core/proto"
 
 	"github.com/ofgp/ofgp-core/cluster"
 	"github.com/ofgp/ofgp-core/crypto"
 	"github.com/ofgp/ofgp-core/log"
-
-	"github.com/spf13/viper"
 )
 
 const (
@@ -21,7 +20,7 @@ const (
 )
 
 var (
-	acLogger       = log.New(viper.GetString("loglevel"), "accuser")
+	acLogger       = log.New(config.GetLogLevel(), "accuser")
 	AccuseInterval int64 //accuse 间隔 单位s
 )
 

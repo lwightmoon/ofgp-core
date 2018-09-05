@@ -3,16 +3,16 @@ package httpsvr
 import (
 	"net/http"
 
+	"github.com/ofgp/ofgp-core/config"
 	"github.com/ofgp/ofgp-core/log"
 	"github.com/ofgp/ofgp-core/node"
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/rs/cors"
-	"github.com/spf13/viper"
 )
 
 var (
-	httpLogger = log.New(viper.GetString("loglevel"), "httpsvr")
+	httpLogger = log.New(config.GetLogLevel(), "httpsvr")
 )
 
 func panicHandler(res http.ResponseWriter, req *http.Request, err interface{}) {

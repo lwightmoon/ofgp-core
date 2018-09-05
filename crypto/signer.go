@@ -5,13 +5,13 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 
+	"github.com/ofgp/ofgp-core/config"
 	"github.com/ofgp/ofgp-core/log"
 
 	"github.com/btcsuite/btcd/btcec"
-	"github.com/spf13/viper"
 )
 
-var cryptoLogger = log.New(viper.GetString("loglevel"), "crypto")
+var cryptoLogger = log.New(config.GetLogLevel(), "crypto")
 
 // Signer 保存公钥私钥对
 type Signer struct {

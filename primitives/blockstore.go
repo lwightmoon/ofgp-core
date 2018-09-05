@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ofgp/ofgp-core/cluster"
+	"github.com/ofgp/ofgp-core/config"
 	"github.com/ofgp/ofgp-core/crypto"
 	"github.com/ofgp/ofgp-core/dgwdb"
 	"github.com/ofgp/ofgp-core/log"
@@ -26,11 +27,10 @@ import (
 	ew "github.com/ofgp/ethwatcher"
 
 	"github.com/btcsuite/btcd/wire"
-	"github.com/spf13/viper"
 )
 
 var (
-	bsLogger = log.New(viper.GetString("loglevel"), "blockstore")
+	bsLogger = log.New(config.GetLogLevel(), "blockstore")
 	mu       sync.RWMutex
 )
 

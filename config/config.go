@@ -1,5 +1,12 @@
 package config
 
+import (
+	"time"
+
+	"github.com/fsnotify/fsnotify"
+	"github.com/spf13/viper"
+)
+
 type Config struct {
 	NetParam   string     `mapstructure:"net_param"`
 	LogLevel   string     `mapstructure:"loglevel"`
@@ -28,43 +35,49 @@ type DB struct {
 
 type KeyStore struct {
 	URL                string   `mapstructure:"url"`
+	LocalPubkeyHash    string   `mapstructure:"local_pubkey_hash"`
+	Count              int      `mapstructure:"count"`
 	Keys               []string `mapstructure:"keys"`
 	ServiceID          string   `mapstructure:"service_id"`
 	KeyStorePrivateKey string   `mapstructure:"keystore_private_key"`
 }
 
 type DgateWay struct {
-	Count             int    `mapstructure:"count"`
-	LocalID           int    `mapstructure:"local_id"`
-	LocalP2PPort      int    `mapstructure:"local_p2p_port"`
-	LocalHTTPPort     int    `mapstructure:"local_http_port"`
-	LocalHTTPUser     string `mapstructure:"local_http_user"`
-	LocalHTTPPwd      string `mapstructure:"local_http_pwd"`
-	Nodes             []Node `mapstructure:"nodestest"`
-	PProfHost         string `mapstructure:"pprof_host"`
-	NewNodeHost       string `mapstructure:"new_node_host"`
-	NewNodePubkey     string `mapstructure:"new_node_pubkey"`
-	BchHeight         int    `mapstructure:"bch_height"`
-	BtcHeight         int    `mapstructure:"btc_height"`
-	EthHeight         int    `mapstructure:"eth_height"`
-	DBPath            string `mapstructure:"dbpath"`
-	EthClientURL      string `mapstructure:"eth_client_url"`
-	StartMode         int    `mapstructure:"start_mode"`
-	InitNodeHost      string `mapstructure:"init_node_host"`
-	LocalHost         string `mapstructure:"local_host"`
-	LocalPubkey       string `mapstructure:"local_pubkey"`
-	BtcConfirms       int    `mapstructure:"btc_confirms"`
-	BchConfirms       int    `mapstructure:"bch_confirms"`
-	ConfirmTolerance  int    `mapstructure:"confirm_tolerance"`
-	AccuseInterval    int    `mapstructure:"accuse_interval"`
-	UtxoLockTime      int    `mapstructure:"utxo_lock_time"`
-	TxConnPoolSize    int    `mapstructure:"tx_conn_pool_size"`
-	BlockConnPoolSize int    `mapstructure:"block_coon_pool_size"`
+	Count             int           `mapstructure:"count"`
+	LocalID           int32         `mapstructure:"local_id"`
+	LocalP2PPort      int           `mapstructure:"local_p2p_port"`
+	LocalHTTPPort     int           `mapstructure:"local_http_port"`
+	LocalHTTPUser     string        `mapstructure:"local_http_user"`
+	LocalHTTPPwd      string        `mapstructure:"local_http_pwd"`
+	Nodes             []Node        `mapstructure:"nodestest"`
+	PProfHost         string        `mapstructure:"pprof_host"`
+	NewNodeHost       string        `mapstructure:"new_node_host"`
+	NewNodePubkey     string        `mapstructure:"new_node_pubkey"`
+	BchHeight         int64         `mapstructure:"bch_height"`
+	BtcHeight         int64         `mapstructure:"btc_height"`
+	EthHeight         int64         `mapstructure:"eth_height"`
+	DBPath            string        `mapstructure:"dbpath"`
+	EthClientURL      string        `mapstructure:"eth_client_url"`
+	EthConfirmCount   int64         `mapstructure:"eth_confirm_count"`
+	EthTranIdx        int           `mapstructure:"eth_tran_idx"`
+	StartMode         int32         `mapstructure:"start_mode"`
+	InitNodeHost      string        `mapstructure:"init_node_host"` //节点join引导节点
+	LocalHost         string        `mapstructure:"local_host"`
+	LocalPubkey       string        `mapstructure:"local_pubkey"`
+	BtcConfirms       int           `mapstructure:"btc_confirms"`
+	BchConfirms       int           `mapstructure:"bch_confirms"`
+	EthConfirms       int           `mapstructure:"eth_confirms"`
+	ConfirmTolerance  time.Duration `mapstructure:"confirm_tolerance"`
+	AccuseInterval    int64         `mapstructure:"accuse_interval"`
+	UtxoLockTime      int           `mapstructure:"utxo_lock_time"`
+	TxConnPoolSize    int           `mapstructure:"tx_conn_pool_size"`
+	BlockConnPoolSize int           `mapstructure:"block_coon_pool_size"`
 }
 
 type Node struct {
 	Host   string `mapstructure:"host"`
 	Status bool   `mapstructure:"status"`
+	Pubkey string `mapstructure:"pubkey"`
 }
 
 type Metrics struct {
@@ -78,4 +91,47 @@ type Metrics struct {
 
 type EthWatcher struct {
 	VoteContract string `mapstructure:"vote_contract"`
+}
+
+var (
+	conf *Config
+	v    *viper.Viper
+)
+
+func init() {
+	v = viper.New()
+}
+
+func InitConf(path string) {
+	v.SetConfigFile(path)
+	err := v.ReadInConfig()
+	if err != nil {
+		panic("read conf err:" + err.Error())
+	}
+	conf = &Config{}
+	err = v.Unmarshal(conf)
+	if err != nil {
+		panic("marshal conf err:" + err.Error())
+	}
+	v.WatchConfig()
+	v.OnConfigChange(func(e fsnotify.Event) {
+		v.Unmarshal(conf)
+	})
+}
+
+func GetConf() *Config {
+	return conf
+}
+
+func GetKeyStoreConf() KeyStore {
+	return conf.KeyStore
+}
+
+func GetDGWConf() DgateWay {
+	return conf.DgateWay
+}
+
+// GetLogLevel 获取log级别
+func GetLogLevel() string {
+	return conf.LogLevel
 }

@@ -5,18 +5,18 @@ import (
 	"sync"
 
 	"github.com/ofgp/ofgp-core/cluster"
+	"github.com/ofgp/ofgp-core/config"
 	"github.com/ofgp/ofgp-core/dgwdb"
 	"github.com/ofgp/ofgp-core/log"
 	"github.com/ofgp/ofgp-core/primitives"
 	pb "github.com/ofgp/ofgp-core/proto"
 	"github.com/ofgp/ofgp-core/util/assert"
 
-	"github.com/spf13/viper"
 	context "golang.org/x/net/context"
 )
 
 var (
-	sdLogger = log.New(viper.GetString("loglevel"), "sync")
+	sdLogger = log.New(config.GetLogLevel(), "sync")
 )
 
 // SyncDaemon 后台向其他节点同步的对象，单独goroutine运行
