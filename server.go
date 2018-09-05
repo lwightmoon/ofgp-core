@@ -82,7 +82,10 @@ func run(ctx *cli.Context) {
 	cmdConfs := util.GetCmdConfs(ctx)
 
 	if len(cmdConfs) > 0 {
-		config.SetNotWrite(cmdConfs)
+		err := config.SetNotWrite(cmdConfs)
+		if err != nil {
+			panic("conf from cmd err")
+		}
 	}
 	conf := config.GetConf()
 	// 如果需要做性能检测

@@ -270,7 +270,7 @@ func Set(confs map[string]interface{}) {
 }
 
 // SetNotWrite 保存配置不写磁盘
-func SetNotWrite(confs map[string]interface{}) {
+func SetNotWrite(confs map[string]interface{}) error {
 	lock.Lock()
 	defer lock.Unlock()
 	for key, value := range confs {
@@ -280,7 +280,8 @@ func SetNotWrite(confs map[string]interface{}) {
 	err := v.Unmarshal(newConf)
 	if err != nil {
 		fmt.Printf("unmarshal log err:%v", err)
-		return
+		return err
 	}
 	conf = newConf
+	return nil
 }
