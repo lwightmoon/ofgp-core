@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/ofgp/ofgp-core/cluster"
-	"github.com/ofgp/ofgp-core/config"
 	"github.com/ofgp/ofgp-core/crypto"
 	"github.com/ofgp/ofgp-core/log"
 	"github.com/ofgp/ofgp-core/message"
@@ -29,7 +28,7 @@ const (
 )
 
 var (
-	leaderLogger = log.New(config.GetLogLevel(), "leader")
+	leaderLogger = log.New("DEBUG", "leader")
 )
 
 // Leader leader节点描述

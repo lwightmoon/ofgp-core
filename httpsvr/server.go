@@ -3,7 +3,6 @@ package httpsvr
 import (
 	"net/http"
 
-	"github.com/ofgp/ofgp-core/config"
 	"github.com/ofgp/ofgp-core/log"
 	"github.com/ofgp/ofgp-core/node"
 
@@ -12,7 +11,7 @@ import (
 )
 
 var (
-	httpLogger = log.New(config.GetLogLevel(), "httpsvr")
+	httpLogger = log.New("DEBUG", "httpsvr")
 )
 
 func panicHandler(res http.ResponseWriter, req *http.Request, err interface{}) {

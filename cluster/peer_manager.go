@@ -5,7 +5,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ofgp/ofgp-core/config"
 	"github.com/ofgp/ofgp-core/crypto"
 	"github.com/ofgp/ofgp-core/log"
 	pb "github.com/ofgp/ofgp-core/proto"
@@ -25,7 +24,7 @@ var (
 	errInvalidNode       = fmt.Errorf("Node is invalid or node not found")
 	errConnPoolExhausted = fmt.Errorf("Connection pool exhausted")
 
-	pmLogger = log.New(config.GetLogLevel(), "pm")
+	pmLogger = log.New("DEBUG", "pm")
 )
 
 // PeerNode 维持节点的链接

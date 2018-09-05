@@ -1,6 +1,8 @@
 package config
 
 import (
+	"fmt"
+	"sync"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -27,19 +29,51 @@ type Server struct {
 	CoinbaseConfirmBlockNum int    `mapstructure:"coinbase_confirm_block_num"`
 }
 
+func checkServer(server *Server) {
+	if server.RPCServer == "" {
+		panic("rpc server host not set")
+	}
+}
+
 type DB struct {
 	BtcDBPath     string `mapstructure:"btc_db_path"`
 	BchDBPath     string `mapstructure:"bch_db_path"`
 	EwNonceDBPath string `mapstructure:"ew_nonce_db_path"`
 }
 
+func checkDB(db *DB) {
+	if db.BchDBPath == "" {
+		panic("bch db path not set")
+	}
+	if db.BtcDBPath == "" {
+		panic("btc db path not set")
+	}
+	if db.EwNonceDBPath == "" {
+		panic("ew nonce path not set")
+	}
+}
+
 type KeyStore struct {
-	URL                string   `mapstructure:"url"`
-	LocalPubkeyHash    string   `mapstructure:"local_pubkey_hash"`
-	Count              int      `mapstructure:"count"`
-	Keys               []string `mapstructure:"keys"`
-	ServiceID          string   `mapstructure:"service_id"`
-	KeyStorePrivateKey string   `mapstructure:"keystore_private_key"`
+	URL                string `mapstructure:"url"`
+	LocalPubkeyHash    string `mapstructure:"local_pubkey_hash"`
+	Count              int    `mapstructure:"count"`
+	ServiceID          string `mapstructure:"service_id"`
+	KeyStorePrivateKey string `mapstructure:"keystore_private_key"`
+}
+
+func checkKeyStore(conf *KeyStore) {
+	if conf.URL == "" {
+		panic("key store url not set")
+	}
+	if conf.Count == 0 {
+		panic("key store count is zero")
+	}
+	if conf.ServiceID == "" {
+		panic("service id not set")
+	}
+	if conf.KeyStorePrivateKey == "" {
+		panic("keystore private key not set")
+	}
 }
 
 type DgateWay struct {
@@ -49,7 +83,7 @@ type DgateWay struct {
 	LocalHTTPPort     int           `mapstructure:"local_http_port"`
 	LocalHTTPUser     string        `mapstructure:"local_http_user"`
 	LocalHTTPPwd      string        `mapstructure:"local_http_pwd"`
-	Nodes             []Node        `mapstructure:"nodestest"`
+	Nodes             []Node        `mapstructure:"nodes"`
 	PProfHost         string        `mapstructure:"pprof_host"`
 	NewNodeHost       string        `mapstructure:"new_node_host"`
 	NewNodePubkey     string        `mapstructure:"new_node_pubkey"`
@@ -74,32 +108,99 @@ type DgateWay struct {
 	BlockConnPoolSize int           `mapstructure:"block_coon_pool_size"`
 }
 
+func checkDGWConf(conf *DgateWay) {
+	if conf.Count == 0 {
+		panic("count is zero")
+	}
+	if conf.LocalHTTPPort == 0 {
+		panic("local http port not set")
+	}
+	if len(conf.Nodes) == 0 {
+		panic("node confs is empty")
+	}
+	for _, node := range conf.Nodes {
+		checkNode(&node)
+	}
+	if conf.BchHeight == 0 {
+		panic("bch heigh not set")
+	}
+	if conf.BtcHeight == 0 {
+		panic("bch heigh not set")
+	}
+	if conf.EthHeight == 0 {
+		panic("bch heigh not set")
+	}
+	if conf.DBPath == "" {
+		panic("db path not set")
+	}
+	if conf.EthClientURL == "" {
+		panic("eth_client_url not set")
+	}
+}
+
 type Node struct {
 	Host   string `mapstructure:"host"`
 	Status bool   `mapstructure:"status"`
 	Pubkey string `mapstructure:"pubkey"`
 }
 
+func checkNode(node *Node) {
+	if node.Host == "" {
+		panic("node host not set")
+	}
+	if node.Pubkey == "" {
+		panic("node pubkey not set")
+	}
+}
+
 type Metrics struct {
-	NeedMetric  bool   `mapstructure:"need_metric"`
-	Interval    int64  `mapstructure:"interval"`
-	InfluxdbURI string `mapstructure:"influxdb_uri"`
-	DB          string `mapstructure:"db"`
-	User        string `mapstructure:"user"`
-	Password    string `mapstructure:"password"`
+	NeedMetric  bool          `mapstructure:"need_metric"`
+	Interval    time.Duration `mapstructure:"interval"`
+	InfluxdbURI string        `mapstructure:"influxdb_uri"`
+	DB          string        `mapstructure:"db"`
+	User        string        `mapstructure:"user"`
+	Password    string        `mapstructure:"password"`
+}
+
+func checkMetrics(metric *Metrics) {
+	if metric.NeedMetric {
+		if metric.InfluxdbURI == "" {
+			panic("influxdb uri not set")
+		}
+		if metric.DB == "" {
+			panic("influxdb db not set")
+		}
+	}
 }
 
 type EthWatcher struct {
 	VoteContract string `mapstructure:"vote_contract"`
 }
 
+func checkEthWatcher(watcher *EthWatcher) {
+	if watcher.VoteContract == "" {
+		panic("vote contract not set")
+	}
+}
+
 var (
 	conf *Config
 	v    *viper.Viper
+	lock sync.Mutex
 )
 
 func init() {
 	v = viper.New()
+}
+
+func check(conf *Config) {
+	checkServer(&conf.BCH)
+	checkServer(&conf.BTC)
+	checkDB(&conf.DB)
+	checkKeyStore(&conf.KeyStore)
+	checkDGWConf(&conf.DgateWay)
+	checkEthWatcher(&conf.EthWatcher)
+	checkMetrics(&conf.Metrics)
 }
 
 func InitConf(path string) {
@@ -110,28 +211,76 @@ func InitConf(path string) {
 	}
 	conf = &Config{}
 	err = v.Unmarshal(conf)
+	check(conf)
 	if err != nil {
 		panic("marshal conf err:" + err.Error())
 	}
 	v.WatchConfig()
 	v.OnConfigChange(func(e fsnotify.Event) {
-		v.Unmarshal(conf)
+		newConf := &Config{}
+		lock.Lock()
+		err := v.Unmarshal(newConf)
+		if err != nil {
+			fmt.Printf("conf unmarshal err:%v", err)
+			return
+		}
+		conf = newConf
+		lock.Unlock()
+		fmt.Println("config change")
+		check(conf)
 	})
 }
 
 func GetConf() *Config {
+	lock.Lock()
+	defer lock.Unlock()
 	return conf
 }
 
 func GetKeyStoreConf() KeyStore {
+	lock.Lock()
+	defer lock.Unlock()
 	return conf.KeyStore
 }
 
 func GetDGWConf() DgateWay {
+	lock.Lock()
+	defer lock.Unlock()
 	return conf.DgateWay
 }
 
-// GetLogLevel 获取log级别
-func GetLogLevel() string {
-	return conf.LogLevel
+func Set(confs map[string]interface{}) {
+	lock.Lock()
+	defer lock.Unlock()
+	for key, value := range confs {
+		v.Set(key, value)
+	}
+	newConf := &Config{}
+	err := v.Unmarshal(newConf)
+	if err != nil {
+		fmt.Printf("unmarshal log err:%v", err)
+		return
+	}
+	conf = newConf
+	newConfName := "new_" + v.ConfigFileUsed()
+	err = v.WriteConfigAs(newConfName)
+	if err != nil {
+		fmt.Printf("write new conf file err:%v", err)
+	}
+}
+
+// SetNotWrite 保存配置不写磁盘
+func SetNotWrite(confs map[string]interface{}) {
+	lock.Lock()
+	defer lock.Unlock()
+	for key, value := range confs {
+		v.Set(key, value)
+	}
+	newConf := &Config{}
+	err := v.Unmarshal(newConf)
+	if err != nil {
+		fmt.Printf("unmarshal log err:%v", err)
+		return
+	}
+	conf = newConf
 }

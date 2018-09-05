@@ -5,7 +5,6 @@ import (
 	"sync"
 
 	"github.com/ofgp/ofgp-core/cluster"
-	"github.com/ofgp/ofgp-core/config"
 	"github.com/ofgp/ofgp-core/dgwdb"
 	"github.com/ofgp/ofgp-core/log"
 	"github.com/ofgp/ofgp-core/primitives"
@@ -16,7 +15,7 @@ import (
 )
 
 var (
-	sdLogger = log.New(config.GetLogLevel(), "sync")
+	sdLogger = log.New("DEBUG", "sync")
 )
 
 // SyncDaemon 后台向其他节点同步的对象，单独goroutine运行

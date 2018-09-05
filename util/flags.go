@@ -4,8 +4,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/spf13/viper"
-
 	"gopkg.in/urfave/cli.v1"
 )
 
@@ -79,24 +77,29 @@ func GetMemProfile(ctx *cli.Context) string {
 }
 
 // ReadConfigToViper 把命令行传入的参数保存到viper配置里面
-func ReadConfigToViper(ctx *cli.Context) {
+func GetCmdConfs(ctx *cli.Context) map[string]interface{} {
+	confs := make(map[string]interface{})
 	for _, flag := range Flags {
 		switch flag := flag.(type) {
 		case cli.StringFlag:
 			value := ctx.GlobalString(flag.Name)
 			if len(value) > 0 {
-				viper.Set("DGW."+flag.Name, value)
+				key := "DGW." + flag.Name
+				confs[key] = value
 			}
 		case cli.IntFlag:
 			value := ctx.GlobalInt(flag.Name)
 			if value != 0 {
-				viper.Set("DGW."+flag.Name, value)
+				key := "DGW." + flag.Name
+				confs[key] = value
 			}
 		case cli.Int64Flag:
 			value := ctx.GlobalInt64(flag.Name)
 			if value != 0 {
-				viper.Set("DGW."+flag.Name, value)
+				key := "DGW." + flag.Name
+				confs[key] = value
 			}
 		}
 	}
+	return confs
 }

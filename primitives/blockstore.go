@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/ofgp/ofgp-core/cluster"
-	"github.com/ofgp/ofgp-core/config"
 	"github.com/ofgp/ofgp-core/crypto"
 	"github.com/ofgp/ofgp-core/dgwdb"
 	"github.com/ofgp/ofgp-core/log"
@@ -30,7 +29,7 @@ import (
 )
 
 var (
-	bsLogger = log.New(config.GetLogLevel(), "blockstore")
+	bsLogger = log.New("DEBUG", "blockstore")
 	mu       sync.RWMutex
 )
 

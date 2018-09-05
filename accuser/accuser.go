@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/ofgp/ofgp-core/config"
 	pb "github.com/ofgp/ofgp-core/proto"
 
 	"github.com/ofgp/ofgp-core/cluster"
@@ -20,7 +19,7 @@ const (
 )
 
 var (
-	acLogger       = log.New(config.GetLogLevel(), "accuser")
+	acLogger       = log.New("DEBUG", "accuser")
 	AccuseInterval int64 //accuse 间隔 单位s
 )
 

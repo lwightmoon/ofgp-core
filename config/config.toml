@@ -101,4 +101,4 @@ user = ""
 password = ""
 
 [ETHWATCHER]
-vote_contract = ""
+vote_contract = "testContract"

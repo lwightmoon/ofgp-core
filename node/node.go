@@ -11,7 +11,6 @@ import (
 	"net"
 	"os"
 	"path"
-	"strconv"
 	"sync"
 	"time"
 
@@ -44,7 +43,7 @@ const (
 )
 
 var (
-	nodeLogger        = log.New(config.GetLogLevel(), "node")
+	nodeLogger        = log.New("DEBUG", "node")
 	errInvalidRequest = fmt.Errorf("invalid request")
 	startMode         int
 	BtcConfirms       int //check 交易确认数
@@ -939,20 +938,40 @@ func InitJoin() *JoinMsg {
 // saveNewConfig 保存最新的配置信息到viper，以及持久化到配置文件
 func saveNewConfig(localId int32) {
 	// 保存新的节点信息到config file
-	viper.Set("KEYSTORE.count", cluster.TotalNodeCount)
-	viper.Set("DGW.count", cluster.TotalNodeCount)
-	viper.Set("DGW.local_id", localId)
-	// 下次启动就是以正常模式启动
+	// viper.Set("KEYSTORE.count", cluster.TotalNodeCount)
+	// viper.Set("DGW.count", cluster.TotalNodeCount)
+	// viper.Set("DGW.local_id", localId)
+	// // 下次启动就是以正常模式启动
+	// if startMode == cluster.ModeJoin {
+	// 	viper.Set("DGW.start_mode", 1)
+	// }
+	// for i, nodeInfo := range cluster.NodeList {
+	// 	viper.Set("KEYSTORE.key_"+strconv.Itoa(i), hex.EncodeToString(nodeInfo.PublicKey))
+	// 	viper.Set("DGW.host_"+strconv.Itoa(i), nodeInfo.Url)
+	// 	viper.Set("DGW.status_"+strconv.Itoa(i), nodeInfo.IsNormal)
+	// }
+	// viper.Set("DGW.new_node_host", "")
+	// viper.Set("DGW.new_node_pubkey", "")
+	confs := make(map[string]interface{})
+	confs["KEYSTORE.count"] = cluster.TotalNodeCount
+	confs["DGW.count"] = cluster.TotalNodeCount
+	confs["DGW.local_id"] = localId
 	if startMode == cluster.ModeJoin {
-		viper.Set("DGW.start_mode", 1)
+		confs["DGW.start_mode"] = 1
 	}
-	for i, nodeInfo := range cluster.NodeList {
-		viper.Set("KEYSTORE.key_"+strconv.Itoa(i), hex.EncodeToString(nodeInfo.PublicKey))
-		viper.Set("DGW.host_"+strconv.Itoa(i), nodeInfo.Url)
-		viper.Set("DGW.status_"+strconv.Itoa(i), nodeInfo.IsNormal)
+	nodeConfs := make([]map[string]interface{}, 0)
+	for _, nodeInfo := range cluster.NodeList {
+		nodeConf := map[string]interface{}{
+			"host":   nodeInfo.Url,
+			"status": nodeInfo.IsNormal,
+			"pubkey": hex.EncodeToString(nodeInfo.PublicKey),
+		}
+		nodeConfs = append(nodeConfs, nodeConf)
 	}
-	viper.Set("DGW.new_node_host", "")
-	viper.Set("DGW.new_node_pubkey", "")
+	confs["dgw.nodes"] = nodeConfs
+	confs["DGW.new_node_host"] = ""
+	confs["DGW.new_node_pubkey"] = ""
+	config.Set(confs)
 	//viper.WriteConfig()
 }
 

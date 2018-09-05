@@ -68,8 +68,8 @@ func baseMetrics(conf config.Metrics) {
 		}
 	}()
 
-	go influxdb.InfluxDB(r, 10e9, conf.InfluxDBURI,
-		conf.DB, conf.User,conf.Password)
+	go influxdb.InfluxDB(r, 10e9, conf.InfluxdbURI,
+		conf.DB, conf.User, conf.Password)
 }
 
 func run(ctx *cli.Context) {
@@ -77,11 +77,14 @@ func run(ctx *cli.Context) {
 
 	//初始化配置
 	config.InitConf(configFile)
-	conf := config.GetConf()
 
 	//todo 处理read 命令行参数到viper
-	util.ReadConfigToViper(ctx)
+	cmdConfs := util.GetCmdConfs(ctx)
 
+	if len(cmdConfs) > 0 {
+		config.SetNotWrite(cmdConfs)
+	}
+	conf := config.GetConf()
 	// 如果需要做性能检测
 	cpuProfile := util.GetCPUProfile(ctx)
 	if len(cpuProfile) > 0 {
