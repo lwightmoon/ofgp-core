@@ -15,6 +15,7 @@ import (
 
 //transaction 相关
 
+// txOperator 交易相关操作
 type txOperator interface {
 	CreateTx(req CreateReq) *pb.NewlyTx
 	SendTx(req ISendReq) error
@@ -27,42 +28,52 @@ type AddrInfo struct {
 type CreateReq interface {
 	GetChain() uint32
 	GetID() string
-	GetFee() uint64
-	GetAddrInfos() []AddrInfo
+	GetAddr() []byte
+	GetAmount() uint64
 }
 
+// BaseCreateReq createTx
 type BaseCreateReq struct {
-	Chain     uint32
-	ID        string
-	Fee       uint64
-	AddrInfos []AddrInfo
+	Chain  uint32
+	ID     string
+	Addr   []byte
+	Amount uint64
 }
 
+// GetChain 创建交易类型
+func (req *BaseCreateReq) GetChain() uint32 {
+	return req.Chain
+}
+
+// GetID 创建交易标识id
+func (req *BaseCreateReq) GetID() string {
+	return req.ID
+}
+
+// GetAddr 获取发送到的地址
+func (req *BaseCreateReq) GetAddr() []byte {
+	return req.Addr
+}
+
+// GetAmount 获取发送金额
+func (req *BaseCreateReq) GetAmount() uint64 {
+	return req.Amount
+}
+
+// EthCreateReq eth createTx
 type EthCreateReq struct {
 	BaseCreateReq
 	Method  string
 	TokenTo uint32
 }
 
-func (req *BaseCreateReq) GetChain() uint32 {
-	return req.Chain
-}
-
-func (req *BaseCreateReq) GetFee() uint64 {
-	return req.Fee
-}
-func (req *BaseCreateReq) GetID() string {
-	return req.ID
-}
-func (req *BaseCreateReq) GetAddrInfos() []AddrInfo {
-	return req.AddrInfos
-}
-
+// ISendReq sendTx
 type ISendReq interface {
 	GetChain() uint32
 	GetID() string
 	GetTx() *pb.NewlyTx
 }
+
 type SendReq struct {
 	Chain string
 	ID    string
@@ -86,15 +97,15 @@ func newEthOperator(cli *ew.Client, bs *primitives.BlockStore, signer *crypto.Se
 
 func (eop *ethOperator) CreateTx(req CreateReq) *pb.NewlyTx {
 	if ereq, ok := req.(*EthCreateReq); ok {
-		addrInfo := ereq.GetAddrInfos()[0]
-		addredss := ew.HexToAddress(addrInfo.Addr)
-		input, err := eop.cli.EncodeInput(ew.VOTE_METHOD_MINT, ereq.TokenTo, addrInfo.Amount,
-			addredss, req.GetID())
-		if err != nil {
-			leaderLogger.Error("create eth input failed", "err", err, "sctxid", req.GetID())
-			return nil
-		}
-		return &pb.NewlyTx{Data: input}
+		// addrInfo := ereq.GetAddrInfos()[0]
+		// addredss := ew.HexToAddress(addrInfo.Addr)
+		// input, err := eop.cli.EncodeInput(ew.VOTE_METHOD_MINT, ereq.TokenTo, addrInfo.Amount,
+		// 	addredss, req.GetID())
+		// if err != nil {
+		// 	leaderLogger.Error("create eth input failed", "err", err, "sctxid", req.GetID())
+		// 	return nil
+		// }
+		// return &pb.NewlyTx{Data: input}
 	} else {
 		nodeLogger.Error("req err", "id", req.GetID())
 	}
@@ -119,7 +130,7 @@ type BchCreateReq struct {
 	BaseCreateReq
 }
 
-// createCoinTx 创建bch/btc tx
+// createCoinTx 创建bch/btc tx 废止！
 func createCoinTx(watcher *btcwatcher.MortgageWatcher,
 	addrInfos []*btcwatcher.AddressInfo, fee uint64, id string) *pb.NewlyTx {
 	leaderLogger.Debug("rechargelist", "sctxid", id, "addrs", addrInfos)
@@ -165,7 +176,7 @@ func newBtcOprator(watcher *btcwatcher.MortgageWatcher) *btcOprator {
 }
 
 func (btcOP *btcOprator) CreateTx(req CreateReq) *pb.NewlyTx {
-	return createCoinTx(btcOP.btcWatcher, nil, req.GetFee(), req.GetID())
+	return nil
 }
 
 func (btcOP *btcOprator) SendTx(req ISendReq) error {
