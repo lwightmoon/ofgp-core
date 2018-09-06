@@ -6,6 +6,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/ofgp/ofgp-core/dgwdb"
 	"github.com/syndtr/goleveldb/leveldb"
+	"github.com/syndtr/goleveldb/leveldb/opt"
 )
 
 var (
@@ -143,6 +144,16 @@ func (db *p2pdb) getMatched(txID string) string {
 	matched, _ := db.db.Get(key)
 	return string(matched)
 }
+func (db *p2pdb) ExistMatched(txID string) bool {
+	mydb := db.db.LDB()
+	key := append(matchedPrefix, []byte(txID)...)
+	exist, _ := mydb.Has(key, &opt.ReadOptions{
+		DontFillCache: false,
+		Strict:        0,
+	})
+	return exist
+}
+
 func (db *p2pdb) delMatched(txID string) {
 	key := append(matchedPrefix, []byte(txID)...)
 	err := db.db.Delete(key)

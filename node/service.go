@@ -5,17 +5,21 @@ import (
 	pb "github.com/ofgp/ofgp-core/proto"
 )
 
-func (node *BraftNode) CreateTx(req CreateReq) *pb.NewlyTx {
-	tx := node.txInvoker.CreateTx(req)
-	return tx
+//CreateTx create tx
+func (node *BraftNode) CreateTx(req CreateReq) (*pb.NewlyTx, error) {
+	tx, err := node.txInvoker.CreateTx(req)
+	return tx, err
 }
 
+//SignTx 发送到待签名队列
 func (node *BraftNode) SignTx(msg *message.WaitSignMsg) {
 	node.txStore.AddTxtoWaitSign(msg)
 }
 
-func (node *BraftNode) SendTx(req ISendReq) {
-	node.txInvoker.SendTx(req)
+// SendTx sendTx
+func (node *BraftNode) SendTx(req ISendReq) error {
+	err := node.txInvoker.SendTx(req)
+	return err
 }
 
 func (node *BraftNode) Commit(req *pb.Transaction) {

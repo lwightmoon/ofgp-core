@@ -79,6 +79,7 @@ type watchedHandler struct {
 	node  *node.BraftNode
 	business.Handler
 	checkMatchInterval time.Duration
+	list               *retryList
 }
 
 func createTx(node *node.BraftNode, op int, info *P2PInfo) interface{} {
@@ -124,7 +125,7 @@ func isConfirmed(db *p2pdb, txID string) bool {
 
 // isMatching 是否在匹配中
 func isMatching(db *p2pdb, txID string) bool {
-	return db.getWaitConfirm(txID) != nil
+	return db.getMatched(txID) != ""
 }
 
 // checkP2PInfo check点对点交易是否合法
@@ -156,7 +157,14 @@ func (wh *watchedHandler) checkMatchTimeout() {
 			//check 交易是否在链上存在
 			//创建并发送回退交易
 			p2pLogger.Debug("match timeout", "scTxID", info.GetScTxID())
-			newTx := wh.service.createTx(confirmed, info)
+			newTx, err := wh.service.createTx(back, info)
+			if err != nil {
+				wh.list.addToRetry(&sendingInfo{
+					TxType: back,
+					info:   info,
+				})
+				continue
+			}
 			wh.service.sendtoSign(&message.WaitSignMsg{
 				Business: event.Business,
 				ID:       scTxID,
@@ -214,11 +222,22 @@ func (wh *watchedHandler) HandleEvent(event node.BusinessEvent) {
 					p2pLogger.Debug("check matched p2pinfo fail", "scTxID", info.GetScTxID)
 					continue
 				}
+				//保存已匹配的两笔交易的txid
+				wh.db.setMatched(info.GetScTxID(), matchedInfo.GetScTxID())
+				//删除索引 防止重复匹配
+				wh.index.Del(info)
 
 				infos := []*P2PInfo{info, matchedInfo}
 				//创建交易发送签名
 				for _, info := range infos {
-					newTx := wh.service.createTx(confirmed, info)
+					newTx, err := wh.service.createTx(confirmed, info)
+					if err != nil {
+						wh.list.addToRetry(&sendingInfo{
+							TxType: confirmed,
+							info:   info,
+						})
+						continue
+					}
 					scTxID := info.GetScTxID()
 					wh.service.sendtoSign(&message.WaitSignMsg{
 						Business: watchedEvent.Business,
@@ -230,10 +249,7 @@ func (wh *watchedHandler) HandleEvent(event node.BusinessEvent) {
 					//设置等待确认
 					setWaitConfirm(wh.db, uint32(confirmed), info.Event.GetTo(), scTxID)
 				}
-				//保存已匹配的两笔交易的txid
-				wh.db.setMatched(info.GetScTxID(), matchedInfo.GetScTxID())
-				//删除索引 防止重复匹配
-				wh.index.Del(info)
+
 				break
 			}
 		} else {

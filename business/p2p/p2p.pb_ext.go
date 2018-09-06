@@ -8,10 +8,12 @@ import (
 // getExchangeInfo 获取交换数据
 func (info *P2PInfo) getExchangeInfo() (chain uint32, addr string, amount uint64) {
 	chain = info.Msg.GetChain()
-	addr = info.Msg.GetRequireAddr()
+	addr = string(info.Msg.GetRequireAddr())
 	amount = info.Msg.GetAmount()
 	return
 }
+
+// GetScTxID 获取监听到交易的txid
 func (info *P2PInfo) GetScTxID() string {
 	event := info.Event
 	if event != nil {
@@ -68,7 +70,7 @@ func (ti *txIndex) AddInfos(infos []*P2PInfo) {
 func (ti *txIndex) Add(info *P2PInfo) {
 	chain := fmt.Sprintf("%d", info.Event.From)
 	child := ti.root.add(chain)
-	sendAddr := info.Msg.SendAddr
+	sendAddr := string(info.Msg.SendAddr)
 	child = child.add(sendAddr)
 	amount := fmt.Sprintf("%d", info.Event.Amount)
 	child = child.add(amount)
@@ -78,7 +80,7 @@ func (ti *txIndex) Add(info *P2PInfo) {
 
 func (ti *txIndex) Del(info *P2PInfo) {
 	chain := fmt.Sprintf("%d", info.Event.From)
-	sendAddr := info.Msg.SendAddr
+	sendAddr := string(info.Msg.SendAddr)
 	amount := fmt.Sprintf("%d", info.Event.Amount)
 	addrNode := ti.root.getNode(chain)
 	txID := info.GetScTxID()

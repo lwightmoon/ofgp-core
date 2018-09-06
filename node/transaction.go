@@ -17,7 +17,7 @@ import (
 
 // txOperator 交易相关操作
 type txOperator interface {
-	CreateTx(req CreateReq) *pb.NewlyTx
+	CreateTx(req CreateReq) (*pb.NewlyTx, error)
 	SendTx(req ISendReq) error
 }
 
@@ -25,6 +25,8 @@ type AddrInfo struct {
 	Addr   string
 	Amount uint64
 }
+
+// CreateReq 创建交易接口
 type CreateReq interface {
 	GetChain() uint32
 	GetID() string
@@ -70,13 +72,14 @@ type EthCreateReq struct {
 // ISendReq sendTx
 type ISendReq interface {
 	GetChain() uint32
-	GetID() string
+	GetID() []byte
 	GetTx() *pb.NewlyTx
 }
 
+//  SendReq sendTx
 type SendReq struct {
 	Chain string
-	ID    string
+	ID    []byte
 	Tx    *pb.NewlyTx
 }
 
@@ -95,7 +98,7 @@ func newEthOperator(cli *ew.Client, bs *primitives.BlockStore, signer *crypto.Se
 	}
 }
 
-func (eop *ethOperator) CreateTx(req CreateReq) *pb.NewlyTx {
+func (eop *ethOperator) CreateTx(req CreateReq) (*pb.NewlyTx, error) {
 	if ereq, ok := req.(*EthCreateReq); ok {
 		// addrInfo := ereq.GetAddrInfos()[0]
 		// addredss := ew.HexToAddress(addrInfo.Addr)
@@ -106,10 +109,11 @@ func (eop *ethOperator) CreateTx(req CreateReq) *pb.NewlyTx {
 		// 	return nil
 		// }
 		// return &pb.NewlyTx{Data: input}
+		nodeLogger.Debug("eth create req:%v", ereq)
 	} else {
 		nodeLogger.Error("req err", "id", req.GetID())
 	}
-	return nil
+	return nil, nil
 }
 
 func (eop *ethOperator) SendTx(req ISendReq) error {
@@ -175,8 +179,8 @@ func newBtcOprator(watcher *btcwatcher.MortgageWatcher) *btcOprator {
 	}
 }
 
-func (btcOP *btcOprator) CreateTx(req CreateReq) *pb.NewlyTx {
-	return nil
+func (btcOP *btcOprator) CreateTx(req CreateReq) (*pb.NewlyTx, error) {
+	return nil, nil
 }
 
 func (btcOP *btcOprator) SendTx(req ISendReq) error {
@@ -205,9 +209,8 @@ func getBtcAddrInfos(addrInfos []AddrInfo) []*btcwatcher.AddressInfo {
 	}
 	return res
 }
-func (bchOP *bchOprator) CreateTx(req CreateReq) *pb.NewlyTx {
-	addrInfos := getBtcAddrInfos(req.GetAddrInfos())
-	return createCoinTx(bchOP.bchWatcher, addrInfos, req.GetFee(), req.GetID())
+func (bchOP *bchOprator) CreateTx(req CreateReq) (*pb.NewlyTx, error) {
+	return nil, nil
 }
 
 func (bchOP *bchOprator) SendTx(req ISendReq) error {
@@ -230,26 +233,29 @@ func newTxInvoker(ethOp *ethOperator, bchOp *bchOprator, btcOp *btcOprator) *txI
 	}
 }
 
-func (ti *txInvoker) CreateTx(req CreateReq) *pb.NewlyTx {
+func (ti *txInvoker) CreateTx(req CreateReq) (*pb.NewlyTx, error) {
 	var newTx *pb.NewlyTx
+	var err error
 	switch req.GetChain() {
 	case message.Bch:
-		newTx = ti.bchOp.CreateTx(req)
+		newTx, err = ti.bchOp.CreateTx(req)
 	case message.Eth:
-		newTx = ti.ethOp.CreateTx(req)
+		newTx, err = ti.ethOp.CreateTx(req)
 	case message.Btc:
-		newTx = ti.btcOp.CreateTx(req)
+		newTx, err = ti.btcOp.CreateTx(req)
 	}
-	return newTx
+	return newTx, err
 }
 
-func (ti *txInvoker) SendTx(req ISendReq) {
+func (ti *txInvoker) SendTx(req ISendReq) error {
+	var err error
 	switch req.GetChain() {
 	case message.Bch:
-		ti.bchOp.SendTx(req)
+		err = ti.bchOp.SendTx(req)
 	case message.Eth:
-		ti.ethOp.SendTx(req)
+		err = ti.ethOp.SendTx(req)
 	case message.Btc:
-		ti.btcOp.SendTx(req)
+		err = ti.btcOp.SendTx(req)
 	}
+	return err
 }

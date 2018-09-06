@@ -53,14 +53,14 @@ type p2pMsg struct {
 
 func (msg *p2pMsg) toPBMsg() *P2PMsg {
 	return &P2PMsg{
-		SendAddr:    hex.EncodeToString(msg.SendAddr),
-		ReceiveAddr: hex.EncodeToString(msg.ReceiveAddr),
+		SendAddr:    msg.SendAddr,
+		ReceiveAddr: msg.ReceiveAddr,
 		Chain:       uint32(msg.Chain),
 		TokenId:     uint32(msg.TokenID),
 		Amount:      msg.Amount,
 		Fee:         msg.Fee,
 		ExpiredTime: msg.ExpiredTime,
-		RequireAddr: hex.EncodeToString(msg.RequireAddr),
+		RequireAddr: msg.RequireAddr,
 	}
 }
 

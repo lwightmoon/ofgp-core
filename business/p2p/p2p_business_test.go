@@ -229,7 +229,7 @@ func TestIndex(t *testing.T) {
 		RequireAddr: requireAddr,
 	}
 	msgUse := p2pMsg.toPBMsg()
-	msgUse.SendAddr = "sendAddr"
+	msgUse.SendAddr = []byte("sendAddr")
 	event := &pb.WatchedEvent{
 		TxID:   "testTxID",
 		Amount: 1,
@@ -244,7 +244,7 @@ func TestIndex(t *testing.T) {
 	index.Add(p2pInfo)
 	p2pInfo.Event.TxID = "testTxID2"
 	index.Add(p2pInfo)
-	txIDs := index.GetTxID(message.Bch, msgUse.SendAddr, uint64(event.Amount))
+	txIDs := index.GetTxID(message.Bch, string(msgUse.SendAddr), uint64(event.Amount))
 	t.Logf("get txIDs:%s", txIDs)
 	index.Del(p2pInfo)
 	t.Logf("del res:%v", index.root.Childs)
