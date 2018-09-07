@@ -79,7 +79,6 @@ type watchedHandler struct {
 	node  *node.BraftNode
 	business.Handler
 	checkMatchInterval time.Duration
-	list               *retryList
 }
 
 func createTx(node *node.BraftNode, op int, info *P2PInfo) interface{} {
@@ -158,20 +157,15 @@ func (wh *watchedHandler) checkMatchTimeout() {
 			//创建并发送回退交易
 			p2pLogger.Debug("match timeout", "scTxID", info.GetScTxID())
 			newTx, err := wh.service.createTx(back, info)
-			if err != nil {
-				wh.list.addToRetry(&sendingInfo{
-					TxType: back,
-					info:   info,
+			if newTx != nil && err == nil {
+				wh.service.sendtoSign(&message.WaitSignMsg{
+					Business: event.Business,
+					ID:       scTxID,
+					ScTxID:   scTxID,
+					Event:    event,
+					Tx:       newTx,
 				})
-				continue
 			}
-			wh.service.sendtoSign(&message.WaitSignMsg{
-				Business: event.Business,
-				ID:       scTxID,
-				ScTxID:   scTxID,
-				Event:    event,
-				Tx:       newTx,
-			})
 			setWaitConfirm(wh.db, uint32(back), info.Event.GetTo(), info.GetScTxID())
 		}
 	}
@@ -231,23 +225,19 @@ func (wh *watchedHandler) HandleEvent(event node.BusinessEvent) {
 				//创建交易发送签名
 				for _, info := range infos {
 					newTx, err := wh.service.createTx(confirmed, info)
-					if err != nil {
-						wh.list.addToRetry(&sendingInfo{
-							TxType: confirmed,
-							info:   info,
+					if newTx != nil && err == nil {
+						scTxID := info.GetScTxID()
+						wh.service.sendtoSign(&message.WaitSignMsg{
+							Business: watchedEvent.Business,
+							ID:       scTxID,
+							ScTxID:   scTxID,
+							Event:    info.Event,
+							Tx:       newTx,
 						})
-						continue
+
 					}
-					scTxID := info.GetScTxID()
-					wh.service.sendtoSign(&message.WaitSignMsg{
-						Business: watchedEvent.Business,
-						ID:       scTxID,
-						ScTxID:   scTxID,
-						Event:    info.Event,
-						Tx:       newTx,
-					})
 					//设置等待确认
-					setWaitConfirm(wh.db, uint32(confirmed), info.Event.GetTo(), scTxID)
+					setWaitConfirm(wh.db, uint32(confirmed), info.Event.GetTo(), info.GetScTxID())
 				}
 
 				break
@@ -265,7 +255,8 @@ func (wh *watchedHandler) HandleEvent(event node.BusinessEvent) {
 type sigenedHandler struct {
 	chcker *confirmTimeoutChecker
 	business.Handler
-	db *p2pdb
+	db      *p2pdb
+	service *service
 }
 
 func (sh *sigenedHandler) HandleEvent(event node.BusinessEvent) {
@@ -276,11 +267,17 @@ func (sh *sigenedHandler) HandleEvent(event node.BusinessEvent) {
 			p2pLogger.Error("signed data is nil")
 			return
 		}
-		sh.db.setSendedInfo(&SendedInfo{
-			TxId:     signedData.TxID,
-			SignTerm: signedData.Term,
-		})
-		p2pLogger.Debug("receive signedData", "scTxID", signedData.ID)
+		txID := signedData.TxID
+		if sh.db.getSendedInfo(signedData.TxID) == nil && !sh.service.isDone(txID) {
+			sh.db.setSendedInfo(&SendedInfo{
+				TxId:     signedData.TxID,
+				SignTerm: signedData.Term,
+			})
+			p2pLogger.Debug("receive signedData", "scTxID", signedData.ID)
+		} else {
+			p2pLogger.Debug("already sended", "scTxID", txID)
+		}
+
 		//todo 发送交易
 		p2pLogger.Debug("------sendTx")
 

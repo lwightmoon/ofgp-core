@@ -85,16 +85,16 @@ func (node *BraftNode) clearOnFail(signReq *pb.SignRequest) {
 	node.signedResultCache.Delete(scTxID)
 	node.blockStore.DeleteSignReqMsg(scTxID)
 
-	if !signReq.GetWatchedEvent().IsTransferEvent() && !node.isTxSigned(scTxID) {
-		waitSignMsg := &message.WaitSignMsg{
-			Business: signReq.Business,
-			ID:       signReq.GetWatchedEvent().GetTxID(),
-			ScTxID:   signReq.GetWatchedEvent().GetTxID(),
-			Event:    signReq.GetWatchedEvent(),
-			Tx:       signReq.GetNewlyTx(),
-		}
-		node.txStore.AddTxtoWaitSign(waitSignMsg)
-	}
+	// if !signReq.GetWatchedEvent().IsTransferEvent() && !node.isTxSigned(scTxID) {
+	// 	waitSignMsg := &message.WaitSignMsg{
+	// 		Business: signReq.Business,
+	// 		ID:       signReq.GetWatchedEvent().GetTxID(),
+	// 		ScTxID:   signReq.GetWatchedEvent().GetTxID(),
+	// 		Event:    signReq.GetWatchedEvent(),
+	// 		Tx:       signReq.GetNewlyTx(),
+	// 	}
+	// 	node.txStore.AddTxtoWaitSign(waitSignMsg)
+	// }
 }
 
 /* todo
@@ -420,20 +420,23 @@ func (node *BraftNode) checkSignTimeout() {
 			}
 			node.blockStore.DeleteSignReqMsg(scTxID)
 			watchedEvent := signReq.GetWatchedEvent()
-			if !watchedEvent.IsTransferEvent() {
-				if !node.isTxSigned(scTxID) { //如果签名已经共识
-					node.txStore.AddTxtoWaitSign(&message.WaitSignMsg{
-						Business: signReq.Business,
-						ScTxID:   signReq.GetWatchedEvent().GetTxID(),
-						Event:    signReq.WatchedEvent,
-						Tx:       signReq.NewlyTx,
-					})
-				} else {
-					nodeLogger.Debug("tx is in waiting", "scTxID", scTxID)
-				}
-			} else {
+			if watchedEvent.IsTransferEvent() {
 				node.txStore.DeleteWatchedEvent(scTxID)
 			}
+			// if !watchedEvent.IsTransferEvent() {
+			// if !node.isTxSigned(scTxID) { //如果签名已经共识
+			// 	node.txStore.AddTxtoWaitSign(&message.WaitSignMsg{
+			// 		Business: signReq.Business,
+			// 		ScTxID:   signReq.GetWatchedEvent().GetTxID(),
+			// 		Event:    signReq.WatchedEvent,
+			// 		Tx:       signReq.NewlyTx,
+			// 	})
+			// } else {
+			// 	nodeLogger.Debug("tx is in waiting", "scTxID", scTxID)
+			// }
+			// } else {
+			// 	node.txStore.DeleteWatchedEvent(scTxID)
+			// }
 		}
 		return true
 

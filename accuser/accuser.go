@@ -104,7 +104,8 @@ func (ac *Accuser) Run(ctx context.Context) {
 			ac.accuse(term, "Invalid block", time.Now().Unix())
 		case term := <-ac.tsTriggerChan:
 			ac.accuse(term, "tx timeout", time.Now().Unix())
-
+		case term := <-ac.businessTriggerChan:
+			ac.accuse(term, "business accuse", time.Now().Unix())
 		case newTop := <-ac.newCommittedChan:
 			acLogger.Info("new committed event, update lastTermBlockTime")
 			ac.termToAccuse = newTop.Term()

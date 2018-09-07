@@ -50,5 +50,34 @@ func (s *service) createTx(op uint8, info *P2PInfo) (*pb.NewlyTx, error) {
 }
 
 func (s *service) sendtoSign(signReq *message.WaitSignMsg) {
-	p2pLogger.Debug("send to sign")
+	p2pLogger.Debug("send to sign ", "scTxID", signReq.ScTxID)
+	s.node.SignTx(signReq)
+}
+
+func (s *service) isDone(scTxID string) bool {
+	return s.node.IsDone(scTxID)
+}
+
+func (s *service) isTxOnChain(txID string) bool {
+	return s.node.GetTxByHash(txID) != nil
+}
+
+func (s *service) isSignFail(txID string) bool {
+	return false
+}
+
+func (s *service) markSignFail(txID string) {
+
+}
+
+func (s *service) accuseWithTerm(term int64) {
+	s.node.AccuseWithTerm(term)
+}
+
+func (s *service) accuse() {
+	s.node.Accuse()
+}
+
+func (s *service) OnFail() {
+
 }

@@ -7,7 +7,7 @@ import (
 
 //CreateTx create tx
 func (node *BraftNode) CreateTx(req CreateReq) (*pb.NewlyTx, error) {
-	tx, err := node.txInvoker.CreateTx(req)
+	tx, err := node.leader.createTx(req)
 	return tx, err
 }
 
@@ -33,8 +33,8 @@ func (node *BraftNode) IsDone(scTxID string) bool {
 	return inMem || indb
 }
 
-func (node *BraftNode) GetTxByHash(txid string) {
-
+func (node *BraftNode) GetTxByHash(txid string) PushEvent {
+	return nil
 }
 
 // CleanSigned 清理签名数据 业务方重试使用
@@ -52,7 +52,12 @@ func (node *BraftNode) OnConfirmFail(msg *message.WaitSignMsg, scTxID string, te
 	node.txStore.DeleteWaitSign(scTxID)
 	//删除已签名标记
 	node.signedTxs.Delete(scTxID)
-	node.txStore.AddTxtoWaitSign(msg)
+}
 
+func (node *BraftNode) AccuseWithTerm(term int64) {
 	node.accuser.TriggerByBusiness(term)
+}
+
+func (node *BraftNode) Accuse() {
+	node.accuser.TriggerByBusiness(node.blockStore.GetNodeTerm())
 }

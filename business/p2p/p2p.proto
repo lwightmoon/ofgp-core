@@ -48,6 +48,8 @@ message p2pConfirmInfo{
 message sendedInfo{
     string tx_id = 1;
     int64 sign_term = 2;
+    uint32 chain = 3;
+    string check_on_chain_id = 4;
 }
 
 

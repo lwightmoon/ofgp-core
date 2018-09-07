@@ -213,7 +213,7 @@ func NewBraftNode(localNodeInfo cluster.NodeInfo) *BraftNode {
 	pm := cluster.NewPeerManager(localNodeInfo.Id, txConnPoolSize, blockPoolSize)
 
 	ac := accuser.NewAccuser(localNodeInfo, signer, pm)
-	ld := NewLeader(localNodeInfo, bs, ts, signer, btcWatcher, bchWatcher, ethWatcher, pm)
+	ld := NewLeader(localNodeInfo, bs, ts, signer, btcWatcher, bchWatcher, ethWatcher, pm, txInvoker)
 	syncDaemon := NewSyncDaemon(db, bs, pm)
 
 	bn := &BraftNode{

@@ -2,6 +2,7 @@ package node
 
 import (
 	"bytes"
+	"errors"
 	"strconv"
 	"sync"
 	"time"
@@ -63,12 +64,13 @@ type Leader struct {
 	ethWatcher *ew.Client
 	pm         *cluster.PeerManager
 	sync.Mutex
+	txInvoker *txInvoker //创建发送交易相关
 }
 
 // NewLeader 新生成一个leader对象，并启动后台任务，循环检查选举相关任务（创建块，投票等）
 func NewLeader(nodeInfo cluster.NodeInfo, bs *primitives.BlockStore, ts *primitives.TxStore,
 	signer *crypto.SecureSigner, btcWatcher *btcwatcher.MortgageWatcher, bchWatcher *btcwatcher.MortgageWatcher,
-	ethWatcher *ew.Client, pm *cluster.PeerManager) *Leader {
+	ethWatcher *ew.Client, pm *cluster.PeerManager, txInvoker *txInvoker) *Leader {
 	leader := &Leader{
 		BecomeLeaderEvent: util.NewEvent(),
 		NewInitEvent:      util.NewEvent(),
@@ -96,6 +98,7 @@ func NewLeader(nodeInfo cluster.NodeInfo, bs *primitives.BlockStore, ts *primiti
 		btcWatcher: btcWatcher,
 		ethWatcher: ethWatcher,
 		pm:         pm,
+		txInvoker:  txInvoker,
 	}
 
 	bs.NewTermEvent.Subscribe(func(newTerm int64) {
@@ -560,4 +563,12 @@ func (ld *Leader) broadcastSignReq(req *pb.SignRequest, nodes []cluster.NodeInfo
 			go ld.pm.NotifySignRequest(node.Id, req)
 		}
 	}
+}
+
+func (ld *Leader) createTx(req CreateReq) (*pb.NewlyTx, error) {
+	if ld.isInCharge() {
+		tx, err := ld.txInvoker.CreateTx(req)
+		return tx, err
+	}
+	return nil, errors.New("is not leader")
 }
