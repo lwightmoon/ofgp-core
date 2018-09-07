@@ -20,7 +20,8 @@ func (bn *BraftNode) pubCommit(blockPack *pb.BlockPack) {
 }
 
 //noticeSigned 通知已签名
-func (bn *BraftNode) pubSigned(msg *pb.SignResult, chain uint32, newTx interface{}, term int64) {
+func (bn *BraftNode) pubSigned(msg *pb.SignResult, chain uint32,
+	newTx interface{}, signBeforeTxID string, term int64) {
 	signedData := &SignedData{
 		Chain: chain,
 		ID:    msg.ScTxID,

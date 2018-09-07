@@ -82,8 +82,17 @@ func TestMatch(t *testing.T) {
 	p2pDB.setMatched("a", "b")
 	matched := p2pDB.getMatched("a")
 	t.Logf("get matched:%s", matched)
-	matched = p2pDB.getMatched("notexist")
+	matched = p2pDB.getMatched("b")
 	t.Logf("get matched:%s", matched)
+}
+func TestExistMatch(t *testing.T) {
+	key := "testMatch"
+	exist := p2pDB.ExistMatched(key)
+	t.Logf("exist match:%t", exist)
+	p2pDB.setMatchedOne(key, "")
+	exist = p2pDB.ExistMatched(key)
+	t.Logf("after match:%t", exist)
+	t.Logf("get res:%s", p2pDB.getMatched(key))
 }
 
 func TestSendedTx(t *testing.T) {

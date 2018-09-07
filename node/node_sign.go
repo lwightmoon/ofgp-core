@@ -136,12 +136,13 @@ func checkMortgageTx(watcher *btcwatcher.MortgageWatcher, tx interface{}, res *p
 	return false
 }
 func mergeMortgageTx(watcher *btcwatcher.MortgageWatcher, tx interface{},
-	results []*pb.SignResult, quorumN int) (interface{}, bool) {
+	results []*pb.SignResult, quorumN int) (interface{}, string, bool) {
 	var btcTx *wire.MsgTx
 	var ok bool
 	if btcTx, ok = tx.(*wire.MsgTx); !ok {
-		return nil, false
+		return nil, "", false
 	}
+	beforeSignTxID := btcTx.TxHash().String()
 	var sigs [][][]byte
 	for _, res := range results {
 		sigs = append(sigs, res.Data)
@@ -150,13 +151,13 @@ func mergeMortgageTx(watcher *btcwatcher.MortgageWatcher, tx interface{},
 		}
 	}
 	ok = watcher.MergeSignTx(btcTx, sigs)
-	return tx, ok
+	return tx, beforeSignTxID, ok
 }
 
 type collector interface {
 	createTx(req *pb.SignRequest) interface{}
 	check(tx interface{}, res *pb.SignResult) bool
-	merge(tx interface{}, results []*pb.SignResult, quorumN int) (interface{}, bool)
+	merge(tx interface{}, results []*pb.SignResult, quorumN int) (interface{}, string, bool)
 }
 
 // btcResCollector btc收集签名结果
@@ -176,7 +177,7 @@ func (brc *btcResCollector) check(tx interface{}, res *pb.SignResult) bool {
 	return checkMortgageTx(brc.watcher, tx, res)
 }
 
-func (brc *btcResCollector) merge(tx interface{}, results []*pb.SignResult, quorumN int) (interface{}, bool) {
+func (brc *btcResCollector) merge(tx interface{}, results []*pb.SignResult, quorumN int) (interface{}, string, bool) {
 	return mergeMortgageTx(brc.watcher, tx, results, quorumN)
 }
 
@@ -198,7 +199,7 @@ func (brc *bchResCollector) check(tx interface{}, res *pb.SignResult) bool {
 	return checkMortgageTx(brc.watcher, tx, res)
 }
 
-func (brc *bchResCollector) merge(tx interface{}, results []*pb.SignResult, quorumN int) (interface{}, bool) {
+func (brc *bchResCollector) merge(tx interface{}, results []*pb.SignResult, quorumN int) (interface{}, string, bool) {
 	return mergeMortgageTx(brc.watcher, tx, results, quorumN)
 }
 
@@ -215,8 +216,8 @@ func (erc *ethResCollector) createTx(req *pb.SignRequest) interface{} {
 func (erc *ethResCollector) check(tx interface{}, res *pb.SignResult) bool {
 	return true
 }
-func (erc *ethResCollector) merge(tx interface{}, results []*pb.SignResult, quorumN int) (interface{}, bool) {
-	return nil, true
+func (erc *ethResCollector) merge(tx interface{}, results []*pb.SignResult, quorumN int) (interface{}, string, bool) {
+	return nil, "", true
 }
 
 type collectorFactory struct {
@@ -355,7 +356,8 @@ func (node *BraftNode) doSave(msg *pb.SignResult) {
 				}
 			}
 			// ok := watcher.MergeSignTx(newlyTx, sigs)
-			newlyTx, ok = collector.merge(newlyTx, signResults, int(quorumN))
+			var signBeforeTxID string
+			newlyTx, signBeforeTxID, ok = collector.merge(newlyTx, signResults, int(quorumN))
 			if !ok {
 				leaderLogger.Error("merge sign tx failed", "business", msg.Business, "sctxID", msg.ScTxID)
 				node.clearOnFail(signReq) //todo merge 失败clearOnFail 处理
@@ -364,7 +366,7 @@ func (node *BraftNode) doSave(msg *pb.SignResult) {
 			//标记已签名 替换SignedEvent
 			node.markTxSigned(msg.ScTxID)
 			//通知相关业务已被签名
-			node.pubSigned(msg, msg.To, newlyTx, signReq.Term)
+			node.pubSigned(msg, msg.To, newlyTx, signBeforeTxID, signReq.Term)
 			// sendTxToChain的时间可能会比较长，因为涉及到链上交易，所以需要提前把锁释放
 			// node.sendTxToChain(newlyTx, watcher, sigs, msg, signReqmsg)
 		}

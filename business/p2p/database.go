@@ -6,7 +6,6 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/ofgp/ofgp-core/dgwdb"
 	"github.com/syndtr/goleveldb/leveldb"
-	"github.com/syndtr/goleveldb/leveldb/opt"
 )
 
 var (
@@ -133,10 +132,19 @@ func (db *p2pdb) delWaitConfirm(txID string) {
 
 // 设置匹配的txID
 func (db *p2pdb) setMatched(txID1, txID2 string) {
+	batch := new(leveldb.Batch)
 	key1 := append(matchedPrefix, []byte(txID1)...)
 	key2 := append(matchedPrefix, []byte(txID2)...)
-	db.db.Put(key1, []byte(txID2))
-	db.db.Put(key2, []byte(txID1))
+	batch.Put(key1, []byte(txID2))
+	batch.Put(key2, []byte(txID1))
+	err := db.db.LDB().Write(batch, nil)
+	if err != nil {
+		p2pLogger.Error("clear data err", "err", err)
+	}
+}
+func (db *p2pdb) setMatchedOne(txID1, txID2 string) {
+	key := append(matchedPrefix, []byte(txID1)...)
+	db.db.Put(key, []byte(txID2))
 }
 
 func (db *p2pdb) getMatched(txID string) string {
@@ -145,12 +153,9 @@ func (db *p2pdb) getMatched(txID string) string {
 	return string(matched)
 }
 func (db *p2pdb) ExistMatched(txID string) bool {
-	mydb := db.db.LDB()
 	key := append(matchedPrefix, []byte(txID)...)
-	exist, _ := mydb.Has(key, &opt.ReadOptions{
-		DontFillCache: false,
-		Strict:        0,
-	})
+	mydb := db.db.LDB()
+	exist, _ := mydb.Has(key, nil)
 	return exist
 }
 

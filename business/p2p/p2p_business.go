@@ -39,12 +39,13 @@ func NewP2P(node *node.BraftNode, db *p2pdb) *P2P {
 	index := newTxIndex()
 
 	index.AddInfos(p2pInfos)
-
+	service := newService(node)
 	wh := &watchedHandler{
 		db:                 db,
 		node:               node,
 		index:              index,
 		checkMatchInterval: time.Duration(1) * time.Second,
+		service:            service,
 	}
 	// check匹配超时
 	wh.runCheckMatchTimeout()
@@ -60,7 +61,7 @@ func NewP2P(node *node.BraftNode, db *p2pdb) *P2P {
 	confirmH.SetSuccessor(commitH)
 	p2p.handler = wh
 
-	confirmChecker := newConfirmChecker(db, 15*time.Second, 60, node)
+	confirmChecker := newConfirmChecker(db, 15*time.Second, 60)
 	p2p.confirmChecker = confirmChecker
 	return p2p
 }
@@ -124,7 +125,7 @@ func isConfirmed(db *p2pdb, txID string) bool {
 
 // isMatching 是否在匹配中
 func isMatching(db *p2pdb, txID string) bool {
-	return db.getMatched(txID) != ""
+	return db.ExistMatched(txID)
 }
 
 // checkP2PInfo check点对点交易是否合法
@@ -156,6 +157,7 @@ func (wh *watchedHandler) checkMatchTimeout() {
 			//check 交易是否在链上存在
 			//创建并发送回退交易
 			p2pLogger.Debug("match timeout", "scTxID", info.GetScTxID())
+			wh.db.setMatchedOne(info.GetScTxID(), "")
 			newTx, err := wh.service.createTx(back, info)
 			if newTx != nil && err == nil {
 				wh.service.sendtoSign(&message.WaitSignMsg{
@@ -270,8 +272,10 @@ func (sh *sigenedHandler) HandleEvent(event node.BusinessEvent) {
 		txID := signedData.TxID
 		if sh.db.getSendedInfo(signedData.TxID) == nil && !sh.service.isDone(txID) {
 			sh.db.setSendedInfo(&SendedInfo{
-				TxId:     signedData.TxID,
-				SignTerm: signedData.Term,
+				TxId:           signedData.TxID,
+				SignTerm:       signedData.Term,
+				Chain:          signedData.Chain,
+				SignBeforeTxId: signedData.SignBeforeTxID,
 			})
 			p2pLogger.Debug("receive signedData", "scTxID", signedData.ID)
 		} else {

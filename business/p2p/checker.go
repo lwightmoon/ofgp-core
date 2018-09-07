@@ -129,8 +129,11 @@ func (checker *confirmTimeoutChecker) check() {
 			}
 			sendedInfo := checker.db.getSendedInfo(scTxID)
 			// check交易是否在链上存在 btc bch todo
-			if checker.service.isTxOnChain(scTxID) {
-				continue
+			if sendedInfo.Chain == message.Bch || sendedInfo.Chain == message.Btc {
+				if checker.service.isTxOnChain(sendedInfo.SignBeforeTxId) {
+					p2pLogger.Info("check confirm already onchain", "scTxID", scTxID)
+					continue
+				}
 			}
 			checker.service.clear(scTxID, sendedInfo.SignTerm)
 			// 存在则返回

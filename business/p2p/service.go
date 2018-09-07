@@ -10,6 +10,12 @@ type service struct {
 	node *node.BraftNode
 }
 
+func newService(node *node.BraftNode) *service {
+	return &service{
+		node: node,
+	}
+}
+
 func (s *service) createTx(op uint8, info *P2PInfo) (*pb.NewlyTx, error) {
 	var addr []byte
 	msg := info.GetMsg()

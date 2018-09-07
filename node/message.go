@@ -72,7 +72,7 @@ type SignedData struct {
 	ID             string //业务id
 	TxID           string
 	Term           int64
-	CheckOnChainID string      //用于检查是否在链上
+	SignBeforeTxID string      //用于检查是否在链上
 	Data           interface{} //签名后数据 跟具体的链相关
 }
 type SignedEvent struct {
