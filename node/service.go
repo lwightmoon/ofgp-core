@@ -22,6 +22,7 @@ func (node *BraftNode) SendTx(req ISendReq) error {
 	return err
 }
 
+// Commit 创建网关tx
 func (node *BraftNode) Commit(req *pb.Transaction) {
 	node.txStore.CreateInnerTx(req)
 }
@@ -33,11 +34,12 @@ func (node *BraftNode) IsDone(scTxID string) bool {
 	return inMem || indb
 }
 
+// GetTxByHash TODO 根据签名前交易查询是否链上存在
 func (node *BraftNode) GetTxByHash(txid string) PushEvent {
 	return nil
 }
 
-// CleanSigned 清理签名数据 业务方重试使用
+// Clear 清理签名数据 业务方重试使用
 func (node *BraftNode) Clear(scTxID string, term int64) {
 	if node.txStore.IsTxInMem(scTxID) && node.txStore.HasTxInDB(scTxID) {
 		return
@@ -64,4 +66,9 @@ func (node *BraftNode) Accuse() {
 // MarkFail 标记交易本term失败
 func (node *BraftNode) MarkFail(scTxID string) {
 	node.blockStore.MarkFailedSignRecord(scTxID, node.blockStore.GetNodeTerm())
+}
+
+// IsSignFailed 判断签名本term内是否失败
+func (node *BraftNode) IsSignFailed(scTxID string) bool {
+	return node.blockStore.IsSignFailed(scTxID, node.blockStore.GetNodeTerm())
 }

@@ -16,10 +16,11 @@ type confirmTimeoutChecker struct {
 	signFailTxs      map[string]*WaitConfirmMsg
 }
 
-func newConfirmChecker(db *p2pdb, interval time.Duration, confirmTolerance int64) *confirmTimeoutChecker {
+func newConfirmChecker(db *p2pdb, interval time.Duration, signTimeout, confirmTolerance int64) *confirmTimeoutChecker {
 	checker := &confirmTimeoutChecker{
 		db:               db,
 		interval:         interval,
+		signTimeout:      signTimeout,
 		confirmTolerance: confirmTolerance,
 	}
 	checker.run()

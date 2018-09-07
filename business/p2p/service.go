@@ -78,7 +78,7 @@ func (s *service) isTxOnChain(txID string) bool {
 }
 
 func (s *service) isSignFail(txID string) bool {
-	return false
+	return s.node.IsSignFailed(txID)
 }
 
 func (s *service) clear(scTxID string, term int64) {
