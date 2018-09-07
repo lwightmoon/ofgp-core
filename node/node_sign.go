@@ -360,7 +360,7 @@ func (node *BraftNode) doSave(msg *pb.SignResult) {
 			newlyTx, signBeforeTxID, ok = collector.merge(newlyTx, signResults, int(quorumN))
 			if !ok {
 				leaderLogger.Error("merge sign tx failed", "business", msg.Business, "sctxID", msg.ScTxID)
-				node.clearOnFail(signReq) //todo merge 失败clearOnFail 处理
+				node.clearOnFail(signReq) // merge 失败clearOnFail 处理
 				return
 			}
 			//标记已签名 替换SignedEvent

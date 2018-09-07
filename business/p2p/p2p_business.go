@@ -86,14 +86,6 @@ func createTx(node *node.BraftNode, op int, info *P2PInfo) interface{} {
 	return nil
 }
 
-// // signTx 签名交易
-func sendToSignTx(node *node.BraftNode, infos []*P2PInfo) {
-	//todo 创建交易，并交给网关签名
-	for _, info := range infos {
-		p2pLogger.Debug("create tx and send to sign", "scTxID", info.GetScTxID())
-	}
-}
-
 // getP2PInfo p2p交易数据
 func getP2PInfo(event *pb.WatchedEvent) *P2PInfo {
 	msg := &p2pMsg{}
@@ -137,7 +129,6 @@ func (wh *watchedHandler) checkP2PInfo(info *P2PInfo) bool {
 	}
 	if info.IsExpired() {
 		p2pLogger.Warn("tx has already been expired", "scTxID", txID)
-		//todo 发送回退交易
 		return false
 	}
 	return true
@@ -153,8 +144,6 @@ func (wh *watchedHandler) checkMatchTimeout() {
 		scTxID := info.GetScTxID()
 		event := info.Event
 		if !isMatching(wh.db, info.GetScTxID()) && !wh.node.IsDone(scTxID) && info.IsExpired() {
-			//todo
-			//check 交易是否在链上存在
 			//创建并发送回退交易
 			p2pLogger.Debug("match timeout", "scTxID", info.GetScTxID())
 			wh.db.setMatchedOne(info.GetScTxID(), "")
@@ -278,13 +267,14 @@ func (sh *sigenedHandler) HandleEvent(event node.BusinessEvent) {
 				SignBeforeTxId: signedData.SignBeforeTxID,
 			})
 			p2pLogger.Debug("receive signedData", "scTxID", signedData.ID)
+			//发送交易
+			err := sh.service.sendTx(signedData)
+			if err != nil {
+				p2pLogger.Error("send tx err", "business", signedEvent.Business)
+			}
 		} else {
 			p2pLogger.Debug("already sended", "scTxID", txID)
 		}
-
-		//todo 发送交易
-		p2pLogger.Debug("------sendTx")
-
 	} else if sh.Successor != nil {
 		sh.Successor.HandleEvent(event)
 	}

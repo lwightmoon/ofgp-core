@@ -27,7 +27,7 @@ func (bn *BraftNode) pubSigned(msg *pb.SignResult, chain uint32,
 		ID:    msg.ScTxID,
 		TxID:  msg.ScTxID,
 		Term:  term,
-		Data:  newTx,
+		Tx:    newTx,
 	}
 	event := newSignedEvent(msg.Business, signedData, nil)
 	bn.pubsub.pub(msg.Business, event)

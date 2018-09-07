@@ -60,6 +60,15 @@ func (s *service) sendtoSign(signReq *message.WaitSignMsg) {
 	s.node.SignTx(signReq)
 }
 
+func (s *service) sendTx(data *node.SignedData) error {
+	sendReq := &node.SendReq{
+		Chain: data.Chain,
+		ID:    []byte(data.ID),
+		Tx:    data.Tx,
+	}
+	return s.node.SendTx(sendReq)
+}
+
 func (s *service) isDone(scTxID string) bool {
 	return s.node.IsDone(scTxID)
 }

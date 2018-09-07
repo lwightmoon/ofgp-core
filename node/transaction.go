@@ -73,14 +73,29 @@ type EthCreateReq struct {
 type ISendReq interface {
 	GetChain() uint32
 	GetID() []byte
-	GetTx() *pb.NewlyTx
+	GetTx() interface{}
 }
 
-//  SendReq sendTx
+// SendReq sendTx
 type SendReq struct {
-	Chain string
+	Chain uint32
 	ID    []byte
-	Tx    *pb.NewlyTx
+	Tx    interface{}
+}
+
+// GetChain 获取所在链
+func (req *SendReq) GetChain() uint32 {
+	return req.Chain
+}
+
+// GetID 交易标识id
+func (req *SendReq) GetID() []byte {
+	return req.ID
+}
+
+// GetTx 获取交易[]byte
+func (req *SendReq) GetTx() interface{} {
+	return req.Tx
 }
 
 // ethCreater 创建eth交易
@@ -117,11 +132,12 @@ func (eop *ethOperator) CreateTx(req CreateReq) (*pb.NewlyTx, error) {
 }
 
 func (eop *ethOperator) SendTx(req ISendReq) error {
-	_, err := eop.cli.SendTranxByInput(eop.signer.PubKeyHex, eop.signer.PubkeyHash, req.GetTx().Data)
-	if err != nil {
-		nodeLogger.Error("send eth tx err", "error", err, "id", req.GetID())
-	}
-	return err
+	// _, err := eop.cli.SendTranxByInput(eop.signer.PubKeyHex, eop.signer.PubkeyHash, req.GetTx().Data)
+	// if err != nil {
+	// 	nodeLogger.Error("send eth tx err", "error", err, "id", req.GetID())
+	// }
+	// return err
+	return nil
 }
 
 // BtcCreateReq 创建btc交易请求
@@ -155,16 +171,21 @@ func createCoinTx(watcher *btcwatcher.MortgageWatcher,
 }
 
 func sendCointTx(watcher *btcwatcher.MortgageWatcher, req ISendReq, chain string) error {
-	buf := bytes.NewBuffer(req.GetTx().Data)
-	newlyTx := new(wire.MsgTx)
-	err := newlyTx.Deserialize(buf)
+	// buf := bytes.NewBuffer(req.GetTx().Data)
+	// newlyTx := new(wire.MsgTx)
+	// err := newlyTx.Deserialize(buf)
 	start := time.Now().UnixNano()
-	_, err = watcher.SendTx(newlyTx)
-	end := time.Now().UnixNano()
-	leaderLogger.Debug("sendCointime", "time", (end-start)/1e6, "chian", chain)
-	if err != nil {
-		leaderLogger.Error("send signed tx  failed", "err", err, "sctxid", req.GetID(), "chian", chain)
+	tx := req.GetTx()
+	var err error
+	if newlyTx, ok := tx.(*wire.MsgTx); ok {
+		_, err = watcher.SendTx(newlyTx)
+		end := time.Now().UnixNano()
+		leaderLogger.Debug("sendCointime", "time", (end-start)/1e6, "chian", chain)
+		if err != nil {
+			leaderLogger.Error("send signed tx  failed", "err", err, "sctxid", req.GetID(), "chian", chain)
+		}
 	}
+
 	return err
 }
 

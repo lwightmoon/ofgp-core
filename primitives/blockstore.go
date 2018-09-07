@@ -1125,7 +1125,7 @@ func (bs *BlockStore) validateTransferSignTx(req *pb.SignTxRequest, newlyTx *wir
 	return wrongInputOutput
 }
 */
-/*todo eth没有签名请求
+/*todo eth签名校验
 func (bs *BlockStore) validateEthSignTx(req *pb.SignTxRequest) int {
 	baseCheckResult := bs.baseCheck(req)
 	if baseCheckResult != validatePass {
