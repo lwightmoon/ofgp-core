@@ -38,13 +38,10 @@ func (node *BraftNode) GetTxByHash(txid string) PushEvent {
 }
 
 // CleanSigned 清理签名数据 业务方重试使用
-func (node *BraftNode) OnConfirmFail(msg *message.WaitSignMsg, scTxID string, term int64) {
+func (node *BraftNode) Clear(scTxID string, term int64) {
 	if node.txStore.IsTxInMem(scTxID) && node.txStore.HasTxInDB(scTxID) {
 		return
 	}
-	//todo
-	//调用GetTxByHash()check是否已经发送成功
-
 	node.blockStore.MarkFailedSignRecord(scTxID, term)
 	node.signedResultCache.Delete(scTxID)
 	node.blockStore.DeleteSignReq(scTxID)
@@ -54,10 +51,17 @@ func (node *BraftNode) OnConfirmFail(msg *message.WaitSignMsg, scTxID string, te
 	node.signedTxs.Delete(scTxID)
 }
 
+// AccuseWithTerm 业务发起accuse
 func (node *BraftNode) AccuseWithTerm(term int64) {
 	node.accuser.TriggerByBusiness(term)
 }
 
+// Accuse 使用当前term发起accuse
 func (node *BraftNode) Accuse() {
 	node.accuser.TriggerByBusiness(node.blockStore.GetNodeTerm())
+}
+
+// MarkFail 标记交易本term失败
+func (node *BraftNode) MarkFail(scTxID string) {
+	node.blockStore.MarkFailedSignRecord(scTxID, node.blockStore.GetNodeTerm())
 }

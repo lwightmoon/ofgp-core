@@ -66,8 +66,8 @@ func (s *service) isSignFail(txID string) bool {
 	return false
 }
 
-func (s *service) markSignFail(txID string) {
-
+func (s *service) clear(scTxID string, term int64) {
+	s.node.Clear(scTxID, term)
 }
 
 func (s *service) accuseWithTerm(term int64) {
@@ -78,6 +78,6 @@ func (s *service) accuse() {
 	s.node.Accuse()
 }
 
-func (s *service) OnFail() {
-
+func (s *service) markSignFail(scTxID string) {
+	s.node.MarkFail(scTxID)
 }

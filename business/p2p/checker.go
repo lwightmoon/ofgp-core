@@ -128,8 +128,11 @@ func (checker *confirmTimeoutChecker) check() {
 				continue
 			}
 			sendedInfo := checker.db.getSendedInfo(scTxID)
-			checker.node.OnConfirmFail()
-			// check交易是否在链上存在 btc bch
+			// check交易是否在链上存在 btc bch todo
+			if checker.service.isTxOnChain(scTxID) {
+				continue
+			}
+			checker.service.clear(scTxID, sendedInfo.SignTerm)
 			// 存在则返回
 			newTx, _ := checker.service.createTx(uint8(waitConfirm.Opration), p2pInfo)
 			if newTx != nil {
