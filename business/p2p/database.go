@@ -191,6 +191,12 @@ func (db *p2pdb) getSendedInfo(txID string) *SendedInfo {
 	proto.Unmarshal(data, sendedInfo)
 	return sendedInfo
 }
+func (db *p2pdb) existSendedInfo(txID string) bool {
+	key := append(sendedPrefix, []byte(txID)...)
+	mydb := db.db.LDB()
+	exist, _ := mydb.Has(key, nil)
+	return exist
+}
 
 func (db *p2pdb) clear(scTxID string) {
 	batch := new(leveldb.Batch)

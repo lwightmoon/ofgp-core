@@ -16,14 +16,16 @@ type confirmTimeoutChecker struct {
 	signFailTxs      map[string]*WaitConfirmMsg
 }
 
-func newConfirmChecker(db *p2pdb, interval time.Duration, signTimeout, confirmTolerance int64) *confirmTimeoutChecker {
+func newConfirmChecker(db *p2pdb, interval time.Duration, signTimeout, confirmTolerance int64, service *service) *confirmTimeoutChecker {
 	checker := &confirmTimeoutChecker{
 		db:               db,
 		interval:         interval,
 		signTimeout:      signTimeout,
 		confirmTolerance: confirmTolerance,
+		service:          service,
+		signFailTxs:      make(map[string]*WaitConfirmMsg),
 	}
-	checker.run()
+	// checker.run()
 	return checker
 }
 
@@ -57,7 +59,7 @@ func (checker *confirmTimeoutChecker) retryFailed() {
 		if checker.service.isSignFail(scTxID) { //本term失败
 			continue
 		} else {
-			if checker.db.getSendedInfo(scTxID) != nil || checker.service.isDone(scTxID) {
+			if checker.db.existSendedInfo(scTxID) || checker.service.isDone(scTxID) {
 				checker.delSignFailed(scTxID)
 				p2pLogger.Warn("already signed", "scTxID", scTxID)
 				continue
@@ -107,15 +109,21 @@ func (checker *confirmTimeoutChecker) check() {
 	//check sign and confirm 是否超时
 	for _, waitConfirm := range waitTxs {
 		scTxID := waitConfirm.ScTxId
+
+		if checker.isInSignFailed(scTxID) {
+			continue
+		}
 		//sign timeout
-		if !checker.isInSignFailed(scTxID) && checker.isSignTimeout(waitConfirm) && checker.db.getSendedInfo(scTxID) == nil {
+		if checker.isSignTimeout(waitConfirm) && !checker.db.existSendedInfo(scTxID) {
+			p2pLogger.Debug("sign timeout", "scTxID", scTxID)
 			checker.service.markSignFail(scTxID)
 			checker.addSignFailed(waitConfirm) //下一个term重试
-			checker.service.accuse()
+			// checker.service.accuse()
 			continue
 		}
 		//confirm超时 重新发起交易
 		if checker.isConfirmTimeout(waitConfirm) && waitConfirm.Info == nil { //confirm超时
+			p2pLogger.Debug("confirm timeout", "scTxID", scTxID)
 			if checker.service.isDone(scTxID) {
 				p2pLogger.Warn("already finished", "scTxID", scTxID)
 				checker.db.clear(scTxID)

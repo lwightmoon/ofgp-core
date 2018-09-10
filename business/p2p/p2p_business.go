@@ -61,7 +61,7 @@ func NewP2P(node *node.BraftNode, db *p2pdb) *P2P {
 	confirmH.SetSuccessor(commitH)
 	p2p.handler = wh
 
-	confirmChecker := newConfirmChecker(db, 15*time.Second, 30, 60)
+	confirmChecker := newConfirmChecker(db, 15*time.Second, 30, 60, service)
 	p2p.confirmChecker = confirmChecker
 	return p2p
 }

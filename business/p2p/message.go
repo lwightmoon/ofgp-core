@@ -97,7 +97,7 @@ func (msg *p2pMsg) Encode() []byte {
 type p2pMsgConfirmed struct {
 	ID        []byte //交易标识 32 对应watchedEvent的txID
 	Chain     uint8  //所在链
-	Confirms  uint8  //确认数
+	Confirms  uint64 //确认数
 	Height    uint64 //所在区块高度
 	BlockHash []byte //所在区块hash 32
 	Amount    uint64 //数额

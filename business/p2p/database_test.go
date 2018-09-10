@@ -118,3 +118,13 @@ func TestClear(t *testing.T) {
 		t.Fail()
 	}
 }
+
+func TestSign(t *testing.T) {
+	scTxID := "testTxID2"
+	p2pDB.setSendedInfo(&SendedInfo{
+		TxId:     scTxID,
+		SignTerm: 2,
+	})
+	exist := p2pDB.existSendedInfo(scTxID + "_")
+	t.Logf("exist sended:%v", exist)
+}

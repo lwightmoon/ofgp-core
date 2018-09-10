@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -57,6 +58,7 @@ func initCuster(tmpDir string) {
 }
 
 var p2pDB *p2pdb
+var checkNode *node.BraftNode
 
 func TestMain(m *testing.M) {
 	tmpDir, err := ioutil.TempDir("", "p2p")
@@ -70,29 +72,35 @@ func TestMain(m *testing.M) {
 	}
 	nodeDir, _ := ioutil.TempDir("", "braft")
 	initCuster(nodeDir)
+	_, checkNode = node.RunNew(0, nil)
+	defer checkNode.Stop()
 	defer os.RemoveAll(nodeDir)
 	defer os.RemoveAll(tmpDir)
 	code := m.Run()
 	defer os.Exit(code)
 }
 func TestProcessEmpty(t *testing.T) {
-	_, noderun := node.RunNew(0, nil)
-	defer noderun.Stop()
-	p2p := NewP2P(noderun, p2pDB)
+	// _, noderun := node.RunNew(0, nil)
+	// defer noderun.Stop()
+	p2p := NewP2P(checkNode, p2pDB)
+	var wg sync.WaitGroup
+	wg.Add(1)
 	go func() {
 		p2p.ch <- &node.WatchedEvent{}
 		p2p.ch <- &node.SignedEvent{}
 		p2p.ch <- &node.ConfirmEvent{}
 		p2p.ch <- &node.CommitedEvent{}
 		close(p2p.ch)
+		defer wg.Done()
 	}()
+	wg.Wait()
 	p2p.processEvent()
 }
 
 func TestProcessMatch(t *testing.T) {
-	_, noderun := node.RunNew(0, nil)
-	defer noderun.Stop()
-	p2p := NewP2P(noderun, p2pDB)
+	// _, noderun := node.RunNew(0, nil)
+	// defer noderun.Stop()
+	p2p := NewP2P(checkNode, p2pDB)
 	initalEvent := &node.WatchedEvent{}
 	requireAddr := getBytes(20)
 	sendAddr := getBytes(20)
@@ -181,7 +189,8 @@ func TestProcessMatch(t *testing.T) {
 		Data:     matchDataConfirm.Encode(),
 		Amount:   64,
 	}
-
+	var wg sync.WaitGroup
+	wg.Add(1)
 	go func() {
 		p2p.ch <- initalEvent
 		time.Sleep(2 * time.Second)
@@ -190,7 +199,9 @@ func TestProcessMatch(t *testing.T) {
 		p2p.ch <- initalEventConfirm
 		p2p.ch <- matchEventConfirm
 		close(p2p.ch)
+		defer wg.Done()
 	}()
+	wg.Wait()
 	p2p.processEvent()
 	ioutil.ReadAll(os.Stdout)
 }
