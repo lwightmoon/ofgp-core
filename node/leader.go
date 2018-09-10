@@ -16,7 +16,6 @@ import (
 	"github.com/ofgp/ofgp-core/util"
 	"github.com/ofgp/ofgp-core/util/assert"
 
-	"github.com/spf13/viper"
 	context "golang.org/x/net/context"
 
 	btcwatcher "github.com/ofgp/bitcoinWatcher/mortgagewatcher"
@@ -30,7 +29,7 @@ const (
 )
 
 var (
-	leaderLogger = log.New(viper.GetString("loglevel"), "leader")
+	leaderLogger = log.New("DEBUG", "leader")
 )
 
 // Leader leader节点描述

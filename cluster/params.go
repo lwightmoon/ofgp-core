@@ -4,15 +4,13 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"strconv"
 	"sync"
 	"time"
 
+	"github.com/ofgp/ofgp-core/config"
 	"github.com/ofgp/ofgp-core/crypto"
 	pb "github.com/ofgp/ofgp-core/proto"
 	"github.com/ofgp/ofgp-core/util/assert"
-
-	"github.com/spf13/viper"
 )
 
 var (
@@ -55,26 +53,42 @@ const (
 
 // Init 初始化集群信息
 func Init() {
-	n := viper.GetInt("KEYSTORE.count")
-	localPubkeyHash := viper.GetString("KEYSTORE.local_pubkey_hash")
-	localId := viper.GetInt("DGW.local_id")
+	conf := config.GetKeyStoreConf()
+	n := conf.Count
+	localPubkeyHash := conf.LocalPubkeyHash
+	dgwConf := config.GetDGWConf()
+	localId := dgwConf.LocalID
 	NodeSigners = make(map[int32]*crypto.SecureSigner, n)
 	NodeList = nil
-	for i := 0; i < n; i++ {
+	// for i := 0; i < n; i++ {
+	// 	hash := ""
+	// 	if i == int(localId) {
+	// 		hash = localPubkeyHash
+	// 	}
+	// 	key := "KEYSTORE.key_" + strconv.Itoa(i)
+	// 	pubkey := viper.GetString(key)
+	// 	NodeSigners[int32(i)] = crypto.NewSecureSigner(pubkey, hash)
+
+	// 	NodeList = append(NodeList, NodeInfo{
+	// 		Id:        int32(i),
+	// 		Name:      fmt.Sprintf("server%d", i),
+	// 		Url:       viper.GetString("DGW.host_" + strconv.Itoa(i)),
+	// 		PublicKey: NodeSigners[int32(i)].Pubkey,
+	// 		IsNormal:  viper.GetBool("DGW.status_" + strconv.Itoa(i)),
+	// 	})
+	// }
+	for i, node := range dgwConf.Nodes {
 		hash := ""
-		if i == localId {
+		if i == int(localId) {
 			hash = localPubkeyHash
 		}
-		key := "KEYSTORE.key_" + strconv.Itoa(i)
-		pubkey := viper.GetString(key)
-		NodeSigners[int32(i)] = crypto.NewSecureSigner(pubkey, hash)
-
+		NodeSigners[int32(i)] = crypto.NewSecureSigner(node.Pubkey, hash)
 		NodeList = append(NodeList, NodeInfo{
 			Id:        int32(i),
 			Name:      fmt.Sprintf("server%d", i),
-			Url:       viper.GetString("DGW.host_" + strconv.Itoa(i)),
+			Url:       node.Host,
 			PublicKey: NodeSigners[int32(i)].Pubkey,
-			IsNormal:  viper.GetBool("DGW.status_" + strconv.Itoa(i)),
+			IsNormal:  node.Status,
 		})
 	}
 	ClusterSize = n

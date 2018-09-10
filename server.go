@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ofgp/ofgp-core/config"
 	sg "github.com/ofgp/ofgp-core/util/signal"
 
 	"github.com/ofgp/ofgp-core/cluster"
@@ -22,7 +23,6 @@ import (
 	"github.com/ofgp/ofgp-core/accuser"
 
 	"github.com/rcrowley/go-metrics"
-	"github.com/spf13/viper"
 	"github.com/vrischmann/go-metrics-influxdb"
 	"gopkg.in/urfave/cli.v1"
 )
@@ -50,8 +50,8 @@ func init() {
 	}
 }
 
-func baseMetrics() {
-	interval := viper.GetDuration("METRICS.interval")
+func baseMetrics(conf config.Metrics) {
+	interval := conf.Interval
 	r := metrics.NewRegistry()
 
 	metrics.RegisterDebugGCStats(r)
@@ -67,17 +67,27 @@ func baseMetrics() {
 			time.Sleep(interval)
 		}
 	}()
-	go influxdb.InfluxDB(r, 10e9, viper.GetString("METRICS.influxdb_uri"),
-		viper.GetString("METRICS.db"), viper.GetString("METRICS.user"),
-		viper.GetString("METRICS.password"))
+
+	go influxdb.InfluxDB(r, 10e9, conf.InfluxdbURI,
+		conf.DB, conf.User, conf.Password)
 }
 
 func run(ctx *cli.Context) {
 	configFile := util.GetConfigFile(ctx)
-	viper.SetConfigFile(configFile)
-	viper.ReadInConfig()
-	util.ReadConfigToViper(ctx)
 
+	//初始化配置
+	config.InitConf(configFile)
+
+	//todo 处理read 命令行参数到viper
+	cmdConfs := util.GetCmdConfs(ctx)
+
+	if len(cmdConfs) > 0 {
+		err := config.SetNotWrite(cmdConfs)
+		if err != nil {
+			panic("conf from cmd err")
+		}
+	}
+	conf := config.GetConf()
 	// 如果需要做性能检测
 	cpuProfile := util.GetCPUProfile(ctx)
 	if len(cpuProfile) > 0 {
@@ -96,24 +106,23 @@ func run(ctx *cli.Context) {
 		}
 		defer pprof.WriteHeapProfile(f)
 	}
-
+	dgwConf := conf.DgateWay
 	go func() {
-		log.Println(http.ListenAndServe(viper.GetString("DGW.pprof_host"), nil))
+
+		log.Println(http.ListenAndServe(dgwConf.PProfHost, nil))
 		// log.Println(http.ListenAndServe(":8060", nil))
 	}()
 
-	nodeId := viper.GetInt32("DGW.local_id")
-	startMode := viper.GetInt32("DGW.start_mode")
-
+	nodeId := dgwConf.LocalID
+	startMode := dgwConf.StartMode
 	//设置btc bch 确认块
-	node.BtcConfirms = viper.GetInt("DGW.btc_confirms")
-	node.BchConfirms = viper.GetInt("DGW.bch_confirms")
-	node.EthConfirms = viper.GetInt("DGW.eth_confirms")
+	node.BtcConfirms = dgwConf.BtcConfirms
+	node.BchConfirms = dgwConf.BchConfirms
+	node.EthConfirms = dgwConf.EthConfirms
 	//交易处理超时时间
-	node.ConfirmTolerance = viper.GetDuration("DGW.confirm_tolerance")
-
+	node.ConfirmTolerance = dgwConf.ConfirmTolerance
 	//设置发起accuse 的间隔
-	accuser.AccuseInterval = viper.GetInt64("accuse_interval")
+	accuser.AccuseInterval = dgwConf.AccuseInterval
 
 	var joinMsg *node.JoinMsg
 	if startMode == cluster.ModeNormal {
@@ -122,9 +131,9 @@ func run(ctx *cli.Context) {
 		joinMsg = node.InitJoin()
 		nodeId = joinMsg.LocalID
 	}
-	viper.WatchConfig()
 
-	httpPort := viper.GetInt("DGW.local_http_port")
+	httpPort := dgwConf.LocalHTTPPort
+
 	cros := []string{}
 	if nodeId < 0 || int(nodeId) >= len(cluster.NodeList) {
 		panic(fmt.Sprintf("Invalid nodeid %d cluster size %d", nodeId, len(cluster.NodeList)))
@@ -136,13 +145,14 @@ func run(ctx *cli.Context) {
 	}
 	_, node := node.RunNew(nodeId, multiSigs)
 
-	user := viper.GetString("DGW.local_http_user")
-	pwd := viper.GetString("DGW.local_http_pwd")
+	user := dgwConf.LocalHTTPUser
+	pwd := dgwConf.LocalHTTPPwd
 	httpsvr.StartHTTP(node, user, pwd, fmt.Sprintf(":%d", httpPort), cros)
 
-	needMetrics := viper.GetBool("METRICS.need_metrics")
+	metricConf := conf.Metrics
+	needMetrics := metricConf.NeedMetric
 	if needMetrics {
-		baseMetrics()
+		baseMetrics(metricConf)
 	}
 
 	// 添加需要捕获的信号

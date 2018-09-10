@@ -8,11 +8,10 @@ import (
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/rs/cors"
-	"github.com/spf13/viper"
 )
 
 var (
-	httpLogger = log.New(viper.GetString("loglevel"), "httpsvr")
+	httpLogger = log.New("DEBUG", "httpsvr")
 )
 
 func panicHandler(res http.ResponseWriter, req *http.Request, err interface{}) {

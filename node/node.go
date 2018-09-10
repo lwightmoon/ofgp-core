@@ -11,12 +11,12 @@ import (
 	"net"
 	"os"
 	"path"
-	"strconv"
 	"sync"
 	"time"
 
 	"github.com/ofgp/ofgp-core/accuser"
 	"github.com/ofgp/ofgp-core/cluster"
+	"github.com/ofgp/ofgp-core/config"
 	"github.com/ofgp/ofgp-core/crypto"
 	"github.com/ofgp/ofgp-core/dgwdb"
 	"github.com/ofgp/ofgp-core/log"
@@ -43,7 +43,7 @@ const (
 )
 
 var (
-	nodeLogger        = log.New(viper.GetString("loglevel"), "node")
+	nodeLogger        = log.New("DEBUG", "node")
 	errInvalidRequest = fmt.Errorf("invalid request")
 	startMode         int
 	BtcConfirms       int //check 交易确认数
@@ -133,7 +133,10 @@ const defaultBlockConnPoolSize = 20
 
 // NewBraftNode 生成&启动一个node对象并返回
 func NewBraftNode(localNodeInfo cluster.NodeInfo) *BraftNode {
-	db, newlyCreated := openDbOrDie(viper.GetString("DGW.dbpath"))
+	dgwConf := config.GetDGWConf()
+	keyStoreConf := config.GetKeyStoreConf()
+
+	db, newlyCreated := openDbOrDie(dgwConf.DBPath)
 	if newlyCreated {
 		nodeLogger.Debug("initializing new db")
 		primitives.InitDB(db, primitives.GenesisBlockPack)
@@ -142,8 +145,11 @@ func NewBraftNode(localNodeInfo cluster.NodeInfo) *BraftNode {
 	initWatchHeight(db)
 
 	signer := cluster.NodeSigners[localNodeInfo.Id]
-	signer.InitKeystoreParam(viper.GetString("KEYSTORE.keystore_private_key"), viper.GetString("KEYSTORE.service_id"),
-		viper.GetString("KEYSTORE.url"))
+
+	privateKey := keyStoreConf.KeyStorePrivateKey
+	serviceID := keyStoreConf.ServiceID
+	url := keyStoreConf.URL
+	signer.InitKeystoreParam(privateKey, serviceID, url)
 
 	// 从db还原历史的多签快照
 	multiSigList := primitives.GetMultiSigSnapshot(db)
@@ -161,23 +167,23 @@ func NewBraftNode(localNodeInfo cluster.NodeInfo) *BraftNode {
 		err        error
 	)
 	if startMode != cluster.ModeWatch && startMode != cluster.ModeTest {
-		utxoLockTime := viper.GetInt("DGW.utxo_lock_time")
+		utxoLockTime := dgwConf.UtxoLockTime
 		if utxoLockTime == 0 {
 			utxoLockTime = defaultUtxoLockTime
 		}
-		bchWatcher, err = btcwatcher.NewMortgageWatcher("bch", viper.GetInt64("DGW.bch_height"),
+		bchWatcher, err = btcwatcher.NewMortgageWatcher("bch", dgwConf.BchHeight,
 			multiSig.BchAddress, multiSig.BchRedeemScript, utxoLockTime)
 		if err != nil {
 			panic(fmt.Sprintf("new bitcoin watcher failed, err: %v", err))
 		}
-		btcWatcher, err = btcwatcher.NewMortgageWatcher("btc", viper.GetInt64("DGW.btc_height"),
+		btcWatcher, err = btcwatcher.NewMortgageWatcher("btc", dgwConf.BtcHeight,
 			multiSig.BtcAddress, multiSig.BtcRedeemScript, utxoLockTime)
 		if err != nil {
 			panic(fmt.Sprintf("new bitcoin watcher failed, err: %v", err))
 		}
-		pubkeyKey := "KEYSTORE.key_" + fmt.Sprintf("%d", localNodeInfo.Id)
-		ethWatcher, err = ew.NewEthWatcher(viper.GetString("DGW.eth_client_url"),
-			viper.GetInt64("DGW.eth_confirm_count"), viper.GetString(pubkeyKey))
+		nodeConf := dgwConf.Nodes[localNodeInfo.Id]
+		ethWatcher, err = ew.NewEthWatcher(dgwConf.EthClientURL,
+			dgwConf.EthConfirmCount, nodeConf.Pubkey)
 		if err != nil {
 			panic(fmt.Sprintf("new eth watcher failed, err: %v", err))
 		}
@@ -201,12 +207,12 @@ func NewBraftNode(localNodeInfo cluster.NodeInfo) *BraftNode {
 
 	}
 	//交易相关连接池大小
-	txConnPoolSize := viper.GetInt("DGW.tx_conn_pool_size")
+	txConnPoolSize := dgwConf.TxConnPoolSize
 	if txConnPoolSize == 0 {
 		txConnPoolSize = defaultTxConnPoolSize
 	}
 	//区块相关PoolSize
-	blockPoolSize := viper.GetInt("DGW.block_coon_pool_size")
+	blockPoolSize := dgwConf.BlockConnPoolSize
 	if blockPoolSize == 0 {
 		blockPoolSize = defaultBlockConnPoolSize
 	}
@@ -608,9 +614,10 @@ func (bn *BraftNode) watchNewTx(ctx context.Context) {
 	height := bn.blockStore.GetETHBlockHeight()
 	index := bn.blockStore.GetETHBlockTxIndex()
 	if height == nil {
-		h := viper.GetInt64("DGW.eth_height")
+		dgwConf := config.GetDGWConf()
+		h := dgwConf.EthHeight
 		height = big.NewInt(h)
-		index = viper.GetInt("DGW.eth_tran_idx")
+		index = dgwConf.EthTranIdx
 	}
 
 	bn.ethWatcher.StartWatch(*height, index, ethEventChan)
@@ -889,7 +896,9 @@ type JoinMsg struct {
 
 // InitJoin 根据引导节点做集群配置信息的初始化
 func InitJoin() *JoinMsg {
-	initHost := viper.GetString("DGW.init_node_host")
+	dgwConf := config.GetDGWConf()
+	keyStoreConf := config.GetKeyStoreConf()
+	initHost := dgwConf.InitNodeHost
 	joinMsg := new(JoinMsg)
 	if len(initHost) == 0 {
 		joinMsg.LocalID = -1
@@ -918,8 +927,8 @@ func InitJoin() *JoinMsg {
 	//创建当前集群的快照
 	cluster.CreateSnapShot()
 
-	cluster.AddNode(viper.GetString("DGW.local_host"), int32(len(nodeList.NodeList)), viper.GetString("DGW.local_pubkey"),
-		viper.GetString("KEYSTORE.local_pubkey_hash"))
+	cluster.AddNode(dgwConf.LocalHost, int32(len(nodeList.NodeList)), dgwConf.LocalPubkey,
+		keyStoreConf.LocalPubkeyHash)
 	localID := int32(len(nodeList.NodeList))
 	saveNewConfig(localID)
 	joinMsg.LocalID = localID
@@ -929,27 +938,49 @@ func InitJoin() *JoinMsg {
 // saveNewConfig 保存最新的配置信息到viper，以及持久化到配置文件
 func saveNewConfig(localId int32) {
 	// 保存新的节点信息到config file
-	viper.Set("KEYSTORE.count", cluster.TotalNodeCount)
-	viper.Set("DGW.count", cluster.TotalNodeCount)
-	viper.Set("DGW.local_id", localId)
-	// 下次启动就是以正常模式启动
+	// viper.Set("KEYSTORE.count", cluster.TotalNodeCount)
+	// viper.Set("DGW.count", cluster.TotalNodeCount)
+	// viper.Set("DGW.local_id", localId)
+	// // 下次启动就是以正常模式启动
+	// if startMode == cluster.ModeJoin {
+	// 	viper.Set("DGW.start_mode", 1)
+	// }
+	// for i, nodeInfo := range cluster.NodeList {
+	// 	viper.Set("KEYSTORE.key_"+strconv.Itoa(i), hex.EncodeToString(nodeInfo.PublicKey))
+	// 	viper.Set("DGW.host_"+strconv.Itoa(i), nodeInfo.Url)
+	// 	viper.Set("DGW.status_"+strconv.Itoa(i), nodeInfo.IsNormal)
+	// }
+	// viper.Set("DGW.new_node_host", "")
+	// viper.Set("DGW.new_node_pubkey", "")
+	confs := make(map[string]interface{})
+	confs["KEYSTORE.count"] = cluster.TotalNodeCount
+	confs["DGW.count"] = cluster.TotalNodeCount
+	confs["DGW.local_id"] = localId
 	if startMode == cluster.ModeJoin {
-		viper.Set("DGW.start_mode", 1)
+		confs["DGW.start_mode"] = 1
 	}
-	for i, nodeInfo := range cluster.NodeList {
-		viper.Set("KEYSTORE.key_"+strconv.Itoa(i), hex.EncodeToString(nodeInfo.PublicKey))
-		viper.Set("DGW.host_"+strconv.Itoa(i), nodeInfo.Url)
-		viper.Set("DGW.status_"+strconv.Itoa(i), nodeInfo.IsNormal)
+	nodeConfs := make([]map[string]interface{}, 0)
+	for _, nodeInfo := range cluster.NodeList {
+		nodeConf := map[string]interface{}{
+			"host":   nodeInfo.Url,
+			"status": nodeInfo.IsNormal,
+			"pubkey": hex.EncodeToString(nodeInfo.PublicKey),
+		}
+		nodeConfs = append(nodeConfs, nodeConf)
 	}
-	viper.Set("DGW.new_node_host", "")
-	viper.Set("DGW.new_node_pubkey", "")
+	confs["dgw.nodes"] = nodeConfs
+	confs["DGW.new_node_host"] = ""
+	confs["DGW.new_node_pubkey"] = ""
+	config.Set(confs)
 	//viper.WriteConfig()
 }
 
 // sendJoinRequest 给网关的所有节点广播Join请求
 func (bn *BraftNode) sendJoinRequest() {
-	localHost := viper.GetString("DGW.local_host")
-	localPubkey := viper.GetString("DGW.local_pubkey")
+	dgwConf := config.GetDGWConf()
+	localHost := dgwConf.LocalHost
+	localPubkey := dgwConf.LocalPubkey
+
 	for _, nodeInfo := range cluster.NodeList {
 		if nodeInfo.Id == bn.localNodeInfo.Id {
 			return
@@ -1022,8 +1053,9 @@ func (bn *BraftNode) syncBeforeSendJoinReq(localID int32) {
 
 // sendJoinCheckSyncedRequest 给网关的所有节点广播Join请求  直到与QuorumN个节点的数据保持同步
 func (bn *BraftNode) sendJoinCheckSyncedRequest() {
-	localHost := viper.GetString("DGW.local_host")
-	localPubkey := viper.GetString("DGW.local_pubkey")
+	dgwConf := config.GetDGWConf()
+	localHost := dgwConf.LocalHost
+	localPubkey := dgwConf.LocalPubkey
 	var syncedCnt int
 	syncedNode := make(map[int32]struct{})
 
@@ -1085,8 +1117,9 @@ func (bn *BraftNode) sendJoinCheckSyncedRequest() {
 }
 
 func checkJoinSuccess() bool {
-	checkHost := viper.GetString("DGW.init_node_host")
-	localHost := viper.GetString("DGW.local_host")
+	dgwConf := config.GetDGWConf()
+	checkHost := dgwConf.InitNodeHost
+	localHost := dgwConf.LocalHost
 	for i := 0; i < 20; i++ {
 		nodeList := getRemoteClusterNodes(checkHost)
 		for _, node := range nodeList.NodeList {
@@ -1129,8 +1162,10 @@ func (bn *BraftNode) addWaitSignTx(tx *message.WaitSignMsg) {
 
 // RunNew 启动server
 func RunNew(id int32, multiSigInfos []cluster.MultiSigInfo) (*grpc.Server, *BraftNode) {
-	startMode = viper.GetInt("DGW.start_mode")
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", viper.Get("DGW.local_p2p_port")))
+	dgwConf := config.GetDGWConf()
+	startMode := dgwConf.StartMode
+	p2pPort := dgwConf.LocalP2PPort
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", p2pPort))
 	if err != nil {
 		panic(fmt.Sprintf("failed to listen: %v", err))
 	}

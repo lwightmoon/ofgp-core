@@ -12,10 +12,9 @@ import (
 	"github.com/ofgp/ofgp-core/business"
 	"github.com/ofgp/ofgp-core/node"
 	pb "github.com/ofgp/ofgp-core/proto"
-	"github.com/spf13/viper"
 )
 
-var p2pLogger = log.New(viper.GetString("loglevel"), "node")
+var p2pLogger = log.New("DEBUG", "node")
 
 type P2P struct {
 	ch             chan node.BusinessEvent

@@ -26,11 +26,10 @@ import (
 	ew "github.com/ofgp/ethwatcher"
 
 	"github.com/btcsuite/btcd/wire"
-	"github.com/spf13/viper"
 )
 
 var (
-	bsLogger = log.New(viper.GetString("loglevel"), "blockstore")
+	bsLogger = log.New("DEBUG", "blockstore")
 	mu       sync.RWMutex
 )
 
