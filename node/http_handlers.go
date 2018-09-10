@@ -90,41 +90,41 @@ func getHexString(digest *crypto.Digest256) string {
 }
 
 //todo tx类型修改
-func (node *BraftNode) createTxView(blockID string, height int64, tx *pb.Transaction) *TxView {
+func (node *BraftNode) createTxView(blockID string, height int64, tx *pb.TransactionOld) *TxView {
 	if tx == nil {
 		apiLog.Error(fmt.Sprintf("block:%s transaciton is nil", blockID))
 		return nil
 	}
-	// watchedTx := tx.GetWatchedTx()
-	// if watchedTx == nil {
-	// 	apiLog.Error(fmt.Sprintf("block:%s has no watched tx", blockID))
-	// 	return nil
-	// }
-	// addrList := watchedTx.GetRechargeList()
-	// addrs := make([]string, 0)
-	// for _, addr := range addrList {
-	// 	addrs = append(addrs, addr.Address)
-	// }
-	// var tokenCode, appCode uint32
-	// if watchedTx.From == "eth" { //熔币
-	// 	tokenCode, appCode = watchedTx.TokenTo, watchedTx.TokenFrom
-	// } else { //铸币
-	// 	tokenCode, appCode = watchedTx.TokenFrom, watchedTx.TokenTo
-	// }
+	watchedTx := tx.GetWatchedTx()
+	if watchedTx == nil {
+		apiLog.Error(fmt.Sprintf("block:%s has no watched tx", blockID))
+		return nil
+	}
+	addrList := watchedTx.GetRechargeList()
+	addrs := make([]string, 0)
+	for _, addr := range addrList {
+		addrs = append(addrs, addr.Address)
+	}
+	var tokenCode, appCode uint32
+	if watchedTx.From == "eth" { //熔币
+		tokenCode, appCode = watchedTx.TokenTo, watchedTx.TokenFrom
+	} else { //铸币
+		tokenCode, appCode = watchedTx.TokenFrom, watchedTx.TokenTo
+	}
 	txView := &TxView{
-		// FromTxHash:  watchedTx.GetTxid(),
-		DGWTxHash: getHexString(tx.GetTxID()),
-		// ToTxHash:  tx.NewlyTxId,
-		// From:        watchedTx.From,
-		// To:          watchedTx.To,
+		FromTxHash:  watchedTx.GetTxid(),
+		DGWTxHash:   getHexString(tx.GetId()),
+		ToTxHash:    tx.NewlyTxId,
+		From:        watchedTx.From,
+		To:          watchedTx.To,
 		Block:       blockID,
 		BlockHeight: height,
-		// Amount:      watchedTx.Amount,
-		// FromFee:     watchedTx.GetFee(),
-		// ToAddrs: addrs,
-		Time: tx.Time,
-		// TokenCode:   tokenCode,
-		// AppCode:     appCode,
+		Amount:      watchedTx.Amount,
+		FromFee:     watchedTx.GetFee(),
+		ToAddrs:     addrs,
+		Time:        tx.Time,
+		TokenCode:   tokenCode,
+		AppCode:     appCode,
 	}
 	return txView
 }
@@ -145,7 +145,7 @@ func (node *BraftNode) createBlockView(createdUsed int64, blockPack *pb.BlockPac
 	if peerNode != nil {
 		miner = peerNode.Name
 	}
-	txs := block.Txs
+	txs := block.TxOlds
 	txViews = make([]*TxView, 0)
 	blockID := getHexString(block.GetId())
 	for _, tx := range txs {
@@ -258,7 +258,7 @@ func (node *BraftNode) GetTransacitonByTxID(txID string) *TxView {
 	if txQueryResult == nil {
 		return nil
 	}
-	tx := txQueryResult.Tx
+	tx := txQueryResult.TxOld
 	blockID := getHexString(txQueryResult.BlockID)
 	txView := node.createTxView(blockID, txQueryResult.Height, tx)
 	return txView

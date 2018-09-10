@@ -27,7 +27,7 @@ type TxInfo struct {
 	AddressAmountMap map[string]int64 `json:"address_amount"`
 }
 
-func toTxInfo(tx *pb.Transaction, block *pb.BlockInfo) *TxInfo {
+func toTxInfo(tx *pb.TransactionOld, block *pb.BlockInfo) *TxInfo {
 	if tx == nil {
 		return nil
 	}
@@ -39,15 +39,14 @@ func toTxInfo(tx *pb.Transaction, block *pb.BlockInfo) *TxInfo {
 	} else {
 		rst.Height = -1
 	}
-	//todo
-	// rst.Amount = tx.WatchedTx.Amount
-	// rst.ChainTxId = tx.WatchedTx.Txid
-	// rst.From = tx.WatchedTx.From
-	// rst.To = tx.WatchedTx.To
+	rst.Amount = tx.WatchedTx.Amount
+	rst.ChainTxId = tx.WatchedTx.Txid
+	rst.From = tx.WatchedTx.From
+	rst.To = tx.WatchedTx.To
 	rst.AddressAmountMap = make(map[string]int64)
-	// for _, am := range tx.WatchedTx.RechargeList {
-	// 	rst.AddressAmountMap[am.Address] = am.Amount
-	// }
+	for _, am := range tx.WatchedTx.RechargeList {
+		rst.AddressAmountMap[am.Address] = am.Amount
+	}
 	return rst
 }
 

@@ -118,6 +118,12 @@ message Transaction {
     int64 time = 5;
     bytes data =6;
 }
+message TransactionOld{
+    crypto.Digest256 id = 1;
+    WatchedTxInfo watched_tx = 2;
+    string newly_tx_id = 3;
+    int64 time = 4;
+}
 
 message Transactions {
     repeated Transaction txs = 1;
@@ -152,10 +158,11 @@ message Block {
     }
     Type type = 3;
 
-    repeated Transaction txs = 4;
+    repeated TransactionOld tx_olds = 4;
     BchBlockHeader bch_block_header = 5;
     Reconfig reconfig = 6;
     crypto.Digest256 id = 7;
+    repeated Transaction txs = 8;
 }
 
 message BlockInfo {

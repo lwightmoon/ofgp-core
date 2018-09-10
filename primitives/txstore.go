@@ -45,6 +45,7 @@ func makeAddTxsRequest(txs []*pb.Transaction) addTxsRequest {
 // TxQueryResult 保存搜索结果
 type TxQueryResult struct {
 	Tx      *pb.Transaction
+	TxOld   *pb.TransactionOld
 	Height  int64
 	BlockID *crypto.Digest256
 }
@@ -584,9 +585,9 @@ func (ts *TxStore) GetTx(txid string) *TxQueryResult {
 		return nil
 	}
 	assert.True(int(entry.Index) < len(blockPack.Block().Txs) && entry.Index >= 0)
-	tx := blockPack.Block().Txs[entry.Index]
+	tx := blockPack.Block().TxOlds[entry.Index]
 	return &TxQueryResult{
-		Tx:      tx,
+		TxOld:   tx,
 		Height:  entry.Height,
 		BlockID: blockPack.Id(),
 	}
