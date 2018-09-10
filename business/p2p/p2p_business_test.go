@@ -147,6 +147,7 @@ func TestProcessMatch(t *testing.T) {
 	// _, noderun := node.RunNew(0, nil)
 	// defer noderun.Stop()
 	p2p := NewP2P(checkNode, p2pDB)
+
 	initalEvent := &node.WatchedEvent{}
 	requireAddr := getBytes(20)
 	sendAddr := getBytes(20)
@@ -247,9 +248,10 @@ func TestProcessMatch(t *testing.T) {
 		close(p2p.ch)
 		defer wg.Done()
 	}()
-	wg.Wait()
+
 	p2p.processEvent()
-	ioutil.ReadAll(os.Stdout)
+	// ioutil.ReadAll(os.Stdout)
+	wg.Wait()
 }
 
 func TestCreateDgw(t *testing.T) {

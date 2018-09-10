@@ -13,7 +13,7 @@ type confirmTimeoutChecker struct {
 	confirmTolerance int64         //confirm timeout
 	signTimeout      int64         //signTimeout
 	service          *service
-	signFailTxs      map[string]*WaitConfirmMsg
+	signFailTxs      map[string]*WaitConfirmMsg //签名失败
 }
 
 func newConfirmChecker(db *p2pdb, interval time.Duration, signTimeout, confirmTolerance int64, service *service) *confirmTimeoutChecker {

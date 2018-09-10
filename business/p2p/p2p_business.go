@@ -48,7 +48,6 @@ func NewP2P(node *node.BraftNode, db *p2pdb) *P2P {
 	}
 	// check匹配超时
 	wh.runCheckMatchTimeout()
-
 	sh := &sigenedHandler{}
 	confirmH := &confirmHandler{
 		db:   db,
