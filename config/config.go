@@ -59,6 +59,7 @@ type KeyStore struct {
 	Count              int    `mapstructure:"count"`
 	ServiceID          string `mapstructure:"service_id"`
 	KeyStorePrivateKey string `mapstructure:"keystore_private_key"`
+	Redeem             string `mapstructure:"redeem"`
 }
 
 func checkKeyStore(conf *KeyStore) {
@@ -94,7 +95,7 @@ type DgateWay struct {
 	EthClientURL      string        `mapstructure:"eth_client_url"`
 	EthConfirmCount   int64         `mapstructure:"eth_confirm_count"`
 	EthTranIdx        int           `mapstructure:"eth_tran_idx"`
-	StartMode         int32         `mapstructure:"start_mode"`
+	StartMode         int           `mapstructure:"start_mode"`
 	InitNodeHost      string        `mapstructure:"init_node_host"` //节点join引导节点
 	LocalHost         string        `mapstructure:"local_host"`
 	LocalPubkey       string        `mapstructure:"local_pubkey"`
@@ -235,6 +236,11 @@ func GetConf() *Config {
 	lock.Lock()
 	defer lock.Unlock()
 	return conf
+}
+func SetConf(config *Config) {
+	lock.Lock()
+	defer lock.Unlock()
+	conf = config
 }
 
 func GetKeyStoreConf() KeyStore {

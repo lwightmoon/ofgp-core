@@ -84,6 +84,7 @@ func BenchmarkCheck(b *testing.B) {
 	// defer noderun.Stop()
 	service := newService(checkNode)
 	checker := newConfirmChecker(p2pDB, 1, -1, 200, service)
+
 	for i := 0; i < b.N; i++ {
 		checker.check()
 	}

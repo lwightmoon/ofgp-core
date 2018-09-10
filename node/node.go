@@ -1163,7 +1163,7 @@ func (bn *BraftNode) addWaitSignTx(tx *message.WaitSignMsg) {
 // RunNew 启动server
 func RunNew(id int32, multiSigInfos []cluster.MultiSigInfo) (*grpc.Server, *BraftNode) {
 	dgwConf := config.GetDGWConf()
-	startMode := dgwConf.StartMode
+	startMode = dgwConf.StartMode
 	p2pPort := dgwConf.LocalP2PPort
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", p2pPort))
 	if err != nil {
