@@ -100,9 +100,13 @@ func TestSendedTx(t *testing.T) {
 		TxId:     "testTxID",
 		SignTerm: 1,
 	})
-
 	info := p2pDB.getSendedInfo("testTxID")
 	t.Logf("txid:%s,term:%d", info.TxId, info.GetSignTerm())
+	p2pDB.delSendedInfo("testTxID")
+	info = p2pDB.getSendedInfo("testTxID")
+	if info != nil {
+		t.Fail()
+	}
 }
 
 func TestClear(t *testing.T) {

@@ -257,7 +257,7 @@ func (sh *sigenedHandler) HandleEvent(event node.BusinessEvent) {
 			return
 		}
 		txID := signedData.TxID
-		if sh.db.getSendedInfo(signedData.TxID) == nil && !sh.service.isDone(txID) {
+		if !sh.db.existSendedInfo(txID) && !sh.service.isDone(txID) {
 			sh.db.setSendedInfo(&SendedInfo{
 				TxId:           signedData.TxID,
 				SignTerm:       signedData.Term,

@@ -180,6 +180,13 @@ func (db *p2pdb) setSendedInfo(tx *SendedInfo) {
 		p2pLogger.Error("set sended err", "err", err, "scTxID", tx.TxId)
 	}
 }
+func (db *p2pdb) delSendedInfo(txID string) {
+	key := append(sendedPrefix, []byte(txID)...)
+	err := db.db.Delete(key)
+	if err != nil {
+		p2pLogger.Error("del sended err", "err", err, "scTxID", txID)
+	}
+}
 
 func (db *p2pdb) getSendedInfo(txID string) *SendedInfo {
 	key := append(sendedPrefix, []byte(txID)...)

@@ -145,6 +145,7 @@ func (checker *confirmTimeoutChecker) check() {
 				}
 			}
 			checker.service.clear(scTxID, sendedInfo.SignTerm)
+			checker.db.delSendedInfo(scTxID)
 			// 存在则返回
 			newTx, _ := checker.service.createTx(uint8(waitConfirm.Opration), p2pInfo)
 			if newTx != nil {
