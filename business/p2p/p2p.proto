@@ -50,6 +50,7 @@ message sendedInfo{
     int64 sign_term = 2;
     uint32 chain = 3;
     string sign_before_tx_id = 4;
+    int64 time = 5;
 }
 
 

@@ -2,6 +2,7 @@ package node
 
 import (
 	"bytes"
+	"errors"
 	"time"
 
 	"github.com/btcsuite/btcd/wire"
@@ -277,6 +278,8 @@ func (ti *txInvoker) SendTx(req ISendReq) error {
 		err = ti.ethOp.SendTx(req)
 	case message.Btc:
 		err = ti.btcOp.SendTx(req)
+	default:
+		return errors.New("not found")
 	}
 	return err
 }

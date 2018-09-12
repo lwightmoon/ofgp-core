@@ -56,7 +56,7 @@ func (s *service) createTx(op uint8, info *P2PInfo) (*pb.NewlyTx, error) {
 }
 
 func (s *service) sendtoSign(signReq *message.WaitSignMsg) {
-	p2pLogger.Debug("send to sign ", "scTxID", signReq.ScTxID)
+	p2pLogger.Debug("send to sign ", "scTxID", signReq.ScTxID, "business", signReq.Business)
 	s.node.SignTx(signReq)
 }
 
@@ -95,4 +95,8 @@ func (s *service) accuse() {
 
 func (s *service) markSignFail(scTxID string) {
 	s.node.MarkFail(scTxID)
+}
+
+func (s *service) commitTx(tx *pb.Transaction) {
+	s.node.Commit(tx)
 }

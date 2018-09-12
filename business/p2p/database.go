@@ -198,6 +198,16 @@ func (db *p2pdb) getSendedInfo(txID string) *SendedInfo {
 	proto.Unmarshal(data, sendedInfo)
 	return sendedInfo
 }
+func (db *p2pdb) getAllSendedInfo() []*SendedInfo {
+	iter := db.db.NewIteratorWithPrefix(sendedPrefix)
+	infos := make([]*SendedInfo, 0)
+	for iter.Next() {
+		info := &SendedInfo{}
+		proto.Unmarshal(iter.Value(), info)
+		infos = append(infos, info)
+	}
+	return infos
+}
 func (db *p2pdb) existSendedInfo(txID string) bool {
 	key := append(sendedPrefix, []byte(txID)...)
 	mydb := db.db.LDB()

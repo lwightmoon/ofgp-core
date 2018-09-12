@@ -118,7 +118,7 @@ func (checker *confirmTimeoutChecker) check() {
 			p2pLogger.Debug("sign timeout", "scTxID", scTxID)
 			checker.service.markSignFail(scTxID)
 			checker.addSignFailed(waitConfirm) //下一个term重试
-			// checker.service.accuse()
+			// checker.service.accuse() todo
 			continue
 		}
 		//confirm超时 重新发起交易
