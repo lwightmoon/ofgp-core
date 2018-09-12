@@ -49,7 +49,9 @@ func NewP2P(node *node.BraftNode, db *p2pdb) *P2P {
 	wh.runCheckMatchTimeout()
 
 	sh := newSignedHandler(db, service, 5, 1)
+	sh.runCheck()
 	confirmH := newConfirmHandler(db, 5, service, 1)
+	confirmH.runCheck()
 	commitH := &commitHandler{}
 	wh.SetSuccessor(sh)
 	sh.SetSuccessor(confirmH)
