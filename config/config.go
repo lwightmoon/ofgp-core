@@ -39,6 +39,7 @@ type DB struct {
 	BtcDBPath     string `mapstructure:"btc_db_path"`
 	BchDBPath     string `mapstructure:"bch_db_path"`
 	EwNonceDBPath string `mapstructure:"ew_nonce_db_path"`
+	P2PDBPath     string `mapstructure:"p2p_db_path"`
 }
 
 func checkDB(db *DB) {
@@ -50,6 +51,9 @@ func checkDB(db *DB) {
 	}
 	if db.EwNonceDBPath == "" {
 		panic("ew nonce path not set")
+	}
+	if db.P2PDBPath == "" {
+		panic("p2pdb path not set")
 	}
 }
 

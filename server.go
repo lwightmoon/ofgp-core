@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ofgp/ofgp-core/business/p2p"
 	"github.com/ofgp/ofgp-core/config"
 	sg "github.com/ofgp/ofgp-core/util/signal"
 
@@ -162,7 +163,13 @@ func run(ctx *cli.Context) {
 		// 观察节点只用自己退出就可以了，不用发LeaveRequest
 		signalSet.Register(syscall.SIGINT, node.Stop)
 	}
+	//创建
+	p2pDBPath := conf.DB.P2PDBPath
+	p2pBusiness := p2p.NewP2P(node, p2pDBPath)
+	p2pBusiness.Run()
+
 	sigChan := make(chan os.Signal)
+
 	signal.Notify(sigChan, syscall.SIGINT)
 	sig := <-sigChan
 	fmt.Printf("receive signal %v\n", sig)

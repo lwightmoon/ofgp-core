@@ -19,6 +19,12 @@ type p2pdb struct {
 	db *dgwdb.LDBDatabase
 }
 
+func newP2PDB(db *dgwdb.LDBDatabase) *p2pdb {
+	return &p2pdb{
+		db: db,
+	}
+}
+
 // getID 获取db存储key
 
 func (db *p2pdb) setP2PInfo(tx *P2PInfo) {

@@ -89,7 +89,7 @@ func (hd *HTTPHandler) GetTxBySidechainTxId(w http.ResponseWriter, r *http.Reque
 	if tx.Height > 0 {
 		block = hd.node.GetBlockInfo(tx.Height)
 	}
-	res := toTxInfo(tx.Tx, block)
+	res := toTxInfo(tx.TxOld, block)
 	writeResponse(&w, newOKData(res))
 }
 

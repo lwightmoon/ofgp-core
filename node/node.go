@@ -136,7 +136,7 @@ func NewBraftNode(localNodeInfo cluster.NodeInfo) *BraftNode {
 	dgwConf := config.GetDGWConf()
 	keyStoreConf := config.GetKeyStoreConf()
 
-	db, newlyCreated := openDbOrDie(dgwConf.DBPath)
+	db, newlyCreated := OpenDbOrDie(dgwConf.DBPath, "braftdb")
 	if newlyCreated {
 		nodeLogger.Debug("initializing new db")
 		primitives.InitDB(db, primitives.GenesisBlockPack)
@@ -487,13 +487,13 @@ func (bn *BraftNode) Run() {
 	}
 }
 
-func openDbOrDie(dbPath string) (db *dgwdb.LDBDatabase, newlyCreated bool) {
+func OpenDbOrDie(dbPath, subPath string) (db *dgwdb.LDBDatabase, newlyCreated bool) {
 	if len(dbPath) == 0 {
 		homeDir, err := util.GetHomeDir()
 		if err != nil {
 			panic("Cannot detect the home dir for the current user.")
 		}
-		dbPath = path.Join(homeDir, "braftdb")
+		dbPath = path.Join(homeDir, subPath)
 	}
 
 	fmt.Println("open db path ", dbPath)

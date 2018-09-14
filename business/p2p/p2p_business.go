@@ -15,6 +15,7 @@ import (
 
 var p2pLogger = log.New("DEBUG", "node")
 
+// P2P 点对点交换
 type P2P struct {
 	ch             chan node.BusinessEvent
 	node           *node.BraftNode
@@ -24,12 +25,16 @@ type P2P struct {
 
 const businessName = "p2p"
 
-func NewP2P(node *node.BraftNode, db *p2pdb) *P2P {
+// NewP2P create p2p
+func NewP2P(braftNode *node.BraftNode, path string) *P2P {
 	p2p := &P2P{
-		node: node,
+		node: braftNode,
 	}
+	ldb, _ := node.OpenDbOrDie(path, "p2pdb")
+
+	db := newP2PDB(ldb)
 	//向node订阅业务相关事件
-	ch := node.SubScribe(businessName)
+	ch := braftNode.SubScribe(businessName)
 	p2p.ch = ch
 
 	//创建交易匹配索引
@@ -37,10 +42,10 @@ func NewP2P(node *node.BraftNode, db *p2pdb) *P2P {
 	index := newTxIndex()
 
 	index.AddInfos(p2pInfos)
-	service := newService(node)
+	service := newService(braftNode)
 	wh := &watchedHandler{
 		db:                 db,
-		node:               node,
+		node:               braftNode,
 		index:              index,
 		checkMatchInterval: time.Duration(1) * time.Second,
 		service:            service,
@@ -63,6 +68,9 @@ func NewP2P(node *node.BraftNode, db *p2pdb) *P2P {
 	return p2p
 }
 
+func (p2p *P2P) Run() {
+	go p2p.processEvent()
+}
 func (p2p *P2P) processEvent() {
 	for event := range p2p.ch {
 		p2p.handler.HandleEvent(event)
