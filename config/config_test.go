@@ -64,9 +64,11 @@ func TestInit(t *testing.T) {
 	time.AfterFunc(2*time.Second, func() {
 		fmt.Println("set viper key")
 
-		// Set("dgw.nodes", []map[string]interface{}{
-		// 	{"host": "123", "status": true, "pubkey": "test"},
-		// })
+		var nodeConfs []map[string]interface{}
+		nodeConf := map[string]interface{}{"host": "123", "status": true, "pubkey": "test"}
+
+		nodeConfs = append(nodeConfs, nodeConf)
+		config.SetNotWrite(map[string]interface{}{"dgw.nodes": nodeConfs})
 
 		conf := config.GetDGWConf()
 		i := len(conf.Nodes) - 1

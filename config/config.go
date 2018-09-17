@@ -190,13 +190,8 @@ func checkEthWatcher(watcher *EthWatcher) {
 
 var (
 	conf *Config
-	v    *viper.Viper
 	lock sync.Mutex
 )
-
-func init() {
-	v = viper.New()
-}
 
 func check(conf *Config) {
 	checkServer(&conf.BCH)
@@ -209,22 +204,22 @@ func check(conf *Config) {
 }
 
 func InitConf(path string) {
-	v.SetConfigFile(path)
-	err := v.ReadInConfig()
+	viper.SetConfigFile(path)
+	err := viper.ReadInConfig()
 	if err != nil {
 		panic("read conf err:" + err.Error())
 	}
 	conf = &Config{}
-	err = v.Unmarshal(conf)
+	err = viper.Unmarshal(conf)
 	check(conf)
 	if err != nil {
 		panic("marshal conf err:" + err.Error())
 	}
-	v.WatchConfig()
-	v.OnConfigChange(func(e fsnotify.Event) {
+	viper.WatchConfig()
+	viper.OnConfigChange(func(e fsnotify.Event) {
 		newConf := &Config{}
 		lock.Lock()
-		err := v.Unmarshal(newConf)
+		err := viper.Unmarshal(newConf)
 		if err != nil {
 			fmt.Printf("conf unmarshal err:%v", err)
 			return
@@ -263,17 +258,17 @@ func Set(confs map[string]interface{}) {
 	lock.Lock()
 	defer lock.Unlock()
 	for key, value := range confs {
-		v.Set(key, value)
+		viper.Set(key, value)
 	}
 	newConf := &Config{}
-	err := v.Unmarshal(newConf)
+	err := viper.Unmarshal(newConf)
 	if err != nil {
 		fmt.Printf("unmarshal log err:%v", err)
 		return
 	}
 	conf = newConf
-	newConfName := "new_" + v.ConfigFileUsed()
-	err = v.WriteConfigAs(newConfName)
+	newConfName := "new_" + viper.ConfigFileUsed()
+	err = viper.WriteConfigAs(newConfName)
 	if err != nil {
 		fmt.Printf("write new conf file err:%v", err)
 	}
@@ -284,10 +279,10 @@ func SetNotWrite(confs map[string]interface{}) error {
 	lock.Lock()
 	defer lock.Unlock()
 	for key, value := range confs {
-		v.Set(key, value)
+		viper.Set(key, value)
 	}
 	newConf := &Config{}
-	err := v.Unmarshal(newConf)
+	err := viper.Unmarshal(newConf)
 	if err != nil {
 		fmt.Printf("unmarshal log err:%v", err)
 		return err

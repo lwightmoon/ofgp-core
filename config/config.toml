@@ -21,6 +21,7 @@ coinbase_confirm_block_num = 100
 btc_db_path = "/Users/user/leveldb_data/btc_tx_db"
 bch_db_path = "/Users/user/leveldb_data/bch_tx_db"
 ew_nonce_db_path = "/Users/user/leveldb_data/ew_tx_db"
+p2p_db_path = "/Users/user/leveldb_data/p2p_db"
 #keys 变更
 [KEYSTORE]
 url = "http://127.0.0.1:8976"
