@@ -8,6 +8,7 @@ import (
 	"github.com/ofgp/ofgp-core/log"
 	"github.com/ofgp/ofgp-core/message"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/ofgp/ofgp-core/business"
 	"github.com/ofgp/ofgp-core/node"
 	pb "github.com/ofgp/ofgp-core/proto"
@@ -147,20 +148,14 @@ func (wh *watchedHandler) checkMatchTimeout() {
 	for _, info := range infos {
 		// match 超时
 		scTxID := info.GetScTxID()
-		event := info.Event
 		if !isMatching(wh.db, info.GetScTxID()) && !wh.node.IsDone(scTxID) && info.IsExpired() {
 			//创建并发送回退交易
 			p2pLogger.Debug("match timeout", "scTxID", info.GetScTxID())
 			wh.db.setMatchedOne(info.GetScTxID(), "")
 			newTx, err := wh.service.createTx(back, info)
 			if newTx != nil && err == nil {
-				wh.service.sendtoSign(&message.WaitSignMsg{
-					Business: event.Business,
-					ID:       scTxID,
-					ScTxID:   scTxID,
-					Event:    event,
-					Tx:       newTx,
-				})
+				waitToSign := newWaitToSign(info, newTx)
+				wh.service.sendtoSign(waitToSign)
 			}
 			setWaitConfirm(wh.db, uint32(back), info.Event.GetTo(), info.GetScTxID())
 		}
@@ -177,6 +172,44 @@ func (wh *watchedHandler) runCheckMatchTimeout() {
 	}()
 }
 
+func newWaitToSign(info *P2PInfo, newTx *pb.NewlyTx) *message.WaitSignMsg {
+	var waitToSign *message.WaitSignMsg
+	switch info.Msg.Chain {
+	case message.Btc:
+		fallthrough
+	case message.Bch:
+		recharge := &pb.BtcRecharge{
+			Amount: int64(info.Msg.Amount),
+			Addr:   info.Msg.ReceiveAddr,
+		}
+		rechargeData, _ := proto.Marshal(recharge)
+		waitToSign = &message.WaitSignMsg{
+			Business: info.Event.Business,
+			ID:       info.Event.GetTxID(),
+			ScTxID:   info.Event.GetTxID(),
+			Tx:       newTx,
+			Recharge: rechargeData,
+		}
+	case message.Eth:
+		recharge := &pb.EthRecharge{
+			Addr:     info.Msg.ReceiveAddr,
+			Amount:   int64(info.Msg.Amount),
+			TokenTo:  info.Msg.TokenId,
+			Method:   "",
+			Proposal: "",
+		}
+		rechargeData, _ := proto.Marshal(recharge)
+		waitToSign = &message.WaitSignMsg{
+			Business: info.Event.Business,
+			ID:       info.Event.GetTxID(),
+			ScTxID:   info.Event.GetTxID(),
+			Tx:       newTx,
+			Recharge: rechargeData,
+		}
+
+	}
+	return waitToSign
+}
 func (wh *watchedHandler) HandleEvent(event node.BusinessEvent) {
 	wh.Lock()
 	defer wh.Unlock()
@@ -222,15 +255,8 @@ func (wh *watchedHandler) HandleEvent(event node.BusinessEvent) {
 				for _, info := range infos {
 					newTx, err := wh.service.createTx(confirmed, info)
 					if newTx != nil && err == nil {
-						scTxID := info.GetScTxID()
-						wh.service.sendtoSign(&message.WaitSignMsg{
-							Business: watchedEvent.Business,
-							ID:       scTxID,
-							ScTxID:   scTxID,
-							Event:    info.Event,
-							Tx:       newTx,
-						})
-
+						signMsg := newWaitToSign(info, newTx)
+						wh.service.sendtoSign(signMsg)
 					}
 					//设置等待确认
 					setWaitConfirm(wh.db, uint32(confirmed), info.Event.GetTo(), info.GetScTxID())
@@ -315,13 +341,8 @@ func (sh *signedHandler) retryFailed() {
 
 			newTx, _ := sh.service.createTx(uint8(waitConfirmTx.Opration), p2pInfo)
 			if newTx != nil {
-				sh.service.sendtoSign(&message.WaitSignMsg{
-					Business: p2pInfo.Event.Business,
-					ID:       scTxID,
-					ScTxID:   scTxID,
-					Event:    p2pInfo.Event,
-					Tx:       newTx,
-				})
+				waitToSign := newWaitToSign(p2pInfo, newTx)
+				sh.service.sendtoSign(waitToSign)
 			}
 			sh.delSignFailed(scTxID)
 			waitConfirmTx.Time = time.Now().Unix()
@@ -553,13 +574,8 @@ func (handler *confirmHandler) checkConfirmTimeout() {
 			handler.service.clear(scTxID, sended.SignTerm)
 			handler.db.delSendedInfo(scTxID)
 			if newTx != nil {
-				handler.service.sendtoSign(&message.WaitSignMsg{
-					Business: p2pInfo.Event.Business,
-					ID:       scTxID,
-					ScTxID:   scTxID,
-					Event:    p2pInfo.Event,
-					Tx:       newTx,
-				})
+				waitToSign := newWaitToSign(p2pInfo, newTx)
+				handler.service.sendtoSign(waitToSign)
 			}
 
 			//update waitconfirm time

@@ -26,6 +26,7 @@ import (
 	ew "github.com/ofgp/ethwatcher"
 
 	"github.com/btcsuite/btcd/wire"
+	"github.com/golang/protobuf/proto"
 )
 
 var (
@@ -680,7 +681,17 @@ func (bs *BlockStore) handleSignReq(tasks *task.Queue, msg *pb.SignRequest) {
 		} else if targetChain == message.Eth {
 			scTxID := msg.GetWatchedEvent().GetTxID()
 			business := msg.GetWatchedEvent().GetBusiness()
-			//todo check eth
+			validateRes := bs.validateEthSignReq(msg)
+			if validateRes != validatePass {
+				SetSignReq(bs.db, msg, scTxID)
+				if validateRes == wrongInputOutput {
+					bsLogger.Error("validate sign tx failed", "sctxid", scTxID)
+					tasks.Add(func() { bs.NewWeakAccuseEvent.Emit(msg.Term) })
+				} else {
+					bsLogger.Debug("tx already signed", "sctxid", scTxID)
+				}
+				return
+			}
 			_, err := bs.ethWatcher.SendTranxByInput(bs.signer.PubKeyHex, bs.signer.PubkeyHash, msg.NewlyTx.Data)
 			if err != nil {
 				bsLogger.Error("sign eth err", "err", err, "scTxID", scTxID)
@@ -1151,6 +1162,14 @@ func (bs *BlockStore) validateEthSignReq(req *pb.SignRequest) int {
 	if baseCheckRes != validatePass {
 		return baseCheckRes
 	}
+	ethRecharge := &pb.EthRecharge{}
+	proto.Unmarshal(req.Recharge, ethRecharge)
+	localInput, _ := bs.ethWatcher.EncodeInput(ethRecharge.Method, ethRecharge.TokenTo,
+		ethRecharge.Amount, ethRecharge.Addr, req.WatchedEvent.TxID)
+	if !bytes.Equal(req.NewlyTx.Data, localInput) {
+		bsLogger.Warn("check eth input err", "scTxID", req.WatchedEvent.TxID)
+		return wrongInputOutput
+	}
 	return validatePass
 }
 
@@ -1201,7 +1220,14 @@ func (bs *BlockStore) validateBtcSignReq(req *pb.SignRequest, newlyTx *wire.MsgT
 	if baseCheckResult != validatePass {
 		return baseCheckResult
 	}
+	recharge := &pb.BtcRecharge{}
+	proto.Unmarshal(req.Recharge, recharge)
+	//todo check btc
 	//输出check 放到创建交易的地方
+	if len(newlyTx.TxOut) != 1 && len(newlyTx.TxOut) != 2 {
+		bsLogger.Warn("rechage check err", "newTxCount", len(newlyTx.TxOut))
+		return wrongInputOutput
+	}
 	return validatePass
 }
 

@@ -128,7 +128,8 @@ func TestMain(m *testing.M) {
 func TestProcessEmpty(t *testing.T) {
 	// _, noderun := node.RunNew(0, nil)
 	// defer noderun.Stop()
-	p2p := NewP2P(checkNode, p2pDB)
+	tmpDir, _ := ioutil.TempDir("", "p2p")
+	p2p := NewP2P(checkNode, tmpDir)
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
@@ -146,7 +147,8 @@ func TestProcessEmpty(t *testing.T) {
 func TestProcessMatch(t *testing.T) {
 	// _, noderun := node.RunNew(0, nil)
 	// defer noderun.Stop()
-	p2p := NewP2P(checkNode, p2pDB)
+	tmpDir, _ := ioutil.TempDir("", "p2p")
+	p2p := NewP2P(checkNode, tmpDir)
 
 	initalEvent := &node.WatchedEvent{}
 	requireAddr := getBytes(20)

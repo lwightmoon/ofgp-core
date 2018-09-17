@@ -372,7 +372,7 @@ func (ld *Leader) watchFormerMultisig(ctx context.Context) {
 							clusterSnapshot := ld.blockStore.GetClusterSnapshot(address)
 							transferTx := ld.createTransferTx(watcher, address, clusterSnapshot)
 							signTxReq, err := pb.MakeSignReqMsg(ld.blockStore.GetNodeTerm(), ld.nodeInfo.Id,
-								watchedTxInfo, transferTx, address, ld.signer)
+								watchedTxInfo, transferTx, address, ld.signer, nil)
 							if err != nil {
 								leaderLogger.Error("make sign transfer tx failed", "err", err)
 								continue
@@ -469,7 +469,7 @@ func (ld *Leader) createSignReq(ctx context.Context) {
 						ld.txStore.AddTxtoWaitSign(tx)
 						continue
 					}
-					req, err := pb.MakeSignReqMsg(ld.blockStore.GetNodeTerm(), ld.nodeInfo.Id, tx.Event, tx.Tx, "", ld.signer)
+					req, err := pb.MakeSignReqMsg(ld.blockStore.GetNodeTerm(), ld.nodeInfo.Id, tx.Event, tx.Tx, "", ld.signer, tx.Recharge)
 					if err != nil {
 						leaderLogger.Error("make sign tx failed", "err", err, "scTxID", tx.ScTxID)
 						continue

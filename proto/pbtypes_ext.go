@@ -944,7 +944,7 @@ func (tx *WatchedTxInfo) IsTransferTx() bool {
 
 // MakeSignReqMsg 创建签名请求
 func MakeSignReqMsg(term int64, nodeID int32, event *WatchedEvent, newlyTx *NewlyTx,
-	multisigAddress string, signer *crypto.SecureSigner) (*SignRequest, error) {
+	multisigAddress string, signer *crypto.SecureSigner, recharge []byte) (*SignRequest, error) {
 	if newlyTx == nil {
 		return nil, errors.New("newlytx can not be nil")
 	}
@@ -955,6 +955,7 @@ func MakeSignReqMsg(term int64, nodeID int32, event *WatchedEvent, newlyTx *Newl
 		WatchedEvent:    event,
 		NewlyTx:         newlyTx,
 		Time:            time.Now().Unix(),
+		Recharge:        recharge,
 	}
 	sig, err := signer.Sign(msg.Id().Data)
 	if err != nil {

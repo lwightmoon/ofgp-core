@@ -253,6 +253,7 @@ message SignRequest{
     bytes sig = 6;
     string business =7;
     int64 time = 8;
+    bytes recharge = 9;
 }
 
 // 签名结果
@@ -365,4 +366,17 @@ message NodeRuntimeInfo{
     int64 bchHeight = 3;
     int64 ethHeight = 4;
     int32 leaderCnt = 5;
+}
+
+message BtcRecharge{
+    bytes addr = 1;
+    int64 amount = 2;
+}
+
+message EthRecharge{
+    bytes addr = 1;
+    int64 amount = 2;
+    uint32 token_to = 3;
+    string method = 4;
+    string proposal = 5;
 }
