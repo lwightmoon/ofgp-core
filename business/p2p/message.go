@@ -66,9 +66,9 @@ func (msg *p2pMsg) toPBMsg() *P2PMsg {
 
 func (msg *p2pMsg) Decode(data []byte) {
 	r := bytes.NewReader(data)
-	saddr := read(r, 20)
+	saddr := read(r, 25)
 	msg.SendAddr = saddr
-	raddr := read(r, 20)
+	raddr := read(r, 25)
 	msg.ReceiveAddr = raddr
 
 	readInt(r, &msg.Chain)
@@ -76,7 +76,7 @@ func (msg *p2pMsg) Decode(data []byte) {
 	readInt(r, &msg.Amount)
 	readInt(r, &msg.Fee)
 	readInt(r, &msg.ExpiredTime)
-	requireAddr := read(r, 20)
+	requireAddr := read(r, 25)
 	msg.RequireAddr = requireAddr
 }
 

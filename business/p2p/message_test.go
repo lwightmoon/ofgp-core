@@ -160,8 +160,8 @@ func getBytes(size int) []byte {
 }
 func TestEncode(t *testing.T) {
 	msg := &p2pMsg{
-		SendAddr:    getBytes(20),
-		ReceiveAddr: getBytes(20),
+		SendAddr:    getBytes(25),
+		ReceiveAddr: getBytes(25),
 		Chain:       1,
 		TokenID:     1,
 		Amount:      64,
