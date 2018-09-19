@@ -68,7 +68,7 @@ func StartHTTP(node *node.BraftNode, user, pwd, endpoint string, allowedOrigins 
 	router.GET("/transaciton/:txid", basicAuth(hd.GetTransActionByID, user, pwd))
 	//token合约注册相关接口
 	router.POST("/chainreg", basicAuth(hd.chainRegister, user, pwd))
-	router.GET("/chainreg", basicAuth(hd.getChainRegisterID, user, pwd))
+	// router.GET("/chainreg", basicAuth(hd.getChainRegisterID, user, pwd))
 	router.POST("/tokenreg", basicAuth(hd.tokenRegister, user, pwd))
 	router.GET("/tokenreg", basicAuth(hd.getTokenRegisterID, user, pwd))
 	go http.ListenAndServe(endpoint, c.Handler(router))

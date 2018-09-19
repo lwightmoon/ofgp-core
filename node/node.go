@@ -29,8 +29,8 @@ import (
 	"github.com/ofgp/bitcoinWatcher/coinmanager"
 
 	btwatcher "swap/btwatcher"
-
-	ew "github.com/ofgp/ethwatcher"
+	ew "swap/ethwatcher"
+	// ew "github.com/ofgp/ethwatcher"
 
 	"github.com/spf13/viper"
 	"google.golang.org/grpc"
@@ -637,6 +637,9 @@ func (bn *BraftNode) watchNewTx(ctx context.Context) {
 	bn.bchWatcher.StartWatch(dgwConf.BchHeight, dgwConf.BchTranIx, eventCh)
 	bn.btcWatcher.StartWatch(dgwConf.BtcHeight, dgwConf.BtcTranIx, eventCh)
 
+	height := bn.blockStore.GetETHBlockHeight()
+	index := bn.blockStore.GetETHBlockTxIndex()
+	bn.ethWatcher.StartWatch(*height, index, eventCh)
 	for event := range eventCh {
 		nodeLogger.Debug("receive event", "chain", event.GetFrom(), "type", event.GetEventType(), "event", event)
 		watchedEvent := newWatchedEvent(event)
@@ -688,6 +691,7 @@ func (bn *BraftNode) watchNewTx(ctx context.Context) {
 	// }
 }
 
+/*
 func (bn *BraftNode) dealEthEvent(ev *ew.PushEvent) {
 	switch ev.Method {
 	case ew.TOKEN_METHOD_BURN:
@@ -731,6 +735,7 @@ func (bn *BraftNode) dealEthEvent(ev *ew.PushEvent) {
 	bn.blockStore.SetETHBlockHeight(ev.Tx.BlockNumber)
 	bn.blockStore.SetETHBlockTxIndex(ev.Tx.TxIndex)
 }
+*/
 
 // markTxSigned 标记已签名交易
 func (bn *BraftNode) markTxSigned(scTxID string) {

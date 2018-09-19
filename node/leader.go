@@ -21,8 +21,9 @@ import (
 
 	btwatcher "swap/btwatcher"
 
+	ew "swap/ethwatcher"
+
 	"github.com/ofgp/common/defines"
-	ew "github.com/ofgp/ethwatcher"
 )
 
 const (

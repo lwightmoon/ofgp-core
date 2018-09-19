@@ -254,12 +254,12 @@ func (hd *HTTPHandler) chainRegister(w http.ResponseWriter, req *http.Request, _
 	writeResponse(&w, newOKData(nil))
 }
 
-func (hd *HTTPHandler) getChainRegisterID(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
-	newChain := req.FormValue("newchain")
-	targetChain := req.FormValue("targetchain")
-	chainID := hd.node.GetChainRegisterID(newChain, targetChain)
-	writeResponse(&w, newOKData(chainID))
-}
+// func (hd *HTTPHandler) getChainRegisterID(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
+// 	newChain := req.FormValue("newchain")
+// 	targetChain := req.FormValue("targetchain")
+// 	chainID := hd.node.GetChainRegisterID(newChain, targetChain)
+// 	writeResponse(&w, newOKData(chainID))
+// }
 
 // tokenRegister token合约向网关注册
 func (hd *HTTPHandler) tokenRegister(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {

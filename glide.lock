@@ -197,4 +197,8 @@ imports:
   version: cfb38830724cc34fedffe9a2a29fb54fa9169cd1
 - name: gopkg.in/yaml.v2
   version: 5420a8b6744d3b0345ab293f6fcba19c978f1183
+- name: github.com/antimoth/logger
+  version: 9c52cc913a23dca3567e3f84efc6dcea43586d41
+- name: github.com/antimoth/swaputils
+  version: 2f49fe1fb9a969f003f4b46fc4ba9d7d8dfdba1d
 testImports: []

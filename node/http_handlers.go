@@ -352,13 +352,13 @@ func (node *BraftNode) ChainRegister(regInfo *ChainRegInfo) {
 }
 
 // GetChainRegisterID 查询链注册结果，如果成功，返回chainID，否则返回0
-func (node *BraftNode) GetChainRegisterID(newChain string, targetChain string) *ChainRegID {
-	if targetChain == "eth" {
-		chainID := node.ethWatcher.GetChainCode(targetChain)
-		return &ChainRegID{ChainID: chainID}
-	}
-	return nil
-}
+// func (node *BraftNode) GetChainRegisterID(newChain string, targetChain string) *ChainRegID {
+// 	if targetChain == "eth" {
+// 		chainID := node.ethWatcher.GetChainCode(targetChain)
+// 		return &ChainRegID{ChainID: chainID}
+// 	}
+// 	return nil
+// }
 
 // TokenRegister 新token合约注册
 func (node *BraftNode) TokenRegister(regInfo *TokenRegInfo) {

@@ -24,7 +24,7 @@ import (
 
 	btcfunc "github.com/ofgp/bitcoinWatcher/coinmanager"
 
-	ew "github.com/ofgp/ethwatcher"
+	ew "swap/ethwatcher"
 
 	"github.com/btcsuite/btcd/wire"
 	"github.com/golang/protobuf/proto"
@@ -1313,7 +1313,12 @@ func (bs *BlockStore) validateWatchedEvent(event *pb.WatchedEvent) bool {
 			}
 			bs.addToEventCh(newEvent)
 		case defines.CHAIN_CODE_ETH:
-			//todo ethwatcher GetTxByHash
+			var err error
+			newEvent, err = bs.ethWatcher.GetEventByHash(event.GetTxID())
+			if err != nil || newEvent == nil {
+				return false
+			}
+			bs.addToEventCh(newEvent)
 		}
 		if newEvent == nil {
 			return false

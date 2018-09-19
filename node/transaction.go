@@ -8,9 +8,11 @@ import (
 
 	btwatcher "swap/btwatcher"
 
+	ew "swap/ethwatcher"
+
+	"github.com/antimoth/swaputils"
 	"github.com/btcsuite/btcd/wire"
 	btcwatcher "github.com/ofgp/bitcoinWatcher/mortgagewatcher"
-	ew "github.com/ofgp/ethwatcher"
 	"github.com/ofgp/ofgp-core/cluster"
 	"github.com/ofgp/ofgp-core/crypto"
 	"github.com/ofgp/ofgp-core/message"
@@ -118,30 +120,40 @@ func newEthOperator(cli *ew.Client, bs *primitives.BlockStore, signer *crypto.Se
 	}
 }
 
+const appcode = 1
+
 func (eop *ethOperator) CreateTx(req CreateReq) (*pb.NewlyTx, error) {
 	if ereq, ok := req.(*EthCreateReq); ok {
-		// addrInfo := ereq.GetAddrInfos()[0]
-		// addredss := ew.HexToAddress(addrInfo.Addr)
-		// input, err := eop.cli.EncodeInput(ew.VOTE_METHOD_MINT, ereq.TokenTo, addrInfo.Amount,
-		// 	addredss, req.GetID())
-		// if err != nil {
-		// 	leaderLogger.Error("create eth input failed", "err", err, "sctxid", req.GetID())
-		// 	return nil
-		// }
-		// return &pb.NewlyTx{Data: input}
 		nodeLogger.Debug("eth create req:%v", ereq)
-	} else {
-		nodeLogger.Error("req err", "id", req.GetID())
+		addrStr, err := swaputils.CheckBytesToStr(ereq.GetAddr(), uint8(req.GetChain()))
+		if err != nil {
+			leaderLogger.Error("addr to str err", "err", err, "scTxID", req.GetID())
+			return nil, err
+		}
+		addr := ew.HexToAddress(addrStr)
+		input, err := eop.cli.EncodeInput(ew.VOTE_METHOD_MATCHSWAP, appcode, addr, ereq.GetAmount(), req.GetID())
+		if err != nil {
+			leaderLogger.Error("create eth input failed", "err", err, "sctxid", req.GetID())
+			return nil, err
+		}
+		return &pb.NewlyTx{Data: input}, nil
 	}
-	return nil, nil
+	nodeLogger.Error("eth createReq type err", "id", req.GetID())
+	return nil, errors.New("eth createReq type err")
 }
 
 func (eop *ethOperator) SendTx(req ISendReq) error {
-	// _, err := eop.cli.SendTranxByInput(eop.signer.PubKeyHex, eop.signer.PubkeyHash, req.GetTx().Data)
-	// if err != nil {
-	// 	nodeLogger.Error("send eth tx err", "error", err, "id", req.GetID())
-	// }
-	// return err
+	tx := req.GetTx()
+	input, ok := tx.([]byte)
+	if !ok {
+		nodeLogger.Error("send eth req type err", "scTxID", req.GetID())
+		return errors.New("send eth req err")
+	}
+	_, err := eop.cli.SendTranxByInput(eop.signer.PubKeyHex, eop.signer.PubkeyHash, input)
+	if err != nil {
+		nodeLogger.Error("send eth tx err", "error", err, "id", req.GetID())
+	}
+	return err
 	return nil
 }
 
@@ -153,26 +165,6 @@ type BtcCreateReq struct {
 // BchCreateReq 创建bch交易请求
 type BchCreateReq struct {
 	BaseCreateReq
-}
-
-// createCoinTx 创建bch/btc tx 废止！
-func createCoinTx(watcher *btcwatcher.MortgageWatcher,
-	addrInfos []*btcwatcher.AddressInfo, fee uint64, id string) *pb.NewlyTx {
-	leaderLogger.Debug("rechargelist", "sctxid", id, "addrs", addrInfos)
-	newlyTx, ok := watcher.CreateCoinTx(addrInfos, int64(fee), id)
-	if ok != 0 {
-		leaderLogger.Error("create new chan tx failed", "errcode", ok, "sctxid", id)
-		return nil
-	}
-	leaderLogger.Debug("create coin tx", "sctxid", id, "newlyTxid", newlyTx.TxHash().String())
-
-	buf := bytes.NewBuffer([]byte{})
-	err := newlyTx.Serialize(buf)
-	if err != nil {
-		leaderLogger.Error("serialize newly tx failed", "err", err)
-		return nil
-	}
-	return &pb.NewlyTx{Data: buf.Bytes()}
 }
 
 func fromHex(s string) []byte {
@@ -194,9 +186,6 @@ func hex2Bytes(str string) []byte {
 }
 
 func sendCointTx(watcher *btwatcher.Watcher, req ISendReq, chain string) error {
-	// buf := bytes.NewBuffer(req.GetTx().Data)
-	// newlyTx := new(wire.MsgTx)
-	// err := newlyTx.Deserialize(buf)
 	start := time.Now().UnixNano()
 	tx := req.GetTx()
 	var err error
@@ -229,7 +218,20 @@ func newBtcOprator(watcher *btwatcher.Watcher) *btcOprator {
 }
 
 func (btcOP *btcOprator) CreateTx(req CreateReq) (*pb.NewlyTx, error) {
-	return nil, nil
+	btTx, errCode := btcOP.btcWatcher.CreateCoinTx(req.GetAddr(), req.GetAmount(), cluster.ClusterSize)
+	if errCode != 0 {
+		nodeLogger.Error("create tx fail", "scTxID", req.GetID(), "errCode", errCode)
+		return nil, errors.New("create tx err")
+	}
+	buf := &bytes.Buffer{}
+	err := btTx.Deserialize(buf)
+	if err != nil {
+		nodeLogger.Error("deserialize err", "err", err, "scTxID", req.GetID())
+	}
+	newTx := &pb.NewlyTx{
+		Data: buf.Bytes(),
+	}
+	return newTx, nil
 }
 
 func (btcOP *btcOprator) SendTx(req ISendReq) error {
