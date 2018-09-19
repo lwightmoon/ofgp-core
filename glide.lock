@@ -200,5 +200,5 @@ imports:
 - name: github.com/antimoth/logger
   version: 9c52cc913a23dca3567e3f84efc6dcea43586d41
 - name: github.com/antimoth/swaputils
-  version: 2f49fe1fb9a969f003f4b46fc4ba9d7d8dfdba1d
+  version: d316d5821c35b5b65ed9460b1c97188e3341a0e0
 testImports: []

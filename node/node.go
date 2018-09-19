@@ -626,6 +626,7 @@ func newWatchedEvent(event defines.PushEvent) *pb.WatchedEvent {
 		From:      uint32(event.GetFrom()),
 		To:        uint32(event.GetTo()),
 		Data:      event.GetData(),
+		Proposal:  event.GetProposal(),
 	}
 }
 

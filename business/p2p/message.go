@@ -107,7 +107,7 @@ type p2pMsgConfirmed struct {
 // toPBMsg 转为pb数据结构 序列化
 func (msg *p2pMsgConfirmed) toPBMsg() *P2PConfirmMsg {
 	return &P2PConfirmMsg{
-		Id:        hex.EncodeToString(msg.ID),
+		Id:        "",
 		Chain:     uint32(msg.Chain),
 		Height:    msg.Height,
 		BlockHash: hex.EncodeToString(msg.BlockHash),

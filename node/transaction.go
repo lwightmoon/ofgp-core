@@ -192,8 +192,7 @@ func sendCointTx(watcher *btwatcher.Watcher, req ISendReq, chain string) error {
 	var txHash string
 	if newlyTx, ok := tx.(*wire.MsgTx); ok {
 		scTxID := req.GetID()
-		proposal := fromHex(scTxID)
-		txHash, err = watcher.SendTx(newlyTx, proposal)
+		txHash, err = watcher.SendTx(newlyTx, scTxID)
 
 		end := time.Now().UnixNano()
 		leaderLogger.Debug("sendCointime", "time", (end-start)/1e6, "chian", chain)

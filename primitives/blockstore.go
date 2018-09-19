@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/antimoth/swaputils"
 	"github.com/ofgp/ofgp-core/cluster"
 	"github.com/ofgp/ofgp-core/crypto"
 	"github.com/ofgp/ofgp-core/dgwdb"
@@ -970,35 +971,34 @@ func (bs *BlockStore) validateTxs(blockPack *pb.BlockPack) int {
 		for _, tx := range checkChainTx {
 			go func(tx *pb.Transaction) {
 				for _, pubtx := range tx.Vout {
-					switch pubtx.Chain {
-					case message.Bch:
+					chain := uint8(pubtx.Chain)
+					switch chain {
+					case defines.CHAIN_CODE_BCH:
 						chainTx := bs.bchWatcher.GetTxByHash(pubtx.TxID)
 						if chainTx == nil {
 							resultChan <- Invalid
 						} else {
 							resultChan <- Valid
 						}
-					case message.Btc:
+					case defines.CHAIN_CODE_BTC:
 						chainTx := bs.btcWatcher.GetTxByHash(pubtx.TxID)
 						if chainTx == nil {
 							resultChan <- Invalid
 						} else {
 							resultChan <- Valid
 						}
-					case message.Eth:
+					case defines.CHAIN_CODE_ETH:
 						pushEvent, err := bs.ethWatcher.GetEventByHash(pubtx.TxID)
 						if err != nil || pushEvent == nil {
 							bsLogger.Error("validate tx invalid, not found on chain", "sctxid", tx.TxID)
 							resultChan <- Invalid
+						} else {
+							if !bs.validateOnChainTx(defines.CHAIN_CODE_ETH, pushEvent, tx) {
+								resultChan <- Invalid
+							} else {
+								resultChan <- Valid
+							}
 						}
-						//todo validate ethTx
-						// } else {
-						// 	if !bs.validateETHTx(pushEvent, tx.WatchedTx) {
-						// 		resultChan <- Invalid
-						// 	} else {
-						// 		resultChan <- Valid
-						// 	}
-						// }
 						resultChan <- Valid
 
 					default:
@@ -1022,6 +1022,35 @@ func (bs *BlockStore) validateTxs(blockPack *pb.BlockPack) int {
 	return Valid
 }
 
+func (bs *BlockStore) validateOnChainTx(chain uint8, event defines.PushEvent, tx *pb.Transaction) bool {
+	proposal := event.GetProposal()
+	for _, pubTx := range tx.Vin {
+		if proposal == pubTx.GetTxID() {
+			switch chain {
+			case defines.CHAIN_CODE_BTC:
+				fallthrough
+			case defines.CHAIN_CODE_BCH:
+				btcRecharge := &pb.BtcRecharge{}
+				proto.Unmarshal(pubTx.Recharge, btcRecharge)
+				if event.GetAmount() != btcRecharge.GetAmount() {
+					bsLogger.Error("bch/btc amount is not equal to recharge", "scTxID", proposal)
+					return false
+				}
+			case defines.CHAIN_CODE_ETH:
+				ethRecharge := &pb.EthRecharge{}
+				proto.Unmarshal(pubTx.Recharge, ethRecharge)
+				if event.GetAmount() != ethRecharge.GetAmount() {
+					bsLogger.Error("eth amount is not equal to recharge", "scTxID", proposal)
+					return false
+				}
+			}
+		}
+	}
+	bsLogger.Error("not found proposal in vin", "scTxID", proposal)
+	return false
+}
+
+/*
 func (bs *BlockStore) validateETHTx(txInfo *ew.PushEvent, scTxInfo *pb.WatchedTxInfo) bool {
 	if txInfo.Method != ew.VOTE_METHOD_MINT {
 		return false
@@ -1032,6 +1061,7 @@ func (bs *BlockStore) validateETHTx(txInfo *ew.PushEvent, scTxInfo *pb.WatchedTx
 	}
 	return mintData.Proposal == scTxInfo.Txid && mintData.Wad == uint64(scTxInfo.RechargeList[0].Amount)
 }
+*/
 
 /*
 func (bs *BlockStore) validateBtcSignTx(req *pb.SignTxRequest, newlyTx *wire.MsgTx) int {
@@ -1099,7 +1129,7 @@ func (bs *BlockStore) validateTransferSignTx(req *pb.SignTxRequest, newlyTx *wir
 	return wrongInputOutput
 }
 */
-/*todo eth签名校验
+/* eth签名校验
 func (bs *BlockStore) validateEthSignTx(req *pb.SignTxRequest) int {
 	baseCheckResult := bs.baseCheck(req)
 	if baseCheckResult != validatePass {
@@ -1128,8 +1158,13 @@ func (bs *BlockStore) validateEthSignReq(req *pb.SignRequest) int {
 	}
 	ethRecharge := &pb.EthRecharge{}
 	proto.Unmarshal(req.Recharge, ethRecharge)
-	localInput, _ := bs.ethWatcher.EncodeInput(ethRecharge.Method, ethRecharge.TokenTo,
-		ethRecharge.Amount, ethRecharge.Addr, req.WatchedEvent.TxID)
+	addrStr, err := swaputils.CheckBytesToStr(ethRecharge.GetAddr(), defines.CHAIN_CODE_ETH)
+	if err != nil {
+		bsLogger.Error("validateEth addr to str err", "err", err, "scTxID", req.WatchedEvent.TxID)
+		return wrongInputOutput
+	}
+	addr := ew.HexToAddress(addrStr)
+	localInput, _ := bs.ethWatcher.EncodeInput(ethRecharge.Method, 1, addr, ethRecharge.Amount, req.WatchedEvent.TxID)
 	if !bytes.Equal(req.NewlyTx.Data, localInput) {
 		bsLogger.Warn("check eth input err", "scTxID", req.WatchedEvent.TxID)
 		return wrongInputOutput
@@ -1137,7 +1172,7 @@ func (bs *BlockStore) validateEthSignReq(req *pb.SignRequest) int {
 	return validatePass
 }
 
-/* todo
+/*
 func (bs *BlockStore) validateWatchedTx(tx *pb.WatchedTxInfo) bool {
 	var newTx *pb.WatchedTxInfo
 	switch bs.ts.ValidateWatchedTx(tx) {
@@ -1205,7 +1240,7 @@ func (bs *BlockStore) validateBtcSignReq(req *pb.SignRequest, newlyTx *wire.MsgT
 		bsLogger.Error("addr is  not equal", "scTxID", scTxID)
 		return wrongInputOutput
 	}
-	if txOut.Value != recharge.Amount {
+	if txOut.Value != int64(recharge.Amount) {
 		bsLogger.Error("amount is not equal", "scTxID", scTxID)
 		return wrongInputOutput
 	}

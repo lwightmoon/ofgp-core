@@ -5,8 +5,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ofgp/common/defines"
 	"github.com/ofgp/ofgp-core/log"
 	"github.com/ofgp/ofgp-core/message"
+
+	ew "swap/ethwatcher"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/ofgp/ofgp-core/business"
@@ -179,7 +182,7 @@ func newWaitToSign(info *P2PInfo, newTx *pb.NewlyTx) *message.WaitSignMsg {
 		fallthrough
 	case message.Bch:
 		recharge := &pb.BtcRecharge{
-			Amount: int64(info.Msg.Amount),
+			Amount: info.Msg.Amount,
 			Addr:   info.Msg.ReceiveAddr,
 		}
 		rechargeData, _ := proto.Marshal(recharge)
@@ -193,10 +196,10 @@ func newWaitToSign(info *P2PInfo, newTx *pb.NewlyTx) *message.WaitSignMsg {
 	case message.Eth:
 		recharge := &pb.EthRecharge{
 			Addr:     info.Msg.ReceiveAddr,
-			Amount:   int64(info.Msg.Amount),
+			Amount:   info.Msg.Amount,
 			TokenTo:  info.Msg.TokenId,
-			Method:   "",
-			Proposal: "",
+			Method:   ew.VOTE_METHOD_MATCHSWAP,
+			Proposal: info.Event.GetTxID(),
 		}
 		rechargeData, _ := proto.Marshal(recharge)
 		waitToSign = &message.WaitSignMsg{
@@ -435,11 +438,30 @@ func getPubTxFromInfo(info *P2PInfo) *pb.PublicTx {
 		return nil
 	}
 	event := info.GetEvent()
+	chain := uint8(event.GetTo())
+	var rechargeData []byte
+	switch chain {
+	case defines.CHAIN_CODE_BTC:
+		fallthrough
+	case defines.CHAIN_CODE_BCH:
+		recharge := &pb.BtcRecharge{
+			Addr:   info.GetMsg().GetReceiveAddr(),
+			Amount: info.GetMsg().GetAmount(),
+		}
+		rechargeData, _ = proto.Marshal(recharge)
+	case defines.CHAIN_CODE_ETH:
+		recharge := &pb.EthRecharge{
+			Addr:   info.GetMsg().GetReceiveAddr(),
+			Amount: info.GetMsg().GetAmount(),
+		}
+		rechargeData, _ = proto.Marshal(recharge)
+	}
 	pubTx := &pb.PublicTx{
-		Chain:  event.GetFrom(),
-		TxID:   event.GetTxID(),
-		Amount: int64(event.GetAmount()),
-		Data:   event.GetData(),
+		Chain:    event.GetFrom(),
+		TxID:     event.GetTxID(),
+		Amount:   int64(event.GetAmount()),
+		Data:     event.GetData(),
+		Recharge: rechargeData,
 	}
 	return pubTx
 }
@@ -595,8 +617,9 @@ func (handler *confirmHandler) HandleEvent(event node.BusinessEvent) {
 		//交易确认info
 		info := getP2PConfirmInfo(txEvent)
 		p2pLogger.Info("handle confirm", "scTxID", info.Msg.Id)
+
 		//之前的交易id
-		oldTxID := info.Msg.Id
+		oldTxID := txEvent.GetProposal()
 		waitConfirm := handler.db.getWaitConfirm(oldTxID)
 		if waitConfirm == nil {
 			p2pLogger.Error("never matched tx", "scTxID", oldTxID)
