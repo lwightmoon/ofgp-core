@@ -33,12 +33,13 @@ func (bn *BraftNode) pubSigned(msg *pb.SignResult, chain uint32,
 	bn.pubsub.pub(msg.Business, event)
 }
 
-func (bn *BraftNode) pubConfirmed(pushEvent PushEvent) {
-	event := newConfirmEvent(pushEvent)
-	bn.pubsub.pub(event.GetBusiness(), event)
-}
-
-func (bn *BraftNode) pubWatched(pushEvent PushEvent) {
-	event := newWatchedEvent(pushEvent)
+func (bn *BraftNode) pubWatcherEvent(watchedEvent *pb.WatchedEvent) {
+	var event BusinessEvent
+	switch watchedEvent.GetEventType() {
+	case 0: //初始监听到
+		event = newBusinessWatchedEvent(watchedEvent)
+	case 1: //确认
+		event = newConfirmEvent(watchedEvent)
+	}
 	bn.pubsub.pub(event.GetBusiness(), event)
 }

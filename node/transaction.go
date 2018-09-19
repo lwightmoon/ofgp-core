@@ -2,12 +2,16 @@ package node
 
 import (
 	"bytes"
+	"encoding/hex"
 	"errors"
 	"time"
+
+	btwatcher "swap/btwatcher"
 
 	"github.com/btcsuite/btcd/wire"
 	btcwatcher "github.com/ofgp/bitcoinWatcher/mortgagewatcher"
 	ew "github.com/ofgp/ethwatcher"
+	"github.com/ofgp/ofgp-core/cluster"
 	"github.com/ofgp/ofgp-core/crypto"
 	"github.com/ofgp/ofgp-core/message"
 	"github.com/ofgp/ofgp-core/primitives"
@@ -73,14 +77,14 @@ type EthCreateReq struct {
 // ISendReq sendTx
 type ISendReq interface {
 	GetChain() uint32
-	GetID() []byte
+	GetID() string
 	GetTx() interface{}
 }
 
 // SendReq sendTx
 type SendReq struct {
 	Chain uint32
-	ID    []byte
+	ID    string
 	Tx    interface{}
 }
 
@@ -90,7 +94,7 @@ func (req *SendReq) GetChain() uint32 {
 }
 
 // GetID 交易标识id
-func (req *SendReq) GetID() []byte {
+func (req *SendReq) GetID() string {
 	return req.ID
 }
 
@@ -171,20 +175,43 @@ func createCoinTx(watcher *btcwatcher.MortgageWatcher,
 	return &pb.NewlyTx{Data: buf.Bytes()}
 }
 
-func sendCointTx(watcher *btcwatcher.MortgageWatcher, req ISendReq, chain string) error {
+func fromHex(s string) []byte {
+	if len(s) > 1 {
+		if s[0:2] == "0x" || s[0:2] == "0X" {
+			s = s[2:]
+		}
+	}
+	if len(s)%2 == 1 {
+		s = "0" + s
+	}
+	return hex2Bytes(s)
+}
+
+func hex2Bytes(str string) []byte {
+	h, _ := hex.DecodeString(str)
+
+	return h
+}
+
+func sendCointTx(watcher *btwatcher.Watcher, req ISendReq, chain string) error {
 	// buf := bytes.NewBuffer(req.GetTx().Data)
 	// newlyTx := new(wire.MsgTx)
 	// err := newlyTx.Deserialize(buf)
 	start := time.Now().UnixNano()
 	tx := req.GetTx()
 	var err error
+	var txHash string
 	if newlyTx, ok := tx.(*wire.MsgTx); ok {
-		_, err = watcher.SendTx(newlyTx)
+		scTxID := req.GetID()
+		proposal := fromHex(scTxID)
+		txHash, err = watcher.SendTx(newlyTx, proposal)
+
 		end := time.Now().UnixNano()
 		leaderLogger.Debug("sendCointime", "time", (end-start)/1e6, "chian", chain)
 		if err != nil {
 			leaderLogger.Error("send signed tx  failed", "err", err, "sctxid", req.GetID(), "chian", chain)
 		}
+		leaderLogger.Info("sendTx", "scTxID", req.GetID(), "newTxHash", txHash, "err", err.Error())
 	}
 
 	return err
@@ -192,10 +219,10 @@ func sendCointTx(watcher *btcwatcher.MortgageWatcher, req ISendReq, chain string
 
 // btcCreater 创建btc交易
 type btcOprator struct {
-	btcWatcher *btcwatcher.MortgageWatcher
+	btcWatcher *btwatcher.Watcher
 }
 
-func newBtcOprator(watcher *btcwatcher.MortgageWatcher) *btcOprator {
+func newBtcOprator(watcher *btwatcher.Watcher) *btcOprator {
 	return &btcOprator{
 		btcWatcher: watcher,
 	}
@@ -211,10 +238,10 @@ func (btcOP *btcOprator) SendTx(req ISendReq) error {
 }
 
 type bchOprator struct {
-	bchWatcher *btcwatcher.MortgageWatcher
+	bchWatcher *btwatcher.Watcher
 }
 
-func newBchOprator(watcher *btcwatcher.MortgageWatcher) *bchOprator {
+func newBchOprator(watcher *btwatcher.Watcher) *bchOprator {
 	return &bchOprator{
 		bchWatcher: watcher,
 	}
@@ -232,7 +259,20 @@ func getBtcAddrInfos(addrInfos []AddrInfo) []*btcwatcher.AddressInfo {
 	return res
 }
 func (bchOP *bchOprator) CreateTx(req CreateReq) (*pb.NewlyTx, error) {
-	return nil, nil
+	btTx, errCode := bchOP.bchWatcher.CreateCoinTx(req.GetAddr(), req.GetAmount(), cluster.ClusterSize)
+	if errCode != 0 {
+		nodeLogger.Error("create tx fail", "scTxID", req.GetID(), "errCode", errCode)
+		return nil, errors.New("create tx err")
+	}
+	buf := &bytes.Buffer{}
+	err := btTx.Deserialize(buf)
+	if err != nil {
+		nodeLogger.Error("deserialize err", "err", err, "scTxID", req.GetID())
+	}
+	newTx := &pb.NewlyTx{
+		Data: buf.Bytes(),
+	}
+	return newTx, nil
 }
 
 func (bchOP *bchOprator) SendTx(req ISendReq) error {

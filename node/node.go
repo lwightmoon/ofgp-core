@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"math/big"
 	"math/rand"
 	"net"
 	"os"
@@ -14,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ofgp/common/defines"
 	"github.com/ofgp/ofgp-core/accuser"
 	"github.com/ofgp/ofgp-core/cluster"
 	"github.com/ofgp/ofgp-core/config"
@@ -27,7 +27,8 @@ import (
 	"github.com/ofgp/ofgp-core/util/assert"
 
 	"github.com/ofgp/bitcoinWatcher/coinmanager"
-	btcwatcher "github.com/ofgp/bitcoinWatcher/mortgagewatcher"
+
+	btwatcher "swap/btwatcher"
 
 	ew "github.com/ofgp/ethwatcher"
 
@@ -92,8 +93,8 @@ type BraftNode struct {
 	peerManager   *cluster.PeerManager
 	accuser       *accuser.Accuser
 	leader        *Leader
-	bchWatcher    *btcwatcher.MortgageWatcher
-	btcWatcher    *btcwatcher.MortgageWatcher
+	bchWatcher    *btwatcher.Watcher
+	btcWatcher    *btwatcher.Watcher
 	ethWatcher    *ew.Client
 	syncDaemon    *SyncDaemon
 	mu            sync.Mutex
@@ -107,6 +108,8 @@ type BraftNode struct {
 	pubsub            *pubServer          //与业务交互
 	txInvoker         *txInvoker          //创建发送交易相关
 	collectorFactory  *collectorFactory   //收集签名结果
+
+	eventCh chan defines.PushEvent
 }
 
 func getFederationAddress() cluster.MultiSigInfo {
@@ -161,8 +164,10 @@ func NewBraftNode(localNodeInfo cluster.NodeInfo) *BraftNode {
 	cluster.SetCurrMultiSig(multiSig)
 
 	var (
-		btcWatcher *btcwatcher.MortgageWatcher
-		bchWatcher *btcwatcher.MortgageWatcher
+		// btcWatcher *btcwatcher.MortgageWatcher
+		// bchWatcher *btcwatcher.MortgageWatcher
+		btcWatcher *btwatcher.Watcher
+		bchWatcher *btwatcher.Watcher
 		ethWatcher *ew.Client
 		err        error
 	)
@@ -171,13 +176,15 @@ func NewBraftNode(localNodeInfo cluster.NodeInfo) *BraftNode {
 		if utxoLockTime == 0 {
 			utxoLockTime = defaultUtxoLockTime
 		}
-		bchWatcher, err = btcwatcher.NewMortgageWatcher("bch", dgwConf.BchHeight,
-			multiSig.BchAddress, multiSig.BchRedeemScript, utxoLockTime)
+		bchWatcher, err = btwatcher.NewWatcher(message.Bch)
+		// bchWatcher, err = btcwatcher.NewMortgageWatcher("bch", dgwConf.BchHeight,
+		// 	multiSig.BchAddress, multiSig.BchRedeemScript, utxoLockTime)
 		if err != nil {
 			panic(fmt.Sprintf("new bitcoin watcher failed, err: %v", err))
 		}
-		btcWatcher, err = btcwatcher.NewMortgageWatcher("btc", dgwConf.BtcHeight,
-			multiSig.BtcAddress, multiSig.BtcRedeemScript, utxoLockTime)
+		// btcWatcher, err = btcwatcher.NewMortgageWatcher("btc", dgwConf.BtcHeight,
+		// 	multiSig.BtcAddress, multiSig.BtcRedeemScript, utxoLockTime)
+		btcWatcher, err = btwatcher.NewWatcher(message.Btc)
 		if err != nil {
 			panic(fmt.Sprintf("new bitcoin watcher failed, err: %v", err))
 		}
@@ -190,7 +197,9 @@ func NewBraftNode(localNodeInfo cluster.NodeInfo) *BraftNode {
 	}
 
 	ts := primitives.NewTxStore(db)
-	bs := primitives.NewBlockStore(db, ts, btcWatcher, bchWatcher, ethWatcher, signer, localNodeInfo.Id)
+
+	eventCh := make(chan defines.PushEvent)
+	bs := primitives.NewBlockStore(db, ts, btcWatcher, bchWatcher, ethWatcher, signer, localNodeInfo.Id, eventCh)
 
 	var txInvoker *txInvoker
 	var collectorFactory *collectorFactory
@@ -241,6 +250,7 @@ func NewBraftNode(localNodeInfo cluster.NodeInfo) *BraftNode {
 		pubsub:           newPubServer(1),
 		txInvoker:        txInvoker,
 		collectorFactory: collectorFactory,
+		eventCh:          eventCh,
 	}
 	//重新添加监听列表
 	if len(multiSigList) > 0 {
@@ -595,62 +605,87 @@ func (bn *BraftNode) regularSyncUp(ctx context.Context) {
 	}
 }
 
-func (bn *BraftNode) checkSubTx(tx *btcwatcher.SubTransaction) bool {
+/*
+todo 铸币熔币相关check
+func (bn *BraftNode) checkSubTx(tx *btwatcher.SubTransaction) bool {
 	if !bn.ethWatcher.VerifyAppInfo(tx.From, tx.TokenFrom, tx.TokenTo) {
 		nodeLogger.Warn("verify app info not passed", "scTxid", tx.ScTxid)
 		return false
 	}
 	return true
 }
+*/
+
+func newWatchedEvent(event defines.PushEvent) *pb.WatchedEvent {
+	return &pb.WatchedEvent{
+		Business:  event.GetBusiness(),
+		EventType: event.GetEventType(),
+		TxID:      event.GetTxID(),
+		Amount:    event.GetAmount(),
+		Fee:       event.GetFee(),
+		From:      uint32(event.GetFrom()),
+		To:        uint32(event.GetTo()),
+		Data:      event.GetData(),
+	}
+}
 
 // 后面可能会改成每条链一个goroutine，如果每条链的交易量都很大，一个select可能处理不过来
 func (bn *BraftNode) watchNewTx(ctx context.Context) {
-	bn.bchWatcher.StartWatch()
-	bn.btcWatcher.StartWatch()
-	bchTxChan := bn.bchWatcher.GetTxChan()
-	btcTxChan := bn.btcWatcher.GetTxChan()
+	dgwConf := config.GetDGWConf()
 
-	ethEventChan := make(chan *ew.PushEvent)
-	height := bn.blockStore.GetETHBlockHeight()
-	index := bn.blockStore.GetETHBlockTxIndex()
-	if height == nil {
-		dgwConf := config.GetDGWConf()
-		h := dgwConf.EthHeight
-		height = big.NewInt(h)
-		index = dgwConf.EthTranIdx
-	}
+	eventCh := make(chan defines.PushEvent)
+	bn.bchWatcher.StartWatch(dgwConf.BchHeight, dgwConf.BchTranIx, eventCh)
+	bn.btcWatcher.StartWatch(dgwConf.BtcHeight, dgwConf.BtcTranIx, eventCh)
 
-	bn.ethWatcher.StartWatch(*height, index, ethEventChan)
-	var watchedTx *pb.WatchedTxInfo
-	for {
-		if bn.isInReconfig {
-			time.Sleep(10 * time.Millisecond)
-			continue
-		}
-		watchedTx = nil
-		select {
-		case tx := <-bchTxChan:
-			nodeLogger.Debug("receive bch tx", "tx", tx)
-			if !bn.checkSubTx(tx) {
-				continue
-			}
-			watchedTx = pb.BtcToPbTx(tx)
-		case tx := <-btcTxChan:
-			nodeLogger.Debug("receive btc tx", "tx", tx)
-			if !bn.checkSubTx(tx) {
-				continue
-			}
-			watchedTx = pb.BtcToPbTx(tx)
-		case ev := <-ethEventChan:
-			bn.dealEthEvent(ev)
-		case <-ctx.Done():
-			return
-		}
-		if watchedTx != nil {
-			// todo 监听事件
-			// bn.txStore.AddWatchedTx(watchedTx)
+	for event := range eventCh {
+		nodeLogger.Debug("receive event", "chain", event.GetFrom(), "type", event.GetEventType(), "event", event)
+		watchedEvent := newWatchedEvent(event)
+		// 防止重复发布事件
+		if !bn.txStore.IsWatched(event.GetTxID()) && !bn.txStore.HasTxInDB(event.GetTxID()) {
+			bn.txStore.AddWatchedEvent(watchedEvent)
+			bn.pubWatcherEvent(watchedEvent)
 		}
 	}
+	// bchTxChan := bn.bchWatcher.GetTxChan()
+	// btcTxChan := bn.btcWatcher.GetTxChan()
+
+	// ethEventChan := make(chan *ew.PushEvent)
+	// height := bn.blockStore.GetETHBlockHeight()
+	// index := bn.blockStore.GetETHBlockTxIndex()
+	// if height == nil {
+	// 	dgwConf := config.GetDGWConf()
+	// 	h := dgwConf.EthHeight
+	// 	height = big.NewInt(h)
+	// 	index = dgwConf.EthTranIdx
+	// }
+
+	// bn.ethWatcher.StartWatch(*height, index, ethEventChan)
+
+	// for {
+	// 	if bn.isInReconfig {
+	// 		time.Sleep(10 * time.Millisecond)
+	// 		continue
+	// 	}
+	// 	watchedEvent = nil
+	// 	select {
+	// 	case event := <-bchEventChan:
+	// 		nodeLogger.Debug("receive bch event", "event", event)
+	// 		watchedEvent = newWatchedEvent(event)
+
+	// 	case event := <-btcEventChan:
+	// 		nodeLogger.Debug("receive btc event", "event", event)
+	// 		watchedEvent = newWatchedEvent(event)
+	// 	case ev := <-ethEventChan:
+	// 		//todo eth event
+	// 		bn.dealEthEvent(ev)
+	// 	case <-ctx.Done():
+	// 		return
+	// 	}
+	// 	if watchedEvent != nil {
+	// 		bn.txStore.AddWatchedEvent(watchedEvent)
+	// 		bn.pubWatcherEvent(watchedEvent)
+	// 	}
+	// }
 }
 
 func (bn *BraftNode) dealEthEvent(ev *ew.PushEvent) {
@@ -729,7 +764,7 @@ func (bn *BraftNode) deleteFromSigned(scTxID string) {
 	bn.signedTxs.Delete(scTxID)
 }
 
-/* todo
+/*
 func (bn *BraftNode) checkTxOnChain(tx *waitingConfirmTx, wg *sync.WaitGroup) {
 	defer wg.Done()
 	hash := tx.msgId
@@ -771,7 +806,7 @@ func (bn *BraftNode) checkTxOnChain(tx *waitingConfirmTx, wg *sync.WaitGroup) {
 }
 */
 
-/* todo
+/*
 func (bn *BraftNode) getWaitingTxCh() (<-chan *waitingConfirmTx, int) {
 	bn.mu.Lock()
 	defer bn.mu.Unlock()
@@ -1144,20 +1179,20 @@ func (bn *BraftNode) changeFederationAddrs(latest cluster.MultiSigInfo, multiSig
 	//设置最新的multiSig
 	if latest.BchAddress != "" && latest.BtcAddress != "" {
 		nodeLogger.Debug("init latest multisig address", "btc", latest.BtcAddress, "bch", latest.BchAddress)
+		//set btc
 		bn.btcWatcher.ChangeFederationAddress(latest.BtcAddress, latest.BtcRedeemScript)
+		bn.btcWatcher.SetCurrentFederationAddress(latest.BtcAddress, latest.BtcRedeemScript)
+
+		//set bch
 		bn.bchWatcher.ChangeFederationAddress(latest.BchAddress, latest.BchRedeemScript)
+		bn.bchWatcher.SetCurrentFederationAddress(latest.BchAddress, latest.BchRedeemScript)
 	}
 }
 
-//订阅business
+// SubScribe 订阅business
 func (bn *BraftNode) SubScribe(business string) chan BusinessEvent {
 	ch := bn.pubsub.subScribe(business)
 	return ch
-}
-
-//braftNode对业务提供的服务
-func (bn *BraftNode) addWaitSignTx(tx *message.WaitSignMsg) {
-
 }
 
 // RunNew 启动server

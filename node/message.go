@@ -45,19 +45,19 @@ func getWatchedEvent(event PushEvent) *pb.WatchedEvent {
 		Business:  event.GetBusiness(),
 		EventType: event.GetEventType(),
 		TxID:      event.GetTxID(),
-		Amount:    uint32(event.GetAmount()),
-		Fee:       uint32(event.GetFee()),
+		Amount:    event.GetAmount(),
+		Fee:       event.GetFee(),
 		From:      uint32(event.GetFrom()),
 		To:        uint32(event.GetTo()),
 		Data:      event.GetData(),
 	}
 }
 
-func newWatchedEvent(event PushEvent) *WatchedEvent {
+func newBusinessWatchedEvent(event *pb.WatchedEvent) *WatchedEvent {
 	res := &WatchedEvent{}
 	res.Business = event.GetBusiness()
 	res.Err = nil
-	data := getWatchedEvent(event)
+	data := event
 	res.Data = data
 	return res
 }
@@ -98,11 +98,10 @@ type ConfirmEvent struct {
 	Data *pb.WatchedEvent
 }
 
-func newConfirmEvent(event PushEvent) *ConfirmEvent {
+func newConfirmEvent(event *pb.WatchedEvent) *ConfirmEvent {
 	res := &ConfirmEvent{}
 	res.Business = event.GetBusiness()
-	data := getWatchedEvent(event)
-	res.Data = data
+	res.Data = event
 	return res
 }
 

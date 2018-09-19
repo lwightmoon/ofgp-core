@@ -1,6 +1,11 @@
 package node
 
+import (
+	"sync"
+)
+
 type pubServer struct {
+	sync.RWMutex
 	reg      map[string]chan BusinessEvent
 	capicity int
 }
@@ -14,6 +19,8 @@ func newPubServer(capicity int) *pubServer {
 }
 
 func (ps *pubServer) subScribe(business string) chan BusinessEvent {
+	ps.Lock()
+	defer ps.Unlock()
 	if ch, ok := ps.reg[business]; ok {
 		return ch
 	}
@@ -27,6 +34,9 @@ func (ps *pubServer) pub(topic string, event BusinessEvent) {
 }
 
 func (ps *pubServer) send(topic string, event BusinessEvent) {
-	ch := ps.reg[topic]
+	var ch chan BusinessEvent
+	ps.RLock()
+	ch = ps.reg[topic]
+	ps.RUnlock()
 	ch <- event
 }

@@ -724,7 +724,7 @@ func feedPubTxFields(hs *crypto.Hasher256, fileName string, txs []*PublicTx) {
 	}
 }
 
-//todo test feedTxFields
+// feedTxFields
 func feedTxFields(hasher *crypto.Hasher256, fieldName string, msg *Transaction) {
 	util.FeedField(hasher, fieldName, func(hs *crypto.Hasher256) {
 		util.FeedTextField(hs, "Business", msg.Business)

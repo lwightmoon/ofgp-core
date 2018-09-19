@@ -5,8 +5,8 @@ import (
 )
 
 const (
-	Bch = iota
-	Btc
+	Btc = iota
+	Bch
 	Eth
 )
 

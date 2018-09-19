@@ -483,6 +483,12 @@ func (ts *TxStore) addTxs(txs []*pb.Transaction) []int {
 	return notAddedIds
 }
 
+// IsWatched 是否已被监听
+func (ts *TxStore) IsWatched(scTxID string) bool {
+	_, ok := ts.watchedTxEvent.Load(scTxID)
+	return ok
+}
+
 // IsTxInMem 交易是否等待打包 代替 hasTxInMemPool
 func (ts *TxStore) IsTxInMem(scTxID string) bool {
 	tx := ts.waitPackingTx.getByPubTxID(scTxID)

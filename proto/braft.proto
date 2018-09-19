@@ -75,8 +75,8 @@ message WatchedEvent{
     string business = 1;
     uint32 event_type = 2;
     string tx_i_d = 3;
-    uint32 amount = 4;
-    uint32 fee = 5;
+    fixed64 amount = 4;
+    fixed64 fee = 5;
     uint32 from = 6;
     uint32 to = 7;
     bytes data = 8;

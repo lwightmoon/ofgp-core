@@ -92,6 +92,8 @@ type DgateWay struct {
 	PProfHost         string        `mapstructure:"pprof_host"`
 	NewNodeHost       string        `mapstructure:"new_node_host"`
 	NewNodePubkey     string        `mapstructure:"new_node_pubkey"`
+	BchTranIx         int           `mapstructure:"bch_tran_ix"` //bch 监听到的tx index
+	BtcTranIx         int           `mapstructure:"btc_tran_ix"`
 	BchHeight         int64         `mapstructure:"bch_height"`
 	BtcHeight         int64         `mapstructure:"btc_height"`
 	EthHeight         int64         `mapstructure:"eth_height"`

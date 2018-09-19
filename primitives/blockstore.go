@@ -20,13 +20,16 @@ import (
 	"github.com/ofgp/ofgp-core/util/assert"
 	"github.com/ofgp/ofgp-core/util/task"
 
+	btwatcher "swap/btwatcher"
+
 	btcfunc "github.com/ofgp/bitcoinWatcher/coinmanager"
-	btcwatcher "github.com/ofgp/bitcoinWatcher/mortgagewatcher"
 
 	ew "github.com/ofgp/ethwatcher"
 
 	"github.com/btcsuite/btcd/wire"
 	"github.com/golang/protobuf/proto"
+
+	"github.com/ofgp/common/defines"
 )
 
 var (
@@ -46,13 +49,15 @@ type BlockStore struct {
 	db           *dgwdb.LDBDatabase
 	ts           *TxStore
 	signer       *crypto.SecureSigner
-	bchWatcher   *btcwatcher.MortgageWatcher
-	btcWatcher   *btcwatcher.MortgageWatcher
+	bchWatcher   *btwatcher.Watcher
+	btcWatcher   *btwatcher.Watcher
 	ethWatcher   *ew.Client
 	signedTxMap  map[string]string
 	localNodeId  int32
 	prepareCache map[int64]map[int64][]*pb.PrepareMsg
 	commitCache  map[int64]map[int64][]*pb.CommitMsg
+
+	eventCh chan defines.PushEvent //接收监听事件
 
 	NeedSyncUpEvent            *util.Event
 	NewInitedEvent             *util.Event
@@ -74,8 +79,8 @@ type BlockStore struct {
 }
 
 // NewBlockStore 生成一个BlockStore对象
-func NewBlockStore(db *dgwdb.LDBDatabase, ts *TxStore, btcWatcher *btcwatcher.MortgageWatcher, bchWatcher *btcwatcher.MortgageWatcher,
-	ethWatcher *ew.Client, signer *crypto.SecureSigner, localNodeId int32) *BlockStore {
+func NewBlockStore(db *dgwdb.LDBDatabase, ts *TxStore, btcWatcher *btwatcher.Watcher, bchWatcher *btwatcher.Watcher,
+	ethWatcher *ew.Client, signer *crypto.SecureSigner, localNodeId int32, eventCh chan defines.PushEvent) *BlockStore {
 	return &BlockStore{
 		db:           db,
 		ts:           ts,
@@ -87,6 +92,7 @@ func NewBlockStore(db *dgwdb.LDBDatabase, ts *TxStore, btcWatcher *btcwatcher.Mo
 		localNodeId:  localNodeId,
 		prepareCache: make(map[int64]map[int64][]*pb.PrepareMsg),
 		commitCache:  make(map[int64]map[int64][]*pb.CommitMsg),
+		eventCh:      eventCh,
 
 		NeedSyncUpEvent:            util.NewEvent(),
 		NewInitedEvent:             util.NewEvent(),
@@ -411,8 +417,7 @@ func (bs *BlockStore) handleInitMsg(tasks *task.Queue, init *pb.InitMsg) {
 
 		newFresh := pb.NewBlockPack(init)
 		bsLogger.Debug("in handle init msg, begin validate txs")
-		// allTxValid := bs.validateTxs(newFresh) todo
-		allTxValid := Valid
+		allTxValid := bs.validateTxs(newFresh)
 		bsLogger.Debug("in handle init msg, validate txs done")
 
 		reconfigValid := bs.checkReconfigBlock(newFresh)
@@ -612,7 +617,7 @@ func (bs *BlockStore) handleSignReq(tasks *task.Queue, msg *pb.SignRequest) {
 	case msg.Term == nodeTerm:
 		bsLogger.Debug("begin sign tx", "sctxid", msg.GetWatchedEvent().GetTxID())
 		if targetChain == message.Bch || targetChain == message.Btc {
-			var watcher *btcwatcher.MortgageWatcher
+			var watcher *btwatcher.Watcher
 			if targetChain == message.Bch {
 				watcher = bs.bchWatcher
 			} else {
@@ -963,47 +968,6 @@ func (bs *BlockStore) validateTxs(blockPack *pb.BlockPack) int {
 		resultChan := make(chan int, checkLen)
 		receivedCount := 0
 		for _, tx := range checkChainTx {
-			//todo review checkonchain 如何check eth交易
-			/*
-				go func(tx *pb.Transaction) {
-
-					if tx.WatchedTx.To == "bch" {
-						chainTx := bs.bchWatcher.GetTxByHash(tx.NewlyTxId)
-						if chainTx == nil {
-							resultChan <- Invalid
-						} else {
-							resultChan <- Valid
-						}
-					} else if tx.WatchedTx.To == "btc" {
-						chainTx := bs.btcWatcher.GetTxByHash(tx.NewlyTxId)
-						if chainTx == nil {
-							resultChan <- Invalid
-						} else {
-							resultChan <- Valid
-						}
-					} else if tx.WatchedTx.To == "eth" {
-						signMsg := GetSignMsg(bs.db, tx.WatchedTx.Txid)
-						if signMsg == nil {
-							bsLogger.Error("validate tx invalid, never signed", "sctxid", tx.WatchedTx.Txid)
-							resultChan <- Invalid
-							return
-						}
-						pushEvent, err := bs.ethWatcher.GetEventByHash(tx.NewlyTxId)
-						if err != nil {
-							bsLogger.Error("validate tx invalid, not found on chain", "sctxid", tx.WatchedTx.Txid)
-							resultChan <- Invalid
-						} else {
-							if !bs.validateETHTx(pushEvent, tx.WatchedTx) {
-								resultChan <- Invalid
-							} else {
-								resultChan <- Valid
-							}
-						}
-					} else {
-						resultChan <- Invalid
-					}
-				}(tx)
-			*/
 			go func(tx *pb.Transaction) {
 				for _, pubtx := range tx.Vout {
 					switch pubtx.Chain {
@@ -1212,6 +1176,7 @@ func (bs *BlockStore) validateWatchedTx(tx *pb.WatchedTxInfo) bool {
 }
 */
 
+// validateBtcSignReq check addr amount 是否一致
 func (bs *BlockStore) validateBtcSignReq(req *pb.SignRequest, newlyTx *wire.MsgTx) int {
 	if req.GetWatchedEvent().IsTransferEvent() {
 		return bs.validateTransferSignReq(req, newlyTx)
@@ -1222,10 +1187,26 @@ func (bs *BlockStore) validateBtcSignReq(req *pb.SignRequest, newlyTx *wire.MsgT
 	}
 	recharge := &pb.BtcRecharge{}
 	proto.Unmarshal(req.Recharge, recharge)
-	//todo check btc
-	//输出check 放到创建交易的地方
+
 	if len(newlyTx.TxOut) != 1 && len(newlyTx.TxOut) != 2 {
-		bsLogger.Warn("rechage check err", "newTxCount", len(newlyTx.TxOut))
+		bsLogger.Warn("rechage txoutCnt check err", "newTxCount", len(newlyTx.TxOut))
+		return wrongInputOutput
+	}
+	txOut := newlyTx.TxOut[0]
+	coinType := uint8(req.GetWatchedEvent().GetTo())
+	rechargeAddr, err := btwatcher.DecodeCheckBytesAddr(recharge.Addr, coinType)
+	scTxID := req.GetWatchedEvent().GetTxID()
+	if err != nil {
+		bsLogger.Error("decode addr err", "err", err, "scTxID", scTxID)
+		return wrongInputOutput
+	}
+	realAddr := btwatcher.ExtractPkScriptAddr(txOut.PkScript, coinType)
+	if rechargeAddr.String() != realAddr {
+		bsLogger.Error("addr is  not equal", "scTxID", scTxID)
+		return wrongInputOutput
+	}
+	if txOut.Value != recharge.Amount {
+		bsLogger.Error("amount is not equal", "scTxID", scTxID)
 		return wrongInputOutput
 	}
 	return validatePass
@@ -1237,7 +1218,7 @@ func (bs *BlockStore) validateTransferSignReq(req *pb.SignRequest, newlyTx *wire
 		return wrongInputOutput
 	}
 
-	var watcher *btcwatcher.MortgageWatcher
+	var watcher *btwatcher.Watcher
 	to := req.GetWatchedEvent().GetTo()
 	var coinType string
 	if to == message.Btc {
@@ -1293,18 +1274,51 @@ func (bs *BlockStore) baseCheckSignReq(req *pb.SignRequest) int {
 	return validatePass
 }
 
+func (bs *BlockStore) addToEventCh(event defines.PushEvent) {
+	bs.eventCh <- event
+}
+
+func isEuqal(event *pb.WatchedEvent, pushEvent defines.PushEvent) bool {
+	return event.GetBusiness() == pushEvent.GetBusiness() &&
+		event.GetEventType() == pushEvent.GetEventType() &&
+		bytes.Equal(event.GetData(), pushEvent.GetData()) &&
+		event.GetFrom() == uint32(pushEvent.GetFrom()) &&
+		event.GetTo() == uint32(pushEvent.GetTo()) &&
+		event.GetTxID() == pushEvent.GetTxID()
+}
+
 // validateWatchedEvent 校验监听到的event 代替validateWatchedTx
 func (bs *BlockStore) validateWatchedEvent(event *pb.WatchedEvent) bool {
-	var newEvent *pb.WatchedEvent
+	var newEvent defines.PushEvent
 	validateRes := bs.ts.ValidateWatchedEvent(event)
+
 	switch validateRes {
 	case Valid:
 		return true
 	case Invalid:
 		return false
 	case NotExist:
-		//todo 到链上check
-		return event.Equal(newEvent)
+		chain := uint8(event.GetTo())
+		switch chain {
+		case defines.CHAIN_CODE_BTC:
+			newEvent = bs.btcWatcher.GetTxByHash(event.GetTxID())
+			if event == nil {
+				return false
+			}
+			bs.addToEventCh(newEvent)
+		case defines.CHAIN_CODE_BCH:
+			newEvent = bs.bchWatcher.GetTxByHash(event.GetTxID())
+			if event == nil {
+				return false
+			}
+			bs.addToEventCh(newEvent)
+		case defines.CHAIN_CODE_ETH:
+			//todo ethwatcher GetTxByHash
+		}
+		if newEvent == nil {
+			return false
+		}
+		return isEuqal(event, newEvent)
 	default:
 		return false
 	}

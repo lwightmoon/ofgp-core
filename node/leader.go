@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	btcwatcher "github.com/ofgp/bitcoinWatcher/mortgagewatcher"
 	"github.com/ofgp/ofgp-core/cluster"
 	"github.com/ofgp/ofgp-core/crypto"
 	"github.com/ofgp/ofgp-core/log"
@@ -18,7 +19,7 @@ import (
 
 	context "golang.org/x/net/context"
 
-	btcwatcher "github.com/ofgp/bitcoinWatcher/mortgagewatcher"
+	btwatcher "swap/btwatcher"
 
 	ew "github.com/ofgp/ethwatcher"
 )
@@ -58,8 +59,8 @@ type Leader struct {
 	blockStore *primitives.BlockStore
 	txStore    *primitives.TxStore
 	signer     *crypto.SecureSigner
-	bchWatcher *btcwatcher.MortgageWatcher
-	btcWatcher *btcwatcher.MortgageWatcher
+	bchWatcher *btwatcher.Watcher
+	btcWatcher *btwatcher.Watcher
 	ethWatcher *ew.Client
 	pm         *cluster.PeerManager
 	sync.Mutex
@@ -68,7 +69,7 @@ type Leader struct {
 
 // NewLeader 新生成一个leader对象，并启动后台任务，循环检查选举相关任务（创建块，投票等）
 func NewLeader(nodeInfo cluster.NodeInfo, bs *primitives.BlockStore, ts *primitives.TxStore,
-	signer *crypto.SecureSigner, btcWatcher *btcwatcher.MortgageWatcher, bchWatcher *btcwatcher.MortgageWatcher,
+	signer *crypto.SecureSigner, btcWatcher *btwatcher.Watcher, bchWatcher *btwatcher.Watcher,
 	ethWatcher *ew.Client, pm *cluster.PeerManager, txInvoker *txInvoker) *Leader {
 	leader := &Leader{
 		BecomeLeaderEvent: util.NewEvent(),
@@ -506,7 +507,7 @@ func (ld *Leader) createTransferTx(watcher *btcwatcher.MortgageWatcher, address 
 
 func (ld *Leader) createBtcTx(watchedTx *pb.WatchedTxInfo, chainType string) *pb.NewlyTx {
 	var watcherAddressInfo []*btcwatcher.AddressInfo
-	var watcher *btcwatcher.MortgageWatcher
+	var watcher *btwatcher.Watcher
 	if chainType == "bch" {
 		watcher = ld.bchWatcher
 	} else {

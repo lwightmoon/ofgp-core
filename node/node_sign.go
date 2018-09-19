@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	btcwatcher "github.com/ofgp/bitcoinWatcher/mortgagewatcher"
+	btwatcher "swap/btwatcher"
 
 	"github.com/ofgp/ofgp-core/cluster"
 	"github.com/ofgp/ofgp-core/message"
@@ -97,7 +97,7 @@ func (node *BraftNode) clearOnFail(signReq *pb.SignRequest) {
 	// }
 }
 
-/* todo
+/*
 func (node *BraftNode) sendTxToChain(newlyTx *wire.MsgTx, watcher *btcwatcher.MortgageWatcher,
 	sigs [][][]byte, signResult *pb.SignedResult, signReq *pb.SignTxRequest) {
 
@@ -106,7 +106,7 @@ func (node *BraftNode) sendTxToChain(newlyTx *wire.MsgTx, watcher *btcwatcher.Mo
 	ok := watcher.MergeSignTx(newlyTx, sigs)
 	if !ok {
 		leaderLogger.Error("merge sign tx failed", "sctxid", signResult.TxId)
-		// node.clearOnFail(signReq) todo merge 失败clearOnFail 处理
+		// node.clearOnFail(signReq)  merge 失败clearOnFail 处理
 		return
 	}
 	start := time.Now().UnixNano()
@@ -127,7 +127,7 @@ func createMortgageTx(req *pb.SignRequest) interface{} {
 	assert.ErrorIsNil(err)
 	return newlyTx
 }
-func checkMortgageTx(watcher *btcwatcher.MortgageWatcher, tx interface{}, res *pb.SignResult) bool {
+func checkMortgageTx(watcher *btwatcher.Watcher, tx interface{}, res *pb.SignResult) bool {
 	if newlyTx, ok := tx.(*wire.MsgTx); ok {
 		checkRes := watcher.VerifySign(newlyTx, res.Data, cluster.NodeList[res.NodeID].PublicKey)
 		return checkRes
@@ -135,7 +135,7 @@ func checkMortgageTx(watcher *btcwatcher.MortgageWatcher, tx interface{}, res *p
 	leaderLogger.Error("btc tx type is wrong")
 	return false
 }
-func mergeMortgageTx(watcher *btcwatcher.MortgageWatcher, tx interface{},
+func mergeMortgageTx(watcher *btwatcher.Watcher, tx interface{},
 	results []*pb.SignResult, quorumN int) (interface{}, string, bool) {
 	var btcTx *wire.MsgTx
 	var ok bool
@@ -162,10 +162,10 @@ type collector interface {
 
 // btcResCollector btc收集签名结果
 type btcResCollector struct {
-	watcher *btcwatcher.MortgageWatcher
+	watcher *btwatcher.Watcher
 }
 
-func newBtcResCollector(watcher *btcwatcher.MortgageWatcher) *btcResCollector {
+func newBtcResCollector(watcher *btwatcher.Watcher) *btcResCollector {
 	return &btcResCollector{
 		watcher: watcher,
 	}
@@ -183,10 +183,10 @@ func (brc *btcResCollector) merge(tx interface{}, results []*pb.SignResult, quor
 
 //bchResCollector bch收集签名结果
 type bchResCollector struct {
-	watcher *btcwatcher.MortgageWatcher
+	watcher *btwatcher.Watcher
 }
 
-func newBchResCollector(watcher *btcwatcher.MortgageWatcher) *bchResCollector {
+func newBchResCollector(watcher *btwatcher.Watcher) *bchResCollector {
 	return &bchResCollector{
 		watcher: watcher,
 	}
