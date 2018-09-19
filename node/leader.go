@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	btcwatcher "github.com/ofgp/bitcoinWatcher/mortgagewatcher"
 	"github.com/ofgp/ofgp-core/cluster"
+	"github.com/ofgp/ofgp-core/config"
 	"github.com/ofgp/ofgp-core/crypto"
 	"github.com/ofgp/ofgp-core/log"
 	"github.com/ofgp/ofgp-core/message"
@@ -21,6 +21,7 @@ import (
 
 	btwatcher "swap/btwatcher"
 
+	"github.com/ofgp/common/defines"
 	ew "github.com/ofgp/ethwatcher"
 )
 
@@ -344,22 +345,34 @@ func (ld *Leader) watchFormerMultisig(ctx context.Context) {
 		select {
 		case <-tick:
 			leaderLogger.Debug("begin watch former multisig")
+			dgwConf := config.GetDGWConf()
 			cluster.MultiSigSnapshot.Lock()
 		JLoop:
 			for _, multiSig := range cluster.MultiSigSnapshot.SigInfos {
 				if ld.isInCharge() {
 					leaderLogger.Debug("watcher former multisig", "bchaddress", multiSig.BchAddress, "btcaddress", multiSig.BtcAddress)
-					addressMap := make(map[uint32]string)
-					addressMap[message.Bch] = multiSig.BchAddress
-					addressMap[message.Btc] = multiSig.BtcAddress
+					addressMap := make(map[uint8]string)
+					addressMap[defines.CHAIN_CODE_BCH] = multiSig.BchAddress
+					addressMap[defines.CHAIN_CODE_BTC] = multiSig.BtcAddress
 					for chainType, address := range addressMap {
-						var watcher *btcwatcher.MortgageWatcher
+						var watcher *btwatcher.Watcher
 						if chainType == message.Btc {
 							watcher = ld.btcWatcher
 						} else {
 							watcher = ld.bchWatcher
 						}
-						utxoList := watcher.GetUnspentUtxo(address)
+						var confirmNum int
+						if chainType == defines.CHAIN_CODE_BCH {
+							confirmNum = dgwConf.BchConfirms
+						}
+						if chainType == defines.CHAIN_CODE_BTC {
+							confirmNum = dgwConf.BtcConfirms
+						}
+						utxoList, err := watcher.GetUnspentUtxo(address, confirmNum)
+						if err != nil {
+							leaderLogger.Error("get utxo err", "err", err)
+							continue
+						}
 						for {
 							if len(utxoList) == 0 {
 								break
@@ -367,8 +380,8 @@ func (ld *Leader) watchFormerMultisig(ctx context.Context) {
 							leaderLogger.Debug("multisig has unspend utxo", "address", address, "utxolen", len(utxoList))
 							watchedTxInfo := &pb.WatchedEvent{
 								TxID: "TransferTx" + strconv.FormatInt(util.NowMs(), 10),
-								From: chainType,
-								To:   chainType,
+								From: uint32(chainType),
+								To:   uint32(chainType),
 							}
 							clusterSnapshot := ld.blockStore.GetClusterSnapshot(address)
 							transferTx := ld.createTransferTx(watcher, address, clusterSnapshot)
@@ -382,7 +395,11 @@ func (ld *Leader) watchFormerMultisig(ctx context.Context) {
 								break JLoop
 							}
 							ld.broadcastSignReq(signTxReq, clusterSnapshot.NodeList, clusterSnapshot.QuorumN)
-							utxoList = watcher.GetUnspentUtxo(address)
+							utxoList, err = watcher.GetUnspentUtxo(address, confirmNum)
+							if err != nil {
+								leaderLogger.Error("get utxo err", "err", err)
+								break
+							}
 						}
 					}
 				} else {
@@ -395,64 +412,6 @@ func (ld *Leader) watchFormerMultisig(ctx context.Context) {
 		}
 	}
 }
-
-// 循环处理监听到的交易
-/*
-func (ld *Leader) createTransaction(ctx context.Context) {
-	tick := time.Tick(time.Duration(100) * time.Millisecond)
-	for {
-		select {
-		case <-tick:
-			if ld.isInCharge() {
-				txs := ld.txStore.GetFreshWatchedTxs()
-				if len(txs) > 0 {
-					leaderLogger.Debug("get fresh tx from mempool", "len", len(txs))
-					ld.hasTxToSign = true
-				}
-				for _, tx := range txs {
-					var newlyTx *pb.NewlyTx
-					if !ld.isInCharge() {
-						ld.txStore.AddFreshWatchedTx(tx.Tx)
-						continue
-					}
-
-					leaderLogger.Debug("begin sign watched tx", "sctxid", tx.Tx.Txid)
-					if tx.Tx.To == "bch" {
-						newlyTx = ld.createBtcTx(tx.Tx, "bch")
-					} else if tx.Tx.To == "eth" {
-						newlyTx = ld.createEthInput(tx.Tx)
-					} else if tx.Tx.To == "btc" {
-						newlyTx = ld.createBtcTx(tx.Tx, "btc")
-					} else {
-						leaderLogger.Error("watched tx wrong type", "type", tx.Tx.To)
-						continue
-					}
-					if newlyTx == nil {
-						//创建交易失败重新添加到fresh
-						ld.txStore.AddFreshWatchedTx(tx.Tx)
-						continue
-					}
-					signTxReq, err := pb.MakeSignTxMsg(ld.blockStore.GetNodeTerm(), ld.nodeInfo.Id,
-						tx.Tx.Clone(), newlyTx, "", ld.signer)
-					if err != nil {
-						leaderLogger.Error("make sign tx failed", "err", err)
-						continue
-					}
-					if !ld.isInCharge() {
-						ld.txStore.AddFreshWatchedTx(tx.Tx)
-						continue
-					}
-					ld.broadcastSign(signTxReq, cluster.NodeList, cluster.QuorumN)
-					leaderLogger.Debug("broadcast sign done", "sctxid", tx.Tx.Txid)
-				}
-				ld.hasTxToSign = false
-			}
-		case <-ctx.Done():
-			return
-		}
-	}
-}
-*/
 
 //集群内广播签名请求
 func (ld *Leader) createSignReq(ctx context.Context) {
@@ -489,45 +448,13 @@ func (ld *Leader) createSignReq(ctx context.Context) {
 }
 
 // createTransferTx 创建内部多签地址转账交易
-func (ld *Leader) createTransferTx(watcher *btcwatcher.MortgageWatcher, address string,
+func (ld *Leader) createTransferTx(watcher *btwatcher.Watcher, address string,
 	snapshot *cluster.Snapshot) *pb.NewlyTx {
 	leaderLogger.Debug("transfer param", "quorum", snapshot.QuorumN, "clusterSize", snapshot.ClusterSize)
 	newlyTx := watcher.TransferAsset(address, snapshot.QuorumN, snapshot.ClusterSize)
 	if newlyTx == nil {
 		return nil
 	}
-	buf := bytes.NewBuffer([]byte{})
-	err := newlyTx.Serialize(buf)
-	if err != nil {
-		leaderLogger.Error("serialize newly tx failed", "err", err)
-		return nil
-	}
-	return &pb.NewlyTx{Data: buf.Bytes()}
-}
-
-func (ld *Leader) createBtcTx(watchedTx *pb.WatchedTxInfo, chainType string) *pb.NewlyTx {
-	var watcherAddressInfo []*btcwatcher.AddressInfo
-	var watcher *btwatcher.Watcher
-	if chainType == "bch" {
-		watcher = ld.bchWatcher
-	} else {
-		watcher = ld.btcWatcher
-	}
-
-	for _, a := range watchedTx.RechargeList {
-		watcherAddressInfo = append(watcherAddressInfo, &btcwatcher.AddressInfo{
-			Amount:  a.Amount,
-			Address: a.Address,
-		})
-	}
-	leaderLogger.Debug("rechargelist", "sctxid", watchedTx.Txid, "addrs", watcherAddressInfo)
-	newlyTx, ok := watcher.CreateCoinTx(watcherAddressInfo, watchedTx.Fee, watchedTx.Txid)
-	if ok != 0 {
-		leaderLogger.Error("create new chan tx failed", "errcode", ok, "sctxid", watchedTx.Txid)
-		return nil
-	}
-	leaderLogger.Debug("create coin tx", "sctxid", watchedTx.Txid, "newlyTxid", newlyTx.TxHash().String())
-
 	buf := bytes.NewBuffer([]byte{})
 	err := newlyTx.Serialize(buf)
 	if err != nil {

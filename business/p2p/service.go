@@ -63,7 +63,7 @@ func (s *service) sendtoSign(signReq *message.WaitSignMsg) {
 func (s *service) sendTx(data *node.SignedData) error {
 	sendReq := &node.SendReq{
 		Chain: data.Chain,
-		ID:    []byte(data.ID),
+		ID:    data.ID,
 		Tx:    data.Tx,
 	}
 	return s.node.SendTx(sendReq)
