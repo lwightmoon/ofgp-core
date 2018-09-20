@@ -13,9 +13,9 @@ import (
 	"github.com/ofgp/ofgp-core/util/assert"
 	"github.com/ofgp/ofgp-core/util/sort"
 
-	btcwatcher "github.com/ofgp/bitcoinWatcher/mortgagewatcher"
+	btcwatcher "swap/btwatcher"
 
-	"github.com/ofgp/ethwatcher"
+	"swap/ethwatcher"
 
 	"github.com/golang/protobuf/proto"
 )
