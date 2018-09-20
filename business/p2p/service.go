@@ -73,8 +73,9 @@ func (s *service) isDone(scTxID string) bool {
 	return s.node.IsDone(scTxID)
 }
 
-func (s *service) isTxOnChain(txID string) bool {
-	return s.node.GetTxByHash(txID) != nil
+func (s *service) isTxOnChain(txID string, chain uint8) bool {
+
+	return s.node.GetTxByHash(txID, chain) != nil
 }
 
 func (s *service) isSignFail(txID string) bool {

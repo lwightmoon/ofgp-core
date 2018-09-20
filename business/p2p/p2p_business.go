@@ -21,10 +21,9 @@ var p2pLogger = log.New("DEBUG", "node")
 
 // P2P 点对点交换
 type P2P struct {
-	ch             chan node.BusinessEvent
-	node           *node.BraftNode
-	handler        business.IHandler
-	confirmChecker *confirmTimeoutChecker
+	ch      chan node.BusinessEvent
+	node    *node.BraftNode
+	handler business.IHandler
 }
 
 const businessName = "p2p"
@@ -67,8 +66,6 @@ func NewP2P(braftNode *node.BraftNode, path string) *P2P {
 	confirmH.SetSuccessor(commitH)
 	p2p.handler = wh
 
-	confirmChecker := newConfirmChecker(db, 15*time.Second, 30, 60, service)
-	p2p.confirmChecker = confirmChecker
 	return p2p
 }
 
@@ -278,7 +275,6 @@ func (wh *watchedHandler) HandleEvent(event node.BusinessEvent) {
 }
 
 type signedHandler struct {
-	chcker *confirmTimeoutChecker
 	business.Handler
 	db          *p2pdb
 	service     *service
@@ -580,9 +576,9 @@ func (handler *confirmHandler) checkConfirmTimeout() {
 				handler.db.clear(scTxID)
 				continue
 			}
-			// check交易是否在链上存在 btc bch todo
+			// check交易是否在链上存在 btc bch
 			if sended.Chain == message.Bch || sended.Chain == message.Btc {
-				if handler.service.isTxOnChain(sended.SignBeforeTxId) {
+				if handler.service.isTxOnChain(sended.SignBeforeTxId, uint8(sended.Chain)) {
 					p2pLogger.Info("check confirm already onchain", "scTxID", scTxID)
 					continue
 				}
