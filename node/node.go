@@ -198,7 +198,9 @@ func NewBraftNode(localNodeInfo cluster.NodeInfo) *BraftNode {
 
 	ts := primitives.NewTxStore(db)
 
+	//事件监听ch
 	eventCh := make(chan defines.PushEvent)
+
 	bs := primitives.NewBlockStore(db, ts, btcWatcher, bchWatcher, ethWatcher, signer, localNodeInfo.Id, eventCh)
 
 	var txInvoker *txInvoker
@@ -634,7 +636,7 @@ func newWatchedEvent(event defines.PushEvent) *pb.WatchedEvent {
 func (bn *BraftNode) watchNewTx(ctx context.Context) {
 	dgwConf := config.GetDGWConf()
 
-	eventCh := make(chan defines.PushEvent)
+	eventCh := bn.eventCh
 	bn.bchWatcher.StartWatch(dgwConf.BchHeight, dgwConf.BchTranIx, eventCh)
 	bn.btcWatcher.StartWatch(dgwConf.BtcHeight, dgwConf.BtcTranIx, eventCh)
 
