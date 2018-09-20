@@ -29,7 +29,11 @@ func checkNodeId(id int32) bool {
 }
 
 func checkDigest(d *crypto.Digest256) bool {
-	return d != nil && len(d.Data) == 256/8
+	res := d != nil && len(d.Data) == 256/8
+	if !res {
+		nodeLogger.Debug("check digest err datasize:%d", len(d.Data))
+	}
+	return res
 }
 
 // host ip:port
@@ -43,17 +47,20 @@ func checkBchBlockHeader(header *pb.BchBlockHeader) bool {
 
 func checkBlock(block *pb.Block) bool {
 	if block == nil {
+		nodeLogger.Debug("block is nil")
 		return false
 	}
 	if block.Type == pb.Block_GENESIS {
 		if !(block.TimestampMs == 0 && block.PrevBlockId == nil && len(block.Txs) == 0 &&
 			checkBchBlockHeader(block.BchBlockHeader) && block.Reconfig == nil) {
+			nodeLogger.Debug("check genesis fail")
 			return false
 		}
 		block.UpdateBlockId()
 		return true
 	} else if block.Type == pb.Block_TXS || block.Type == pb.Block_RECONFIG {
 		if !checkDigest(block.PrevBlockId) || block.BchBlockHeader != nil {
+			nodeLogger.Debug("check txs/reconfig fail")
 			return false
 		}
 		block.UpdateBlockId()
@@ -61,6 +68,7 @@ func checkBlock(block *pb.Block) bool {
 	} else if block.Type == pb.Block_BCH {
 		if !(checkDigest(block.PrevBlockId) && checkBchBlockHeader(block.BchBlockHeader) &&
 			block.Reconfig == nil) {
+			nodeLogger.Debug("check bch fail")
 			return false
 		}
 		block.UpdateBlockId()
