@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"math/big"
 	"math/rand"
 	"net"
 	"os"
@@ -632,17 +633,26 @@ func newWatchedEvent(event defines.PushEvent) *pb.WatchedEvent {
 	}
 }
 
+func (bn *BraftNode) getTxPosition(confHeight int64, chain uint8) (height, index int64) {
+	if confHeight == 0 {
+		bchPosition := bn.blockStore.GetTxPosition(defines.CHAIN_CODE_BCH)
+		height = bchPosition.GetHeight()
+		index = bchPosition.GetIndex()
+	}
+}
+
 // 后面可能会改成每条链一个goroutine，如果每条链的交易量都很大，一个select可能处理不过来
 func (bn *BraftNode) watchNewTx(ctx context.Context) {
 	dgwConf := config.GetDGWConf()
 
 	eventCh := bn.eventCh
-	bn.bchWatcher.StartWatch(dgwConf.BchHeight, dgwConf.BchTranIx, eventCh)
-	bn.btcWatcher.StartWatch(dgwConf.BtcHeight, dgwConf.BtcTranIx, eventCh)
+	bchHeight, bchIndex := bn.getTxPosition(dgwConf.BchHeight, defines.CHAIN_CODE_BCH)
+	bn.bchWatcher.StartWatch(bchHeight, int(bchIndex), eventCh)
+	btcHeight, btcIndex := bn.getTxPosition(dgwConf.BtcHeight, defines.CHAIN_CODE_BTC)
+	bn.btcWatcher.StartWatch(btcHeight, int(btcIndex), eventCh)
 
-	height := bn.blockStore.GetETHBlockHeight()
-	index := bn.blockStore.GetETHBlockTxIndex()
-	bn.ethWatcher.StartWatch(*height, index, eventCh)
+	ethHeight, ethIndex := bn.getTxPosition(dgwConf.EthHeight, defines.CHAIN_CODE_ETH)
+	bn.ethWatcher.StartWatch(*big.NewInt(ethHeight), int(ethIndex), eventCh)
 	for event := range eventCh {
 		nodeLogger.Debug("receive event", "chain", event.GetFrom(), "type", event.GetEventType(), "event", event)
 		watchedEvent := newWatchedEvent(event)
@@ -651,6 +661,11 @@ func (bn *BraftNode) watchNewTx(ctx context.Context) {
 			bn.txStore.AddWatchedEvent(watchedEvent)
 			bn.pubWatcherEvent(watchedEvent)
 		}
+		//设置监听高度
+		bn.blockStore.SetTxPosition(event.GetFrom(), &pb.WatchedTxPosition{
+			Height: event.GetHeight(),
+			Index:  int64(event.GetTranxIx()),
+		})
 	}
 	// bchTxChan := bn.bchWatcher.GetTxChan()
 	// btcTxChan := bn.btcWatcher.GetTxChan()

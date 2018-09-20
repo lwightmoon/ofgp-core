@@ -10,6 +10,7 @@ import (
 	"github.com/ofgp/ofgp-core/cluster"
 	"github.com/ofgp/ofgp-core/dgwdb"
 	"github.com/ofgp/ofgp-core/primitives"
+	pb "github.com/ofgp/ofgp-core/proto"
 )
 
 func InitDB(dir string) (*dgwdb.LDBDatabase, error) {
@@ -100,4 +101,22 @@ func TestETHHeight(t *testing.T) {
 	if index != dbIndex {
 		t.Error("eth index not equal")
 	}
+}
+
+func TestPosition(t *testing.T) {
+	tmpDir, err := ioutil.TempDir("", "braft")
+	if err != nil {
+		t.Fatalf("create tempdir failed, err: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+	db, err := InitDB(tmpDir)
+	if err != nil {
+		t.Fatalf("init db failed, err: %v", err)
+	}
+	primitives.SetWatchedPosition(db, 0, &pb.WatchedTxPosition{
+		Height: 10,
+		Index:  2,
+	})
+	position := primitives.GetWatchedPosition(db, 1)
+	t.Logf("height:%d,index:%d", position.GetHeight(), position.GetIndex())
 }

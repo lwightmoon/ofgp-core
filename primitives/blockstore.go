@@ -240,6 +240,16 @@ func (bs *BlockStore) SetETHBlockTxIndex(index int) {
 	SetETHBlockTxIndex(bs.db, index)
 }
 
+// GetTxPosition 获取监听的位置
+func (bs *BlockStore) GetTxPosition(chain uint8) *pb.WatchedTxPosition {
+	return GetWatchedPosition(bs.db, chain)
+}
+
+// SetTxPosition 设置监听的位置
+func (bs *BlockStore) SetTxPosition(chain uint8, position *pb.WatchedTxPosition) {
+	SetWatchedPosition(bs.db, chain, position)
+}
+
 // GetETHBlockTxIndex 获取上次ETH监听到的区块里面的哪一笔交易
 func (bs *BlockStore) GetETHBlockTxIndex() int {
 	return GetETHBlockTxIndex(bs.db)

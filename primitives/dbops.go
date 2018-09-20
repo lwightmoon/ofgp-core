@@ -28,6 +28,7 @@ var (
 	keyLeaveNodeInfo       = []byte("LeaveNodeInfo")
 	keyETHHeight           = []byte("ETHHeight")
 	keyETHTxIndex          = []byte("ETHTxIndex")
+	chainPosition          = []byte("chainPosition") //监听到的交易区块和索引
 	keyMultiSigSnapshot    = []byte("MS")
 	keyCommitChainPrefix   = []byte("B")
 	keyCommitHsByIdsPrefix = []byte("H")
@@ -287,7 +288,6 @@ func GetTxIdBySidechainTxId(db *dgwdb.LDBDatabase, scTxId string) *crypto.Digest
 	return &crypto.Digest256{Data: data}
 }
 
-
 // SetSignReq 保存签名请求 后续校验
 func SetSignReq(db *dgwdb.LDBDatabase, req *pb.SignRequest, scTxID string) {
 	bytes, err := proto.Marshal(req)
@@ -523,6 +523,22 @@ func GetETHBlockHeight(db *dgwdb.LDBDatabase) *big.Int {
 	res := &big.Int{}
 	res.SetBytes(data)
 	return res
+}
+
+// SetWatchedPosition 设置监听到的tx高度和索引
+func SetWatchedPosition(db *dgwdb.LDBDatabase, chain uint8, position *pb.WatchedTxPosition) {
+	key := append(chainPosition, chain)
+	data, _ := proto.Marshal(position)
+	db.Put(key, data)
+}
+
+// GetWatchedPosition 获取监听到的tx高度和索引
+func GetWatchedPosition(db *dgwdb.LDBDatabase, chain uint8) *pb.WatchedTxPosition {
+	key := append(chainPosition, chain)
+	data, _ := db.Get(key)
+	position := &pb.WatchedTxPosition{}
+	proto.Unmarshal(data, position)
+	return position
 }
 
 // SetETHBlockTxIndex 保存当前ETH监听到的区块里面的哪一笔交易

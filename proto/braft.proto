@@ -382,3 +382,9 @@ message EthRecharge{
     string method = 4;
     string proposal = 5;
 }
+
+// watcher 监听到的高度和索引
+message WatchedTxPosition{
+    int64 height = 1;
+    int64 index = 2;
+}
