@@ -637,6 +637,7 @@ func (bn *BraftNode) getTxPosition(confHeight int64, chain uint8) (height, index
 		height = bchPosition.GetHeight()
 		index = bchPosition.GetIndex()
 	}
+	return
 }
 
 // 后面可能会改成每条链一个goroutine，如果每条链的交易量都很大，一个select可能处理不过来
