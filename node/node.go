@@ -662,9 +662,10 @@ func (bn *BraftNode) watchNewTx(ctx context.Context) {
 		if event.GetBusiness() != "" {
 			nodeLogger.Debug("receive event", "chain", event.GetFrom(), "type", event.GetEventType(), "business", event.GetBusiness(), "to", event.GetTo())
 		}
-		watchedEvent := newWatchedEvent(event)
+
 		// 防止重复发布事件
 		if event.GetBusiness() != "" && bn.pubsub.hasTopic(event.GetBusiness()) && !bn.txStore.IsWatched(event.GetTxID()) && !bn.txStore.HasTxInDB(event.GetTxID()) {
+			watchedEvent := newWatchedEvent(event)
 			bn.txStore.AddWatchedEvent(watchedEvent)
 			bn.pubWatcherEvent(watchedEvent)
 		}

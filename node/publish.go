@@ -1,6 +1,7 @@
 package node
 
 import (
+	"github.com/ofgp/common/defines"
 	pb "github.com/ofgp/ofgp-core/proto"
 )
 
@@ -36,10 +37,15 @@ func (bn *BraftNode) pubSigned(msg *pb.SignResult, chain uint32,
 func (bn *BraftNode) pubWatcherEvent(watchedEvent *pb.WatchedEvent) {
 	var event BusinessEvent
 	switch watchedEvent.GetEventType() {
-	case 0: //初始监听到
+	case defines.EVENT_P2P_SWAP_REQUIRE: //初始监听到
 		event = newBusinessWatchedEvent(watchedEvent)
-	case 1: //确认
+	case defines.EVENT_P2P_SWAP_CONFIRM: //确认
 		event = newConfirmEvent(watchedEvent)
+	default:
+		nodeLogger.Error("event type err", "type", watchedEvent.GetEventType(), "scTxID", watchedEvent.GetTxID())
+		return
 	}
+	nodeLogger.Info("pub event start", "scTxID", watchedEvent.GetTxID())
 	bn.pubsub.pub(event.GetBusiness(), event)
+	nodeLogger.Info("pub event end", "scTxID", watchedEvent.GetTxID())
 }
