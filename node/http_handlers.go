@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	ew "github.com/ofgp/ethwatcher"
+	ew "swap/ethwatcher"
 
 	"github.com/ofgp/ofgp-core/primitives"
 	pb "github.com/ofgp/ofgp-core/proto"

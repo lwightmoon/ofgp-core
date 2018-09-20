@@ -12,7 +12,6 @@ import (
 
 	"github.com/antimoth/swaputils"
 	"github.com/btcsuite/btcd/wire"
-	btcwatcher "github.com/ofgp/bitcoinWatcher/mortgagewatcher"
 	"github.com/ofgp/ofgp-core/cluster"
 	"github.com/ofgp/ofgp-core/crypto"
 	"github.com/ofgp/ofgp-core/message"
@@ -248,17 +247,6 @@ func newBchOprator(watcher *btwatcher.Watcher) *bchOprator {
 	}
 }
 
-func getBtcAddrInfos(addrInfos []AddrInfo) []*btcwatcher.AddressInfo {
-	res := make([]*btcwatcher.AddressInfo, 0)
-	for _, addrInfo := range addrInfos {
-		btcAddrInfo := &btcwatcher.AddressInfo{
-			Address: addrInfo.Addr,
-			Amount:  int64(addrInfo.Amount),
-		}
-		res = append(res, btcAddrInfo)
-	}
-	return res
-}
 func (bchOP *bchOprator) CreateTx(req CreateReq) (*pb.NewlyTx, error) {
 	btTx, errCode := bchOP.bchWatcher.CreateCoinTx(req.GetAddr(), req.GetAmount(), cluster.ClusterSize)
 	if errCode != 0 {
