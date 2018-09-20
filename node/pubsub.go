@@ -10,6 +10,13 @@ type pubServer struct {
 	capicity int
 }
 
+func (ps *pubServer) hasTopic(topic string) bool {
+	ps.RLock()
+	_, ok := ps.reg[topic]
+	ps.RUnlock()
+	return ok
+}
+
 func newPubServer(capicity int) *pubServer {
 	server := &pubServer{
 		reg:      make(map[string]chan BusinessEvent),
@@ -34,9 +41,11 @@ func (ps *pubServer) pub(topic string, event BusinessEvent) {
 }
 
 func (ps *pubServer) send(topic string, event BusinessEvent) {
-	var ch chan BusinessEvent
 	ps.RLock()
-	ch = ps.reg[topic]
+	ch, ok := ps.reg[topic]
 	ps.RUnlock()
+	if !ok {
+		return
+	}
 	ch <- event
 }

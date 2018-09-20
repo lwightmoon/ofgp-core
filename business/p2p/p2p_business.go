@@ -26,8 +26,6 @@ type P2P struct {
 	handler business.IHandler
 }
 
-const businessName = "p2p"
-
 // NewP2P create p2p
 func NewP2P(braftNode *node.BraftNode, path string) *P2P {
 	p2p := &P2P{
@@ -37,7 +35,7 @@ func NewP2P(braftNode *node.BraftNode, path string) *P2P {
 
 	db := newP2PDB(ldb)
 	//向node订阅业务相关事件
-	ch := braftNode.SubScribe(businessName)
+	ch := braftNode.SubScribe(defines.BUSINESS_P2P_SWAP_NAME)
 	p2p.ch = ch
 
 	//创建交易匹配索引
@@ -96,6 +94,7 @@ func createTx(node *node.BraftNode, op int, info *P2PInfo) interface{} {
 func getP2PInfo(event *pb.WatchedEvent) *P2PInfo {
 	msg := &p2pMsg{}
 	msg.Decode(event.GetData())
+	p2pLogger.Debug("received event info", "chain", msg.Chain, "amount", msg.Amount, "expiretime", msg.ExpiredTime)
 	p2pMsg := msg.toPBMsg()
 	info := &P2PInfo{
 		Event: event,

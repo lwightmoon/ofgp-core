@@ -659,10 +659,12 @@ func (bn *BraftNode) watchNewTx(ctx context.Context) {
 	nodeLogger.Debug("bch watch info", "height", ethHeight, "index", ethIndex)
 	bn.ethWatcher.StartWatch(*big.NewInt(ethHeight), int(ethIndex), eventCh)
 	for event := range eventCh {
-		nodeLogger.Debug("receive event", "chain", event.GetFrom(), "type", event.GetEventType(), "event", event)
+		if event.GetBusiness() != "" {
+			nodeLogger.Debug("receive event", "chain", event.GetFrom(), "type", event.GetEventType(), "business", event.GetBusiness(), "to", event.GetTo())
+		}
 		watchedEvent := newWatchedEvent(event)
 		// 防止重复发布事件
-		if !bn.txStore.IsWatched(event.GetTxID()) && !bn.txStore.HasTxInDB(event.GetTxID()) {
+		if event.GetBusiness() != "" && bn.pubsub.hasTopic(event.GetBusiness()) && !bn.txStore.IsWatched(event.GetTxID()) && !bn.txStore.HasTxInDB(event.GetTxID()) {
 			bn.txStore.AddWatchedEvent(watchedEvent)
 			bn.pubWatcherEvent(watchedEvent)
 		}
@@ -1258,7 +1260,7 @@ func RunNew(id int32, multiSigInfos []cluster.MultiSigInfo) (*grpc.Server, *Braf
 		cluster.SetCurrMultiSig(latestMultiSig)
 		braftNode.changeFederationAddrs(latestMultiSig, multiSigInfos)
 	}
-	braftNode.Run()
+	// braftNode.Run()
 
 	return grpcServer, braftNode
 }
