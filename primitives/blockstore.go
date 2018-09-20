@@ -23,8 +23,6 @@ import (
 
 	btwatcher "swap/btwatcher"
 
-	btcfunc "github.com/ofgp/bitcoinWatcher/coinmanager"
-
 	ew "swap/ethwatcher"
 
 	"github.com/btcsuite/btcd/wire"
@@ -1265,12 +1263,9 @@ func (bs *BlockStore) validateTransferSignReq(req *pb.SignRequest, newlyTx *wire
 
 	var watcher *btwatcher.Watcher
 	to := req.GetWatchedEvent().GetTo()
-	var coinType string
 	if to == message.Btc {
-		coinType = "btc"
 		watcher = bs.btcWatcher
 	} else {
-		coinType = "bch"
 		watcher = bs.bchWatcher
 	}
 	for _, txIn := range newlyTx.TxIn {
@@ -1282,7 +1277,7 @@ func (bs *BlockStore) validateTransferSignReq(req *pb.SignRequest, newlyTx *wire
 		}
 	}
 
-	outAddress := btcfunc.ExtractPkScriptAddr(newlyTx.TxOut[0].PkScript, coinType)
+	outAddress := btwatcher.ExtractPkScriptAddr(newlyTx.TxOut[0].PkScript, uint8(to))
 	if to == message.Btc {
 		if outAddress == cluster.CurrMultiSig.BtcAddress {
 			return validatePass
