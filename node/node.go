@@ -27,8 +27,6 @@ import (
 	"github.com/ofgp/ofgp-core/util"
 	"github.com/ofgp/ofgp-core/util/assert"
 
-	"github.com/ofgp/bitcoinWatcher/coinmanager"
-
 	btwatcher "swap/btwatcher"
 	ew "swap/ethwatcher"
 	// ew "github.com/ofgp/ethwatcher"
@@ -116,9 +114,9 @@ type BraftNode struct {
 func getFederationAddress() cluster.MultiSigInfo {
 	var err error
 	pubkeyList := cluster.GetPubkeyList()
-	btcFedAddress, btcRedeem, err := coinmanager.GetMultiSigAddress(pubkeyList, cluster.QuorumN, "btc")
+	btcFedAddress, btcRedeem, err := btwatcher.GetMultiSigAddress(pubkeyList, cluster.QuorumN, "btc")
 	assert.ErrorIsNil(err)
-	bchFedAddress, bchRedeem, err := coinmanager.GetMultiSigAddress(pubkeyList, cluster.QuorumN, "bch")
+	bchFedAddress, bchRedeem, err := btwatcher.GetMultiSigAddress(pubkeyList, cluster.QuorumN, "bch")
 	assert.ErrorIsNil(err)
 	multiSig := cluster.MultiSigInfo{
 		BtcAddress:      btcFedAddress,
@@ -934,9 +932,9 @@ func getRemoteClusterNodes(host string) *pb.NodeList {
 
 // getFederationAddressUsePubkeys 根据pubkey获取多签地址
 func getFederationAddressUsePubkeys(pubKeys []string, quorumN int) cluster.MultiSigInfo {
-	btcFedAddress, btcRedeem, err := coinmanager.GetMultiSigAddress(pubKeys, quorumN, "btc")
+	btcFedAddress, btcRedeem, err := btwatcher.GetMultiSigAddress(pubKeys, quorumN, "btc")
 	assert.ErrorIsNil(err)
-	bchFedAddress, bchRedeem, err := coinmanager.GetMultiSigAddress(pubKeys, quorumN, "bch")
+	bchFedAddress, bchRedeem, err := btwatcher.GetMultiSigAddress(pubKeys, quorumN, "bch")
 	assert.ErrorIsNil(err)
 	multiSig := cluster.MultiSigInfo{
 		BtcAddress:      btcFedAddress,
