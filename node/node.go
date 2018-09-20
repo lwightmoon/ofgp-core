@@ -21,7 +21,6 @@ import (
 	"github.com/ofgp/ofgp-core/crypto"
 	"github.com/ofgp/ofgp-core/dgwdb"
 	"github.com/ofgp/ofgp-core/log"
-	"github.com/ofgp/ofgp-core/message"
 	"github.com/ofgp/ofgp-core/primitives"
 	pb "github.com/ofgp/ofgp-core/proto"
 	"github.com/ofgp/ofgp-core/util"
@@ -175,7 +174,7 @@ func NewBraftNode(localNodeInfo cluster.NodeInfo) *BraftNode {
 		if utxoLockTime == 0 {
 			utxoLockTime = defaultUtxoLockTime
 		}
-		bchWatcher, err = btwatcher.NewWatcher(message.Bch)
+		bchWatcher, err = btwatcher.NewWatcher(defines.CHAIN_CODE_BCH)
 		// bchWatcher, err = btcwatcher.NewMortgageWatcher("bch", dgwConf.BchHeight,
 		// 	multiSig.BchAddress, multiSig.BchRedeemScript, utxoLockTime)
 		if err != nil {
@@ -183,7 +182,7 @@ func NewBraftNode(localNodeInfo cluster.NodeInfo) *BraftNode {
 		}
 		// btcWatcher, err = btcwatcher.NewMortgageWatcher("btc", dgwConf.BtcHeight,
 		// 	multiSig.BtcAddress, multiSig.BtcRedeemScript, utxoLockTime)
-		btcWatcher, err = btwatcher.NewWatcher(message.Btc)
+		btcWatcher, err = btwatcher.NewWatcher(defines.CHAIN_CODE_BTC)
 		if err != nil {
 			panic(fmt.Sprintf("new bitcoin watcher failed, err: %v", err))
 		}
@@ -511,7 +510,7 @@ func OpenDbOrDie(dbPath, subPath string) (db *dgwdb.LDBDatabase, newlyCreated bo
 	info, err := os.Stat(dbPath)
 	if os.IsNotExist(err) {
 		if err := os.Mkdir(dbPath, 0700); err != nil {
-			panic(fmt.Errorf("Cannot create db path %v", dbPath))
+			panic(fmt.Errorf("Cannot create db path %v,err:%v", dbPath, err))
 		}
 		newlyCreated = true
 	} else {
