@@ -630,12 +630,16 @@ func newWatchedEvent(event defines.PushEvent) *pb.WatchedEvent {
 	}
 }
 
-func (bn *BraftNode) getTxPosition(confHeight int64, chain uint8) (height, index int64) {
+func (bn *BraftNode) getTxPosition(confHeight int64, confIndex int, chain uint8) (height int64, index int) {
 	if confHeight == 0 {
 		bchPosition := bn.blockStore.GetTxPosition(defines.CHAIN_CODE_BCH)
 		height = bchPosition.GetHeight()
-		index = bchPosition.GetIndex()
+		index = int(bchPosition.GetIndex())
+	} else {
+		height = confHeight
+		index = confIndex
 	}
+
 	return
 }
 
@@ -644,12 +648,15 @@ func (bn *BraftNode) watchNewTx(ctx context.Context) {
 	dgwConf := config.GetDGWConf()
 
 	eventCh := bn.eventCh
-	bchHeight, bchIndex := bn.getTxPosition(dgwConf.BchHeight, defines.CHAIN_CODE_BCH)
+	bchHeight, bchIndex := bn.getTxPosition(dgwConf.BchHeight, dgwConf.BchTranIx, defines.CHAIN_CODE_BCH)
+	nodeLogger.Debug("bch watch info", "height", bchHeight, "index", bchIndex)
 	bn.bchWatcher.StartWatch(bchHeight, int(bchIndex), eventCh)
-	btcHeight, btcIndex := bn.getTxPosition(dgwConf.BtcHeight, defines.CHAIN_CODE_BTC)
+	btcHeight, btcIndex := bn.getTxPosition(dgwConf.BtcHeight, dgwConf.BtcTranIx, defines.CHAIN_CODE_BTC)
+	nodeLogger.Debug("bch watch info", "height", btcHeight, "index", btcIndex)
 	bn.btcWatcher.StartWatch(btcHeight, int(btcIndex), eventCh)
 
-	ethHeight, ethIndex := bn.getTxPosition(dgwConf.EthHeight, defines.CHAIN_CODE_ETH)
+	ethHeight, ethIndex := bn.getTxPosition(dgwConf.EthHeight, dgwConf.EthTranIdx, defines.CHAIN_CODE_ETH)
+	nodeLogger.Debug("bch watch info", "height", ethHeight, "index", ethIndex)
 	bn.ethWatcher.StartWatch(*big.NewInt(ethHeight), int(ethIndex), eventCh)
 	for event := range eventCh {
 		nodeLogger.Debug("receive event", "chain", event.GetFrom(), "type", event.GetEventType(), "event", event)
