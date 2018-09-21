@@ -59,7 +59,7 @@ func NewAccuser(nodeInfo cluster.NodeInfo, signer *crypto.SecureSigner,
 		newTermChan:         make(chan int64),
 		heartbeatTimer:      time.NewTimer(heartbeatInterval),
 
-		lastAccuseTime: time.Now().Add(-2 * accuseCooldown),
+		// lastAccuseTime: time.Now().Add(-2 * accuseCooldown),
 		lastAccuseTerm: -1,
 
 		termToAccuse:              0,

@@ -3,12 +3,19 @@ package p2p
 import (
 	"fmt"
 	"time"
+
+	"github.com/antimoth/swaputils"
 )
 
 // getExchangeInfo 获取交换数据
 func (info *P2PInfo) getExchangeInfo() (chain uint32, addr string, amount uint64) {
 	chain = info.Msg.GetChain()
-	addr = string(info.Msg.GetRequireAddr())
+	var err error
+	addr, err = swaputils.CheckBytesToStr(info.Msg.GetRequireAddr(), uint8(chain))
+	if err != nil {
+		p2pLogger.Error("addr to str err", "err", err)
+		return
+	}
 	amount = info.Msg.GetAmount()
 	return
 }
@@ -70,7 +77,11 @@ func (ti *txIndex) AddInfos(infos []*P2PInfo) {
 func (ti *txIndex) Add(info *P2PInfo) {
 	chain := fmt.Sprintf("%d", info.Event.From)
 	child := ti.root.add(chain)
-	sendAddr := string(info.Msg.SendAddr)
+	sendAddr, err := swaputils.CheckBytesToStr(info.Msg.GetSendAddr(), uint8(info.Event.From))
+	if err != nil {
+		p2pLogger.Error("send addr to str err", "err", err)
+		return
+	}
 	child = child.add(sendAddr)
 	amount := fmt.Sprintf("%d", info.Event.Amount)
 	child = child.add(amount)

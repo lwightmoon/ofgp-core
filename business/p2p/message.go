@@ -41,8 +41,8 @@ func readInt(r io.Reader, element interface{}) error {
 
 //GetEventtype()==0 监听到
 type p2pMsg struct {
-	SendAddr    []byte //发送方地址 20
-	ReceiveAddr []byte //在对应链接收币的地址 20
+	SendAddr    []byte //发送方地址 25
+	ReceiveAddr []byte //在对应链接收币的地址 25
 	Chain       uint8  //接收方链
 	TokenID     uint32 //接收方token
 	Amount      uint64 //接收数量

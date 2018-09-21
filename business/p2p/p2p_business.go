@@ -1,6 +1,7 @@
 package p2p
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"sync"
 	"time"
@@ -71,6 +72,8 @@ func (p2p *P2P) Run() {
 	go p2p.processEvent()
 }
 func (p2p *P2P) processEvent() {
+	//等待leader选举
+	time.Sleep(90 * time.Second)
 	for event := range p2p.ch {
 		p2p.handler.HandleEvent(event)
 	}
@@ -94,7 +97,11 @@ func createTx(node *node.BraftNode, op int, info *P2PInfo) interface{} {
 func getP2PInfo(event *pb.WatchedEvent) *P2PInfo {
 	msg := &p2pMsg{}
 	msg.Decode(event.GetData())
-	p2pLogger.Debug("received event info", "chain", msg.Chain, "amount", msg.Amount, "expiretime", msg.ExpiredTime)
+	sendAddr := hex.EncodeToString(msg.SendAddr)
+	receiveAddr := hex.EncodeToString(msg.ReceiveAddr)
+	requireAddr := hex.EncodeToString(msg.RequireAddr)
+	p2pLogger.Debug("received event info", "chain", msg.Chain,
+		"amount", msg.Amount, "expiretime", msg.ExpiredTime, "sendAddr", sendAddr, "receiveAddr", receiveAddr, "requireAddr", requireAddr)
 	p2pMsg := msg.toPBMsg()
 	info := &P2PInfo{
 		Event: event,
@@ -107,6 +114,7 @@ func getP2PInfo(event *pb.WatchedEvent) *P2PInfo {
 // setWaitConfirm 设置 txID 和 matchedTxID 的双向对应关系
 func setWaitConfirm(db *p2pdb, op, chain uint32, txID string) {
 	waitConfirmMsg := &WaitConfirmMsg{
+		ScTxId:   txID,
 		Opration: op,
 		Chain:    chain,
 		Info:     nil,
@@ -239,7 +247,7 @@ func (wh *watchedHandler) HandleEvent(event node.BusinessEvent) {
 		wh.index.Add(info)
 		//要求匹配的条件
 		chain, addr, amount := info.getExchangeInfo()
-		// p2pLogger.Debug("search coniditon", "chian", chain, "addr", addr, "amount", amount)
+		p2pLogger.Debug("search coniditon", "chian", chain, "addr", addr, "amount", amount)
 		// 使用要求的数据匹配交易数据
 		txIDs := wh.index.GetTxID(chain, addr, amount)
 		p2pLogger.Debug("matchIDs", "txIDs", txIDs)
@@ -346,7 +354,7 @@ func (sh *signedHandler) retryFailed() {
 				sh.Unlock()
 				continue
 			}
-
+			p2pLogger.Debug("sign fial retry", "scTxID", p2pInfo.Event.GetTxID())
 			newTx, err := sh.service.createTx(uint8(waitConfirmTx.Opration), p2pInfo)
 			if err != nil {
 				p2pLogger.Error("create tx err", "err", err, "scTxID", p2pInfo.Event.GetTxID())

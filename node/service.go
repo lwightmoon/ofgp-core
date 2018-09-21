@@ -75,10 +75,14 @@ func (node *BraftNode) Accuse() {
 
 // MarkFail 标记交易本term失败
 func (node *BraftNode) MarkFail(scTxID string) {
-	node.blockStore.MarkFailedSignRecord(scTxID, node.blockStore.GetNodeTerm())
+	term := node.blockStore.GetNodeTerm()
+	nodeLogger.Debug("mark sign fail", "scTxID", scTxID, "term", term)
+	node.blockStore.MarkFailedSignRecord(scTxID, term)
 }
 
 // IsSignFailed 判断签名本term内是否失败
 func (node *BraftNode) IsSignFailed(scTxID string) bool {
-	return node.blockStore.IsSignFailed(scTxID, node.blockStore.GetNodeTerm())
+	term := node.blockStore.GetNodeTerm()
+	nodeLogger.Debug("is sign fail", "scTxID", scTxID, "term", term)
+	return node.blockStore.IsSignFailed(scTxID, term)
 }
