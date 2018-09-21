@@ -347,7 +347,10 @@ func (sh *signedHandler) retryFailed() {
 				continue
 			}
 
-			newTx, _ := sh.service.createTx(uint8(waitConfirmTx.Opration), p2pInfo)
+			newTx, err := sh.service.createTx(uint8(waitConfirmTx.Opration), p2pInfo)
+			if err != nil {
+				p2pLogger.Error("create tx err", "err", err, "scTxID", p2pInfo.Event.GetTxID())
+			}
 			if newTx != nil {
 				waitToSign := newWaitToSign(p2pInfo, newTx)
 				sh.service.sendtoSign(waitToSign)
