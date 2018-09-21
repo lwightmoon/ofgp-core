@@ -119,8 +119,6 @@ func newEthOperator(cli *ew.Client, bs *primitives.BlockStore, signer *crypto.Se
 	}
 }
 
-const appcode = 1
-
 func (eop *ethOperator) CreateTx(req CreateReq) (*pb.NewlyTx, error) {
 	if ereq, ok := req.(*EthCreateReq); ok {
 		nodeLogger.Debug("create eth tx", "scTxID", req.GetID())
@@ -130,7 +128,7 @@ func (eop *ethOperator) CreateTx(req CreateReq) (*pb.NewlyTx, error) {
 			return nil, err
 		}
 		addr := ew.HexToAddress(addrStr)
-		input, err := eop.cli.EncodeInput(ew.VOTE_METHOD_MATCHSWAP, appcode, addr, ereq.GetAmount(), req.GetID())
+		input, err := eop.cli.EncodeInput(ew.VOTE_METHOD_MATCHSWAP, ereq.TokenTo, addr, ereq.GetAmount(), req.GetID())
 		if err != nil {
 			leaderLogger.Error("create eth input failed", "err", err, "sctxid", req.GetID())
 			return nil, err
