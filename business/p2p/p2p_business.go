@@ -354,7 +354,7 @@ func (sh *signedHandler) retryFailed() {
 				sh.Unlock()
 				continue
 			}
-			p2pLogger.Debug("sign fial retry", "scTxID", p2pInfo.Event.GetTxID())
+			p2pLogger.Debug("sign fail retry", "scTxID", p2pInfo.Event.GetTxID())
 			newTx, err := sh.service.createTx(uint8(waitConfirmTx.Opration), p2pInfo)
 			if err != nil {
 				p2pLogger.Error("create tx err", "err", err, "scTxID", p2pInfo.Event.GetTxID())
