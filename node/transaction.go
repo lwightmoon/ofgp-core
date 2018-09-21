@@ -15,6 +15,7 @@ import (
 	"github.com/ofgp/common/defines"
 	"github.com/ofgp/ofgp-core/cluster"
 	"github.com/ofgp/ofgp-core/crypto"
+	"github.com/ofgp/ofgp-core/message"
 	"github.com/ofgp/ofgp-core/primitives"
 	pb "github.com/ofgp/ofgp-core/proto"
 )
@@ -23,21 +24,13 @@ import (
 
 // txOperator 交易相关操作
 type txOperator interface {
-	CreateTx(req CreateReq) (*pb.NewlyTx, error)
+	CreateTx(req message.CreateReq) (*pb.NewlyTx, error)
 	SendTx(req ISendReq) error
 }
 
 type AddrInfo struct {
 	Addr   string
 	Amount uint64
-}
-
-// CreateReq 创建交易接口
-type CreateReq interface {
-	GetChain() uint32
-	GetID() string
-	GetAddr() []byte
-	GetAmount() uint64
 }
 
 // BaseCreateReq createTx
@@ -119,7 +112,7 @@ func newEthOperator(cli *ew.Client, bs *primitives.BlockStore, signer *crypto.Se
 	}
 }
 
-func (eop *ethOperator) CreateTx(req CreateReq) (*pb.NewlyTx, error) {
+func (eop *ethOperator) CreateTx(req message.CreateReq) (*pb.NewlyTx, error) {
 	if ereq, ok := req.(*EthCreateReq); ok {
 		nodeLogger.Debug("create eth tx", "scTxID", req.GetID())
 		addrStr, err := swaputils.CheckBytesToStr(ereq.GetAddr(), uint8(req.GetChain()))
@@ -216,7 +209,7 @@ func newBtcOprator(watcher *btwatcher.Watcher) *btcOprator {
 	}
 }
 
-func (btcOP *btcOprator) CreateTx(req CreateReq) (*pb.NewlyTx, error) {
+func (btcOP *btcOprator) CreateTx(req message.CreateReq) (*pb.NewlyTx, error) {
 	nodeLogger.Debug("create btc tx", "scTxID", req.GetID())
 	btTx, errCode := btcOP.btcWatcher.CreateCoinTx(req.GetAddr(), req.GetAmount(), cluster.ClusterSize)
 	if errCode != 0 {
@@ -250,7 +243,7 @@ func newBchOprator(watcher *btwatcher.Watcher) *bchOprator {
 	}
 }
 
-func (bchOP *bchOprator) CreateTx(req CreateReq) (*pb.NewlyTx, error) {
+func (bchOP *bchOprator) CreateTx(req message.CreateReq) (*pb.NewlyTx, error) {
 	nodeLogger.Debug("create bch tx", "scTxID", req.GetID())
 	btTx, errCode := bchOP.bchWatcher.CreateCoinTx(req.GetAddr(), req.GetAmount(), cluster.ClusterSize)
 	if errCode != 0 {
@@ -289,7 +282,7 @@ func newTxInvoker(ethOp *ethOperator, bchOp *bchOprator, btcOp *btcOprator) *txI
 	}
 }
 
-func (ti *txInvoker) CreateTx(req CreateReq) (*pb.NewlyTx, error) {
+func (ti *txInvoker) CreateTx(req message.CreateReq) (*pb.NewlyTx, error) {
 	var newTx *pb.NewlyTx
 	var err error
 	chain := uint8(req.GetChain())

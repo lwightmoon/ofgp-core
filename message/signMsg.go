@@ -13,3 +13,17 @@ type WaitSignMsg struct {
 	Tx       *pb.NewlyTx //待签名交易
 	Recharge []byte
 }
+
+// CreateReq 创建交易接口
+type CreateReq interface {
+	GetChain() uint32
+	GetID() string
+	GetAddr() []byte
+	GetAmount() uint64
+}
+
+//CreateAndSignMsg 创建并签名数据
+type CreateAndSignMsg struct {
+	Req CreateReq
+	Msg *WaitSignMsg
+}

@@ -19,7 +19,7 @@ func newService(node *node.BraftNode) *service {
 	}
 }
 
-func (s *service) createTx(op uint8, info *P2PInfo) (*pb.NewlyTx, error) {
+func (s *service) makeCreateTxReq(op uint8, info *P2PInfo) (message.CreateReq, error) {
 	var addr []byte
 	msg := info.GetMsg()
 	event := info.GetEvent()
@@ -32,7 +32,7 @@ func (s *service) createTx(op uint8, info *P2PInfo) (*pb.NewlyTx, error) {
 		p2pLogger.Error("op err")
 		return nil, nil
 	}
-	var req node.CreateReq
+	var req message.CreateReq
 	chain := uint8(msg.Chain)
 	p2pLogger.Debug("send tx to", "chain", chain)
 	switch chain {
@@ -57,13 +57,13 @@ func (s *service) createTx(op uint8, info *P2PInfo) (*pb.NewlyTx, error) {
 		p2pLogger.Error("chain type err")
 		return nil, errors.New("chain type err")
 	}
-	tx, err := s.node.CreateTx(req)
-	return tx, err
+	return req, nil
 }
 
-func (s *service) sendtoSign(signReq *message.WaitSignMsg) {
-	p2pLogger.Debug("send to sign ", "scTxID", signReq.ScTxID, "business", signReq.Business)
-	s.node.SignTx(signReq)
+func (s *service) sendtoSign(req *message.CreateAndSignMsg) {
+	signMsg := req.Msg
+	p2pLogger.Debug("send to sign ", "scTxID", signMsg.ScTxID, "business", signMsg.Business)
+	s.node.CreateAndSign(req)
 }
 
 func (s *service) sendTx(data *node.SignedData) error {

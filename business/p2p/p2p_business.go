@@ -56,9 +56,9 @@ func NewP2P(braftNode *node.BraftNode, path string) *P2P {
 	wh.runCheckMatchTimeout()
 
 	sh := newSignedHandler(db, service, 15, 10)
-	sh.runCheck()
+	// sh.runCheck()
 	confirmH := newConfirmHandler(db, 180, service, 10)
-	confirmH.runCheck()
+	// confirmH.runCheck()
 	commitH := &commitHandler{}
 	wh.SetSuccessor(sh)
 	sh.SetSuccessor(confirmH)
@@ -73,7 +73,6 @@ func (p2p *P2P) Run() {
 }
 func (p2p *P2P) processEvent() {
 	//等待leader选举
-	time.Sleep(90 * time.Second)
 	for event := range p2p.ch {
 		p2p.handler.HandleEvent(event)
 	}
@@ -152,10 +151,14 @@ func (wh *watchedHandler) checkP2PInfo(info *P2PInfo) bool {
 func (wh *watchedHandler) sendBackTx(info *P2PInfo) {
 	//创建并发送回退交易
 	wh.db.setMatchedOne(info.GetScTxID(), "")
-	newTx, err := wh.service.createTx(back, info)
-	if newTx != nil && err == nil {
-		waitToSign := newWaitToSign(info, newTx)
-		wh.service.sendtoSign(waitToSign)
+	req, err := wh.service.makeCreateTxReq(confirmed, info)
+	if req != nil && err == nil {
+		signMsg := newWaitToSign(info)
+		createAndSignMsg := &message.CreateAndSignMsg{
+			Req: req,
+			Msg: signMsg,
+		}
+		wh.service.sendtoSign(createAndSignMsg)
 	} else {
 		p2pLogger.Error("create tx err", "err", err, "scTxID", info.Event.GetTxID())
 	}
@@ -188,7 +191,7 @@ func (wh *watchedHandler) runCheckMatchTimeout() {
 	}()
 }
 
-func newWaitToSign(info *P2PInfo, newTx *pb.NewlyTx) *message.WaitSignMsg {
+func newWaitToSign(info *P2PInfo) *message.WaitSignMsg {
 	var waitToSign *message.WaitSignMsg
 	chain := uint8(info.Msg.Chain)
 	switch chain {
@@ -204,7 +207,6 @@ func newWaitToSign(info *P2PInfo, newTx *pb.NewlyTx) *message.WaitSignMsg {
 			Business: info.Event.Business,
 			ID:       info.Event.GetTxID(),
 			ScTxID:   info.Event.GetTxID(),
-			Tx:       newTx,
 			Recharge: rechargeData,
 		}
 	case defines.CHAIN_CODE_ETH:
@@ -220,7 +222,6 @@ func newWaitToSign(info *P2PInfo, newTx *pb.NewlyTx) *message.WaitSignMsg {
 			Business: info.Event.Business,
 			ID:       info.Event.GetTxID(),
 			ScTxID:   info.Event.GetTxID(),
-			Tx:       newTx,
 			Recharge: rechargeData,
 		}
 
@@ -270,10 +271,14 @@ func (wh *watchedHandler) HandleEvent(event node.BusinessEvent) {
 				infos := []*P2PInfo{info, matchedInfo}
 				//创建交易发送签名
 				for _, info := range infos {
-					newTx, err := wh.service.createTx(confirmed, info)
-					if newTx != nil && err == nil {
-						signMsg := newWaitToSign(info, newTx)
-						wh.service.sendtoSign(signMsg)
+					req, err := wh.service.makeCreateTxReq(confirmed, info)
+					if req != nil && err == nil {
+						signMsg := newWaitToSign(info)
+						createAndSignMsg := &message.CreateAndSignMsg{
+							Req: req,
+							Msg: signMsg,
+						}
+						wh.service.sendtoSign(createAndSignMsg)
 					}
 					//设置等待确认
 					setWaitConfirm(wh.db, uint32(confirmed), info.Event.GetTo(), info.GetScTxID())
@@ -355,13 +360,17 @@ func (sh *signedHandler) retryFailed() {
 				continue
 			}
 			p2pLogger.Debug("sign fail retry", "scTxID", p2pInfo.Event.GetTxID())
-			newTx, err := sh.service.createTx(uint8(waitConfirmTx.Opration), p2pInfo)
+			req, err := sh.service.makeCreateTxReq(uint8(waitConfirmTx.Opration), p2pInfo)
 			if err != nil {
 				p2pLogger.Error("create tx err", "err", err, "scTxID", p2pInfo.Event.GetTxID())
 			}
-			if newTx != nil {
-				waitToSign := newWaitToSign(p2pInfo, newTx)
-				sh.service.sendtoSign(waitToSign)
+			if req != nil {
+				waitToSign := newWaitToSign(p2pInfo)
+				createSign := &message.CreateAndSignMsg{
+					req,
+					waitToSign,
+				}
+				sh.service.sendtoSign(createSign)
 			}
 			sh.delSignFailed(scTxID)
 			waitConfirmTx.Time = time.Now().Unix()
@@ -606,16 +615,20 @@ func (handler *confirmHandler) checkConfirmTimeout() {
 				}
 			}
 
-			newTx, err := handler.service.createTx(uint8(waitConfirm.Opration), p2pInfo)
+			req, err := handler.service.makeCreateTxReq(uint8(waitConfirm.Opration), p2pInfo)
 			if err != nil {
 				p2pLogger.Error("create tx err", "err", err, "scTxID", scTxID)
 				continue
 			}
 			handler.service.clear(scTxID, sended.SignTerm)
 			handler.db.delSendedInfo(scTxID)
-			if newTx != nil {
-				waitToSign := newWaitToSign(p2pInfo, newTx)
-				handler.service.sendtoSign(waitToSign)
+			if req != nil {
+				waitToSign := newWaitToSign(p2pInfo)
+				createAndSign := &message.CreateAndSignMsg{
+					req,
+					waitToSign,
+				}
+				handler.service.sendtoSign(createAndSign)
 			}
 
 			//update waitconfirm time

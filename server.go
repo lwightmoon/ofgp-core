@@ -168,8 +168,7 @@ func run(ctx *cli.Context) {
 	p2pBusiness := p2p.NewP2P(node, p2pDBPath)
 	//run business
 	p2pBusiness.Run()
-	// run node
-	node.Run()
+
 	sigChan := make(chan os.Signal)
 
 	signal.Notify(sigChan, syscall.SIGINT)

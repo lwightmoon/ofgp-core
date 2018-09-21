@@ -11,6 +11,7 @@ import (
 	"github.com/ofgp/ofgp-core/config"
 	"github.com/ofgp/ofgp-core/crypto"
 	"github.com/ofgp/ofgp-core/log"
+	"github.com/ofgp/ofgp-core/message"
 	"github.com/ofgp/ofgp-core/primitives"
 	pb "github.com/ofgp/ofgp-core/proto"
 	"github.com/ofgp/ofgp-core/util"
@@ -420,22 +421,29 @@ func (ld *Leader) createSignReq(ctx context.Context) {
 		select {
 		case <-tick:
 			if ld.isInCharge() {
-				txs := ld.txStore.GetWaitingSignTxs()
-				if len(txs) > 0 {
-					leaderLogger.Debug("get waiting sign tx", "cnt", len(txs))
+				msgs := ld.txStore.GetWaitingSignTxs()
+				if len(msgs) > 0 {
+					leaderLogger.Debug("get waiting sign tx", "cnt", len(msgs))
 				}
-				for _, tx := range txs {
+				for _, msg := range msgs {
 					if !ld.isInCharge() {
-						ld.txStore.AddTxtoWaitSign(tx)
+						ld.txStore.AddTxtoWaitSign(msg)
 						continue
 					}
-					req, err := pb.MakeSignReqMsg(ld.blockStore.GetNodeTerm(), ld.nodeInfo.Id, tx.Event, tx.Tx, "", ld.signer, tx.Recharge)
+					signMsg := msg.Msg
+					createReq := msg.Req
+					newTx, err := ld.txInvoker.CreateTx(createReq)
 					if err != nil {
-						leaderLogger.Error("make sign tx failed", "err", err, "scTxID", tx.ScTxID)
+						leaderLogger.Error("create tx err", "err", err, "scTxID", signMsg.ScTxID, "chain", createReq.GetChain())
+						continue
+					}
+					req, err := pb.MakeSignReqMsg(ld.blockStore.GetNodeTerm(), ld.nodeInfo.Id, signMsg.Event, newTx, "", ld.signer, signMsg.Recharge)
+					if err != nil {
+						leaderLogger.Error("make sign tx failed", "err", err, "scTxID", signMsg.ScTxID)
 						continue
 					}
 					if !ld.isInCharge() {
-						ld.txStore.AddTxtoWaitSign(tx)
+						ld.txStore.AddTxtoWaitSign(msg)
 						continue
 					}
 					ld.broadcastSignReq(req, cluster.NodeList, cluster.QuorumN)
@@ -492,7 +500,7 @@ func (ld *Leader) broadcastSignReq(req *pb.SignRequest, nodes []cluster.NodeInfo
 	}
 }
 
-func (ld *Leader) createTx(req CreateReq) (*pb.NewlyTx, error) {
+func (ld *Leader) createTx(req message.CreateReq) (*pb.NewlyTx, error) {
 	leaderLogger.Debug("leader create tx", "scTxID", req.GetID())
 	if ld.isInCharge() {
 		tx, err := ld.txInvoker.CreateTx(req)

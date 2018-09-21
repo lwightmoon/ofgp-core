@@ -1261,7 +1261,7 @@ func RunNew(id int32, multiSigInfos []cluster.MultiSigInfo) (*grpc.Server, *Braf
 		cluster.SetCurrMultiSig(latestMultiSig)
 		braftNode.changeFederationAddrs(latestMultiSig, multiSigInfos)
 	}
-	// braftNode.Run()
+	braftNode.Run()
 
 	return grpcServer, braftNode
 }

@@ -7,13 +7,13 @@ import (
 )
 
 //CreateTx create tx
-func (node *BraftNode) CreateTx(req CreateReq) (*pb.NewlyTx, error) {
+func (node *BraftNode) CreateTx(req message.CreateReq) (*pb.NewlyTx, error) {
 	tx, err := node.leader.createTx(req)
 	return tx, err
 }
 
-//SignTx 发送到待签名队列
-func (node *BraftNode) SignTx(msg *message.WaitSignMsg) {
+//CreateAndSign 创建并发送签名
+func (node *BraftNode) CreateAndSign(msg *message.CreateAndSignMsg) {
 	node.txStore.AddTxtoWaitSign(msg)
 }
 

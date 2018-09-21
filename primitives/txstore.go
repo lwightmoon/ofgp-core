@@ -88,7 +88,7 @@ func (t *txWithTimeMs) resetWaitingTolerance() {
 	t.calcOverdueTs = time.Now()
 }
 
-func newSignMsgWithtimeMs(msg *message.WaitSignMsg) *signMsgWithtimeMs {
+func newSignMsgWithtimeMs(msg *message.CreateAndSignMsg) *signMsgWithtimeMs {
 	return &signMsgWithtimeMs{
 		msg:                msg,
 		genTs:              time.Now(),
@@ -98,7 +98,7 @@ func newSignMsgWithtimeMs(msg *message.WaitSignMsg) *signMsgWithtimeMs {
 }
 
 type signMsgWithtimeMs struct {
-	msg                *message.WaitSignMsg
+	msg                *message.CreateAndSignMsg
 	genTs              time.Time
 	calcOverdueTs      time.Time
 	txWaitingTolerance time.Duration
@@ -264,10 +264,12 @@ type TxStore struct {
 	fetchTxsChan  chan txsFetcher
 	addTxsChan    chan addTxsRequest
 
-	watchedTxEvent     sync.Map //监听到的event
-	addWatchedEventCh  chan *pb.WatchedEvent
-	waitingSignTx      sync.Map //等待被签名交易
-	addWaitingSignTxCh chan *message.WaitSignMsg
+	watchedTxEvent    sync.Map //监听到的event
+	addWatchedEventCh chan *pb.WatchedEvent
+	// waitingSignTx      sync.Map //等待被签名交易
+
+	createAndSignMsg   sync.Map //等待被创建的请求
+	createAndSignMsgCh chan *message.CreateAndSignMsg
 	//queryTxsChan   chan txsQuery
 	heartbeatTimer *time.Timer
 	sync.RWMutex
@@ -288,7 +290,7 @@ func NewTxStore(db *dgwdb.LDBDatabase) *TxStore {
 		addTxsChan:         make(chan addTxsRequest),
 		fetchTxsChan:       make(chan txsFetcher),
 		addWatchedEventCh:  make(chan *pb.WatchedEvent),
-		addWaitingSignTxCh: make(chan *message.WaitSignMsg),
+		createAndSignMsgCh: make(chan *message.CreateAndSignMsg),
 		//queryTxsChan:   make(chan txsQuery),
 		heartbeatTimer: time.NewTimer(heartbeatInterval),
 	}
@@ -311,9 +313,13 @@ func (ts *TxStore) Run(ctx context.Context) {
 		case watchedEvent := <-ts.addWatchedEventCh: //添加监听到的event
 			bsLogger.Debug("add watched event to mempool", "business", watchedEvent.GetBusiness(), "scTxID", watchedEvent.GetTxID())
 			ts.watchedTxEvent.Store(watchedEvent.GetTxID(), watchedEvent)
-		case waitSignTx := <-ts.addWaitingSignTxCh: //添加待签名交易
-			bsLogger.Debug("add waitingSign tx", "business", waitSignTx.Business, "scTxID", waitSignTx.ScTxID)
-			ts.waitingSignTx.Store(waitSignTx.ScTxID, newSignMsgWithtimeMs(waitSignTx))
+		// case waitSignTx := <-ts.addWaitingSignTxCh: //添加待签名交易
+		// 	bsLogger.Debug("add waitingSign tx", "business", waitSignTx.Business, "scTxID", waitSignTx.ScTxID)
+		// 	ts.waitingSignTx.Store(waitSignTx.ScTxID, newSignMsgWithtimeMs(waitSignTx))
+		case msg := <-ts.createAndSignMsgCh:
+			signMsg := msg.Msg
+			bsLogger.Debug("add waitingSign tx", "business", signMsg.Business, "scTxID", signMsg.ScTxID)
+			ts.createAndSignMsg.Store(signMsg.ScTxID, newSignMsgWithtimeMs(msg))
 		case <-ctx.Done():
 			return
 		}
@@ -360,12 +366,12 @@ func (ts *TxStore) AddWatchedEvent(event *pb.WatchedEvent) {
 }
 
 // AddTxtoWaitSign 重新加入待签名
-func (ts *TxStore) AddTxtoWaitSign(msg *message.WaitSignMsg) {
-	scTxID := msg.Event.GetTxID()
-	inMem := ts.IsTxInMem(msg.ScTxID)
+func (ts *TxStore) AddTxtoWaitSign(msg *message.CreateAndSignMsg) {
+	scTxID := msg.Req.GetID()
+	inMem := ts.IsTxInMem(scTxID)
 	if msg != nil && !ts.HasTxInDB(scTxID) && !inMem {
 		go func() {
-			ts.addWaitingSignTxCh <- msg
+			ts.createAndSignMsgCh <- msg
 		}()
 	} else {
 		bsLogger.Debug("tx has been in db or mem", "scTxID", scTxID)
@@ -374,14 +380,14 @@ func (ts *TxStore) AddTxtoWaitSign(msg *message.WaitSignMsg) {
 }
 
 // GetWaitingSignTxs 获取待签名交易
-func (ts *TxStore) GetWaitingSignTxs() []*message.WaitSignMsg {
+func (ts *TxStore) GetWaitingSignTxs() []*message.CreateAndSignMsg {
 
-	var txs []*message.WaitSignMsg
-	ts.waitingSignTx.Range(func(k, v interface{}) bool {
+	var txs []*message.CreateAndSignMsg
+	ts.createAndSignMsg.Range(func(k, v interface{}) bool {
 		msgWt, ok := v.(*signMsgWithtimeMs)
 		if ok {
 			tx := msgWt.msg
-			scTxID := tx.ScTxID
+			scTxID := tx.Msg.ScTxID
 			// 本term内已经确定加签失败的交易，下个term再重新发起
 			if IsSignFailed(ts.db, scTxID, ts.currTerm) {
 				bsLogger.Debug("sign failed", "scTxID", scTxID)
@@ -389,7 +395,7 @@ func (ts *TxStore) GetWaitingSignTxs() []*message.WaitSignMsg {
 			}
 			if ts.HasTxInDB(scTxID) || ts.IsTxInMem(scTxID) {
 				bsLogger.Debug("tx in fresh has been in mem or db", "scTxID", scTxID)
-				ts.waitingSignTx.Delete(scTxID)
+				ts.createAndSignMsg.Delete(scTxID)
 				return true
 			}
 			bsLogger.Debug("add watched tx to queue", "sctxid", scTxID)
@@ -397,14 +403,14 @@ func (ts *TxStore) GetWaitingSignTxs() []*message.WaitSignMsg {
 		}
 		return true
 	})
-	ts.waitingSignTx = sync.Map{}
+	ts.createAndSignMsg = sync.Map{}
 	return txs
 }
 
 // HasWaitSignTx 待签名交易是否为空
 func (ts *TxStore) HasWaitSignTx() bool {
 	var has bool
-	ts.waitingSignTx.Range(func(k, v interface{}) bool {
+	ts.createAndSignMsg.Range(func(k, v interface{}) bool {
 		has = true
 		return false
 	})
@@ -413,7 +419,7 @@ func (ts *TxStore) HasWaitSignTx() bool {
 
 // DeleteWaitSign 删除待签名交易
 func (ts *TxStore) DeleteWaitSign(scTxID string) {
-	ts.waitingSignTx.Delete(scTxID)
+	ts.createAndSignMsg.Delete(scTxID)
 }
 
 // DeleteWatchedEvent 删除监听到的事件
@@ -438,11 +444,11 @@ func (ts *TxStore) CreateInnerTx(innerTx *pb.Transaction) error {
 	// 这个时候监听到的交易已经成功处理并上链了，先清理监听交易缓存
 	for _, pubtx := range innerTx.Vin {
 		ts.watchedTxEvent.Delete(pubtx.TxID)
-		ts.waitingSignTx.Delete(pubtx.TxID)
+		ts.createAndSignMsg.Delete(pubtx.TxID)
 	}
 	for _, pubtx := range innerTx.Vout {
 		ts.watchedTxEvent.Delete(pubtx.TxID)
-		ts.waitingSignTx.Delete(pubtx.TxID)
+		ts.createAndSignMsg.Delete(pubtx.TxID)
 	}
 	innerTx.UpdateId()
 	req := makeAddTxsRequest([]*pb.Transaction{innerTx})
@@ -514,14 +520,14 @@ func (ts *TxStore) cleanUpOnNewCommitted(committedTxs []*pb.Transaction, height 
 			bsLogger.Debug("write tx to db and delete from mempool", "txid", pubTx.GetTxID())
 			SetTxIdMap(ts.db, pubTx.GetTxID(), tx.TxID)
 			ts.watchedTxEvent.Delete(pubTx.GetTxID())
-			ts.waitingSignTx.Delete(pubTx.GetTxID())
+			ts.createAndSignMsg.Delete(pubTx.GetTxID())
 		}
 		//to链和tx_id 和网关tx_id的对应
 		for _, pubTx := range tx.Vout {
 			bsLogger.Debug("write tx to db and delete from mempool", "txid", pubTx.GetTxID())
 			SetTxIdMap(ts.db, pubTx.GetTxID(), tx.TxID)
 			ts.watchedTxEvent.Delete(pubTx.GetTxID())
-			ts.waitingSignTx.Delete(pubTx.GetTxID())
+			ts.createAndSignMsg.Delete(pubTx.GetTxID())
 		}
 		ts.waitPackingTx.delTx(tx)
 	}
