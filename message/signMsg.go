@@ -4,12 +4,6 @@ import (
 	pb "github.com/ofgp/ofgp-core/proto"
 )
 
-const (
-	Btc = iota
-	Bch
-	Eth
-)
-
 // WaitSignMsg 待签名数据
 type WaitSignMsg struct {
 	Business string //业务

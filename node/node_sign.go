@@ -7,8 +7,8 @@ import (
 
 	btwatcher "swap/btwatcher"
 
+	"github.com/ofgp/common/defines"
 	"github.com/ofgp/ofgp-core/cluster"
-	"github.com/ofgp/ofgp-core/message"
 	pb "github.com/ofgp/ofgp-core/proto"
 	"github.com/ofgp/ofgp-core/util/assert"
 
@@ -85,16 +85,6 @@ func (node *BraftNode) clearOnFail(signReq *pb.SignRequest) {
 	node.signedResultCache.Delete(scTxID)
 	node.blockStore.DeleteSignReqMsg(scTxID)
 
-	// if !signReq.GetWatchedEvent().IsTransferEvent() && !node.isTxSigned(scTxID) {
-	// 	waitSignMsg := &message.WaitSignMsg{
-	// 		Business: signReq.Business,
-	// 		ID:       signReq.GetWatchedEvent().GetTxID(),
-	// 		ScTxID:   signReq.GetWatchedEvent().GetTxID(),
-	// 		Event:    signReq.GetWatchedEvent(),
-	// 		Tx:       signReq.GetNewlyTx(),
-	// 	}
-	// 	node.txStore.AddTxtoWaitSign(waitSignMsg)
-	// }
 }
 
 /*
@@ -235,12 +225,13 @@ func newCollectorFactory(bch *bchResCollector, btc *btcResCollector, eth *ethRes
 }
 
 func (factory *collectorFactory) getCollector(chain uint32) collector {
-	switch chain {
-	case message.Bch:
+	chainCmp := uint8(chain)
+	switch chainCmp {
+	case defines.CHAIN_CODE_BCH:
 		return factory.bch
-	case message.Btc:
+	case defines.CHAIN_CODE_BTC:
 		return factory.btc
-	case message.Eth:
+	case defines.CHAIN_CODE_ETH:
 		return factory.eth
 	default:
 		leaderLogger.Error("can't get collector")
@@ -287,15 +278,6 @@ func (node *BraftNode) doSave(msg *pb.SignResult) {
 		}
 		return
 	}
-	// buf := bytes.NewBuffer(signReq.NewlyTx.Data)
-	// newlyTx := new(wire.MsgTx)
-	// err := newlyTx.Deserialize(buf)
-	// assert.ErrorIsNil(err)
-	// if msg.To == message.Bch {
-	// 	watcher = node.bchWatcher
-	// } else {
-	// 	watcher = node.btcWatcher
-	// }
 	newlyTx := collector.createTx(signReq)
 
 	if msg.Code == pb.CodeType_SIGNED {

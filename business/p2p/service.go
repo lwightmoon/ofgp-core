@@ -1,6 +1,9 @@
 package p2p
 
 import (
+	"errors"
+
+	"github.com/ofgp/common/defines"
 	"github.com/ofgp/ofgp-core/message"
 	"github.com/ofgp/ofgp-core/node"
 	pb "github.com/ofgp/ofgp-core/proto"
@@ -30,17 +33,19 @@ func (s *service) createTx(op uint8, info *P2PInfo) (*pb.NewlyTx, error) {
 		return nil, nil
 	}
 	var req node.CreateReq
-	switch msg.Chain {
-	case message.Bch:
+	chain := uint8(msg.Chain)
+	p2pLogger.Debug("send tx to", "chain", chain)
+	switch chain {
+	case defines.CHAIN_CODE_BCH:
 		fallthrough
-	case message.Btc:
+	case defines.CHAIN_CODE_BTC:
 		req = &node.BaseCreateReq{
 			Chain:  msg.Chain,
 			ID:     event.GetTxID(),
 			Addr:   addr,
 			Amount: msg.Amount,
 		}
-	case message.Eth:
+	case defines.CHAIN_CODE_ETH:
 		ethReq := &node.EthCreateReq{}
 		ethReq.Chain = msg.Chain
 		ethReq.ID = event.GetTxID()
@@ -50,6 +55,7 @@ func (s *service) createTx(op uint8, info *P2PInfo) (*pb.NewlyTx, error) {
 		req = ethReq
 	default:
 		p2pLogger.Error("chain type err")
+		return nil, errors.New("chain type err")
 	}
 	tx, err := s.node.CreateTx(req)
 	return tx, err

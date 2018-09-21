@@ -54,9 +54,9 @@ func NewP2P(braftNode *node.BraftNode, path string) *P2P {
 	// check匹配超时
 	wh.runCheckMatchTimeout()
 
-	sh := newSignedHandler(db, service, 5, 1)
+	sh := newSignedHandler(db, service, 15, 10)
 	sh.runCheck()
-	confirmH := newConfirmHandler(db, 5, service, 1)
+	confirmH := newConfirmHandler(db, 180, service, 10)
 	confirmH.runCheck()
 	commitH := &commitHandler{}
 	wh.SetSuccessor(sh)
@@ -133,10 +133,25 @@ func (wh *watchedHandler) checkP2PInfo(info *P2PInfo) bool {
 		return false
 	}
 	if info.IsExpired() {
+		//发起回退交易
 		p2pLogger.Warn("tx has already been expired", "scTxID", txID)
+		wh.sendBackTx(info)
 		return false
 	}
 	return true
+}
+
+func (wh *watchedHandler) sendBackTx(info *P2PInfo) {
+	//创建并发送回退交易
+	wh.db.setMatchedOne(info.GetScTxID(), "")
+	newTx, err := wh.service.createTx(back, info)
+	if newTx != nil && err == nil {
+		waitToSign := newWaitToSign(info, newTx)
+		wh.service.sendtoSign(waitToSign)
+	} else {
+		p2pLogger.Error("create tx err", "err", err, "scTxID", info.Event.GetTxID())
+	}
+	setWaitConfirm(wh.db, uint32(back), info.Event.GetTo(), info.GetScTxID())
 }
 
 //checkMatchTimeout 交易是否匹配超时
@@ -150,13 +165,7 @@ func (wh *watchedHandler) checkMatchTimeout() {
 		if !isMatching(wh.db, info.GetScTxID()) && !wh.node.IsDone(scTxID) && info.IsExpired() {
 			//创建并发送回退交易
 			p2pLogger.Debug("match timeout", "scTxID", info.GetScTxID())
-			wh.db.setMatchedOne(info.GetScTxID(), "")
-			newTx, err := wh.service.createTx(back, info)
-			if newTx != nil && err == nil {
-				waitToSign := newWaitToSign(info, newTx)
-				wh.service.sendtoSign(waitToSign)
-			}
-			setWaitConfirm(wh.db, uint32(back), info.Event.GetTo(), info.GetScTxID())
+			wh.sendBackTx(info)
 		}
 	}
 }
@@ -173,10 +182,11 @@ func (wh *watchedHandler) runCheckMatchTimeout() {
 
 func newWaitToSign(info *P2PInfo, newTx *pb.NewlyTx) *message.WaitSignMsg {
 	var waitToSign *message.WaitSignMsg
-	switch info.Msg.Chain {
-	case message.Btc:
+	chain := uint8(info.Msg.Chain)
+	switch chain {
+	case defines.CHAIN_CODE_BTC:
 		fallthrough
-	case message.Bch:
+	case defines.CHAIN_CODE_BCH:
 		recharge := &pb.BtcRecharge{
 			Amount: info.Msg.Amount,
 			Addr:   info.Msg.ReceiveAddr,
@@ -189,7 +199,7 @@ func newWaitToSign(info *P2PInfo, newTx *pb.NewlyTx) *message.WaitSignMsg {
 			Tx:       newTx,
 			Recharge: rechargeData,
 		}
-	case message.Eth:
+	case defines.CHAIN_CODE_ETH:
 		recharge := &pb.EthRecharge{
 			Addr:     info.Msg.ReceiveAddr,
 			Amount:   info.Msg.Amount,
@@ -372,7 +382,7 @@ func (sh *signedHandler) checkSignTimeout() {
 			p2pLogger.Debug("sign timeout", "scTxID", scTxID)
 			sh.service.markSignFail(scTxID)
 			sh.addSignFailed(waitTx) //下一个term重试
-			// checker.service.accuse() todo
+			sh.service.accuse()
 		}
 		sh.Unlock()
 	}
@@ -530,12 +540,13 @@ func getP2PConfirmInfo(event *pb.WatchedEvent) *P2PConfirmInfo {
 }
 
 func (handler *confirmHandler) getConfirmTimeout(chain uint32) int64 {
-	switch chain {
-	case message.Bch:
+	chainCmp := uint8(chain)
+	switch chainCmp {
+	case defines.CHAIN_CODE_BCH:
 		fallthrough
-	case message.Btc:
-		return int64(node.BchConfirms)*60 + handler.confirmTolerance
-	case message.Eth:
+	case defines.CHAIN_CODE_BTC:
+		return int64(node.BchConfirms)*60*10 + handler.confirmTolerance
+	case defines.CHAIN_CODE_ETH:
 		return int64(node.BchConfirms)*15 + handler.confirmTolerance
 	default:
 		return handler.confirmTolerance
@@ -576,7 +587,8 @@ func (handler *confirmHandler) checkConfirmTimeout() {
 				continue
 			}
 			// check交易是否在链上存在 btc bch
-			if sended.Chain == message.Bch || sended.Chain == message.Btc {
+			chain := uint8(sended.Chain)
+			if chain == defines.CHAIN_CODE_BCH || chain == defines.CHAIN_CODE_BTC {
 				if handler.service.isTxOnChain(sended.SignBeforeTxId, uint8(sended.Chain)) {
 					p2pLogger.Info("check confirm already onchain", "scTxID", scTxID)
 					continue

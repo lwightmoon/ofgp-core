@@ -14,7 +14,6 @@ import (
 	"github.com/btcsuite/btcd/wire"
 	"github.com/ofgp/ofgp-core/cluster"
 	"github.com/ofgp/ofgp-core/dgwdb"
-	"github.com/ofgp/ofgp-core/message"
 	"github.com/ofgp/ofgp-core/primitives"
 	pb "github.com/ofgp/ofgp-core/proto"
 )
@@ -175,11 +174,4 @@ func TestTempCheck(t *testing.T) {
 	newTx := temp.createTx(nil)
 	checkRes := temp.check(newTx, &pb.SignResult{})
 	t.Logf("sign check res:%t", checkRes)
-}
-
-func TestChainType(t *testing.T) {
-	res := &pb.SignResult{
-		To: 0,
-	}
-	t.Logf("is bch:%t", res.To == message.Bch)
 }

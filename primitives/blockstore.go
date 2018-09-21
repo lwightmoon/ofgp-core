@@ -15,7 +15,6 @@ import (
 	"github.com/ofgp/ofgp-core/crypto"
 	"github.com/ofgp/ofgp-core/dgwdb"
 	"github.com/ofgp/ofgp-core/log"
-	"github.com/ofgp/ofgp-core/message"
 	pb "github.com/ofgp/ofgp-core/proto"
 	"github.com/ofgp/ofgp-core/util"
 	"github.com/ofgp/ofgp-core/util/assert"
@@ -607,12 +606,14 @@ func (bs *BlockStore) handleSignReq(tasks *task.Queue, msg *pb.SignRequest) {
 	var signResult *pb.SignResult
 	var err error
 	targetChain := msg.GetWatchedEvent().GetTo()
+	targetChainCompare := uint8(targetChain)
 	nodeTerm := GetNodeTerm(bs.db)
 
 	switch {
 	case msg.Term > nodeTerm:
 		tasks.Add(func() { bs.NeedSyncUpEvent.Emit(msg.NodeId) })
-		if targetChain == message.Bch || targetChain == message.Btc {
+
+		if targetChainCompare == defines.CHAIN_CODE_BCH || targetChainCompare == defines.CHAIN_CODE_BTC {
 			signResult, err = pb.MakeSignResult(msg.WatchedEvent.GetBusiness(), pb.CodeType_NEEDSYNC, bs.localNodeId,
 				msg.GetWatchedEvent().GetTxID(), nil, targetChain, nodeTerm, bs.signer)
 
@@ -625,9 +626,10 @@ func (bs *BlockStore) handleSignReq(tasks *task.Queue, msg *pb.SignRequest) {
 		}
 	case msg.Term == nodeTerm:
 		bsLogger.Debug("begin sign tx", "sctxid", msg.GetWatchedEvent().GetTxID())
-		if targetChain == message.Bch || targetChain == message.Btc {
+		targetChainCompare := uint8(targetChain)
+		if targetChainCompare == defines.CHAIN_CODE_BCH || targetChainCompare == defines.CHAIN_CODE_BTC {
 			var watcher *btwatcher.Watcher
-			if targetChain == message.Bch {
+			if targetChainCompare == defines.CHAIN_CODE_BCH {
 				watcher = bs.bchWatcher
 			} else {
 				watcher = bs.btcWatcher
@@ -692,7 +694,7 @@ func (bs *BlockStore) handleSignReq(tasks *task.Queue, msg *pb.SignRequest) {
 				return
 			}
 			tasks.Add(func() { bs.BroadcastSignResEvent.Emit(signResult) })
-		} else if targetChain == message.Eth {
+		} else if targetChainCompare == defines.CHAIN_CODE_ETH {
 			scTxID := msg.GetWatchedEvent().GetTxID()
 			business := msg.GetWatchedEvent().GetBusiness()
 			validateRes := bs.validateEthSignReq(msg)
@@ -1263,7 +1265,8 @@ func (bs *BlockStore) validateTransferSignReq(req *pb.SignRequest, newlyTx *wire
 
 	var watcher *btwatcher.Watcher
 	to := req.GetWatchedEvent().GetTo()
-	if to == message.Btc {
+	toCompare := uint8(to)
+	if toCompare == defines.CHAIN_CODE_BTC {
 		watcher = bs.btcWatcher
 	} else {
 		watcher = bs.bchWatcher
@@ -1278,7 +1281,7 @@ func (bs *BlockStore) validateTransferSignReq(req *pb.SignRequest, newlyTx *wire
 	}
 
 	outAddress := btwatcher.ExtractPkScriptAddr(newlyTx.TxOut[0].PkScript, uint8(to))
-	if to == message.Btc {
+	if toCompare == defines.CHAIN_CODE_BTC {
 		if outAddress == cluster.CurrMultiSig.BtcAddress {
 			return validatePass
 		}

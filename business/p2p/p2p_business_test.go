@@ -12,7 +12,6 @@ import (
 	"github.com/ofgp/ofgp-core/cluster"
 	"github.com/ofgp/ofgp-core/config"
 	"github.com/ofgp/ofgp-core/dgwdb"
-	"github.com/ofgp/ofgp-core/message"
 	"github.com/ofgp/ofgp-core/node"
 	pb "github.com/ofgp/ofgp-core/proto"
 )
@@ -294,8 +293,8 @@ func TestIndex(t *testing.T) {
 	event := &pb.WatchedEvent{
 		TxID:   "testTxID",
 		Amount: 1,
-		From:   message.Bch,
-		To:     message.Eth,
+		From:   1,
+		To:     2,
 		Data:   p2pMsg.Encode(),
 	}
 	p2pInfo := &P2PInfo{
@@ -305,7 +304,7 @@ func TestIndex(t *testing.T) {
 	index.Add(p2pInfo)
 	p2pInfo.Event.TxID = "testTxID2"
 	index.Add(p2pInfo)
-	txIDs := index.GetTxID(message.Bch, string(msgUse.SendAddr), uint64(event.Amount))
+	txIDs := index.GetTxID(1, string(msgUse.SendAddr), uint64(event.Amount))
 	t.Logf("get txIDs:%s", txIDs)
 	index.Del(p2pInfo)
 	t.Logf("del res:%v", index.root.Childs)

@@ -11,7 +11,6 @@ import (
 	"github.com/ofgp/ofgp-core/config"
 	"github.com/ofgp/ofgp-core/crypto"
 	"github.com/ofgp/ofgp-core/log"
-	"github.com/ofgp/ofgp-core/message"
 	"github.com/ofgp/ofgp-core/primitives"
 	pb "github.com/ofgp/ofgp-core/proto"
 	"github.com/ofgp/ofgp-core/util"
@@ -357,7 +356,7 @@ func (ld *Leader) watchFormerMultisig(ctx context.Context) {
 					addressMap[defines.CHAIN_CODE_BTC] = multiSig.BtcAddress
 					for chainType, address := range addressMap {
 						var watcher *btwatcher.Watcher
-						if chainType == message.Btc {
+						if chainType == defines.CHAIN_CODE_BTC {
 							watcher = ld.btcWatcher
 						} else {
 							watcher = ld.bchWatcher
@@ -494,8 +493,12 @@ func (ld *Leader) broadcastSignReq(req *pb.SignRequest, nodes []cluster.NodeInfo
 }
 
 func (ld *Leader) createTx(req CreateReq) (*pb.NewlyTx, error) {
+	leaderLogger.Debug("leader create tx", "scTxID", req.GetID())
 	if ld.isInCharge() {
 		tx, err := ld.txInvoker.CreateTx(req)
+		if err != nil {
+			leaderLogger.Error("create tx err", "err", err, "scTxID", req.GetID())
+		}
 		return tx, err
 	}
 	return nil, errors.New("is not leader")

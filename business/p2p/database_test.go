@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ofgp/ofgp-core/message"
+	"github.com/ofgp/common/defines"
 	pb "github.com/ofgp/ofgp-core/proto"
 )
 
@@ -25,8 +25,8 @@ func ExampleP2PInfo() {
 	event := &pb.WatchedEvent{
 		TxID:   "testTxID",
 		Amount: 1,
-		From:   message.Bch,
-		To:     message.Eth,
+		From:   defines.CHAIN_CODE_BCH,
+		To:     defines.CHAIN_CODE_ETH,
 		Data:   p2pMsg.Encode(),
 	}
 	p2pInfo := &P2PInfo{
@@ -63,8 +63,8 @@ func TestGetAllInfo(t *testing.T) {
 	event := &pb.WatchedEvent{
 		TxID:   "testTxID",
 		Amount: 1,
-		From:   message.Bch,
-		To:     message.Eth,
+		From:   defines.CHAIN_CODE_BCH,
+		To:     defines.CHAIN_CODE_ETH,
 		Data:   p2pMsg.Encode(),
 	}
 	p2pInfo := &P2PInfo{

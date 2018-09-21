@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ofgp/ofgp-core/message"
+	"github.com/ofgp/common/defines"
 )
 
 // watcher require
@@ -89,7 +89,7 @@ func TestWatcherMsg(t *testing.T) {
 	watcherMsg := &P2pRequire{
 		SendAddr:    getBytes(20),
 		ReceiveAddr: getBytes(20),
-		ChainId:     message.Bch,
+		ChainId:     defines.CHAIN_CODE_BCH,
 		TokenId:     1,
 		Amount:      90,
 		Fee:         1,
@@ -103,7 +103,7 @@ func TestWatcherMsg(t *testing.T) {
 func TestWatcherConfirm(t *testing.T) {
 	confirm := &P2pConfirm{
 		ShouldMatched: getBytes(32),
-		ChainId:       message.Eth,
+		ChainId:       defines.CHAIN_CODE_ETH,
 		Confirms:      2,
 		BlockHeight:   2,
 		BlockHash:     getBytes(32),

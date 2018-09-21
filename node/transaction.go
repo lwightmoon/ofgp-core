@@ -12,9 +12,9 @@ import (
 
 	"github.com/antimoth/swaputils"
 	"github.com/btcsuite/btcd/wire"
+	"github.com/ofgp/common/defines"
 	"github.com/ofgp/ofgp-core/cluster"
 	"github.com/ofgp/ofgp-core/crypto"
-	"github.com/ofgp/ofgp-core/message"
 	"github.com/ofgp/ofgp-core/primitives"
 	pb "github.com/ofgp/ofgp-core/proto"
 )
@@ -123,7 +123,7 @@ const appcode = 1
 
 func (eop *ethOperator) CreateTx(req CreateReq) (*pb.NewlyTx, error) {
 	if ereq, ok := req.(*EthCreateReq); ok {
-		nodeLogger.Debug("eth create req:%v", ereq)
+		nodeLogger.Debug("create eth tx", "scTxID", req.GetID())
 		addrStr, err := swaputils.CheckBytesToStr(ereq.GetAddr(), uint8(req.GetChain()))
 		if err != nil {
 			leaderLogger.Error("addr to str err", "err", err, "scTxID", req.GetID())
@@ -144,6 +144,7 @@ func (eop *ethOperator) CreateTx(req CreateReq) (*pb.NewlyTx, error) {
 func (eop *ethOperator) SendTx(req ISendReq) error {
 	tx := req.GetTx()
 	input, ok := tx.([]byte)
+	leaderLogger.Debug("send eth tx", "scTxID", req.GetID())
 	if !ok {
 		nodeLogger.Error("send eth req type err", "scTxID", req.GetID())
 		return errors.New("send eth req err")
@@ -199,6 +200,8 @@ func sendCointTx(watcher *btwatcher.Watcher, req ISendReq, chain string) error {
 			leaderLogger.Error("send signed tx  failed", "err", err, "sctxid", req.GetID(), "chian", chain)
 		}
 		leaderLogger.Info("sendTx", "scTxID", req.GetID(), "newTxHash", txHash, "err", err.Error())
+	} else {
+		leaderLogger.Debug("tx type err", "scTxID", req.GetID())
 	}
 
 	return err
@@ -216,6 +219,7 @@ func newBtcOprator(watcher *btwatcher.Watcher) *btcOprator {
 }
 
 func (btcOP *btcOprator) CreateTx(req CreateReq) (*pb.NewlyTx, error) {
+	nodeLogger.Debug("create btc tx", "scTxID", req.GetID())
 	btTx, errCode := btcOP.btcWatcher.CreateCoinTx(req.GetAddr(), req.GetAmount(), cluster.ClusterSize)
 	if errCode != 0 {
 		nodeLogger.Error("create tx fail", "scTxID", req.GetID(), "errCode", errCode)
@@ -233,6 +237,7 @@ func (btcOP *btcOprator) CreateTx(req CreateReq) (*pb.NewlyTx, error) {
 }
 
 func (btcOP *btcOprator) SendTx(req ISendReq) error {
+	leaderLogger.Debug("send btc tx", "scTxID", req.GetID())
 	err := sendCointTx(btcOP.btcWatcher, req, "btc")
 	return err
 }
@@ -248,6 +253,7 @@ func newBchOprator(watcher *btwatcher.Watcher) *bchOprator {
 }
 
 func (bchOP *bchOprator) CreateTx(req CreateReq) (*pb.NewlyTx, error) {
+	nodeLogger.Debug("create bch tx", "scTxID", req.GetID())
 	btTx, errCode := bchOP.bchWatcher.CreateCoinTx(req.GetAddr(), req.GetAmount(), cluster.ClusterSize)
 	if errCode != 0 {
 		nodeLogger.Error("create tx fail", "scTxID", req.GetID(), "errCode", errCode)
@@ -265,6 +271,7 @@ func (bchOP *bchOprator) CreateTx(req CreateReq) (*pb.NewlyTx, error) {
 }
 
 func (bchOP *bchOprator) SendTx(req ISendReq) error {
+	leaderLogger.Debug("send bch tx", "scTxID", req.GetID())
 	err := sendCointTx(bchOP.bchWatcher, req, "bch")
 	return err
 }
@@ -287,25 +294,29 @@ func newTxInvoker(ethOp *ethOperator, bchOp *bchOprator, btcOp *btcOprator) *txI
 func (ti *txInvoker) CreateTx(req CreateReq) (*pb.NewlyTx, error) {
 	var newTx *pb.NewlyTx
 	var err error
-	switch req.GetChain() {
-	case message.Bch:
+	chain := uint8(req.GetChain())
+	switch chain {
+	case defines.CHAIN_CODE_BCH:
 		newTx, err = ti.bchOp.CreateTx(req)
-	case message.Eth:
+	case defines.CHAIN_CODE_ETH:
 		newTx, err = ti.ethOp.CreateTx(req)
-	case message.Btc:
+	case defines.CHAIN_CODE_BTC:
 		newTx, err = ti.btcOp.CreateTx(req)
+	default:
+		nodeLogger.Error("create req chain type err", "chain", chain)
 	}
 	return newTx, err
 }
 
 func (ti *txInvoker) SendTx(req ISendReq) error {
 	var err error
-	switch req.GetChain() {
-	case message.Bch:
+	chain := uint8(req.GetChain())
+	switch chain {
+	case defines.CHAIN_CODE_BCH:
 		err = ti.bchOp.SendTx(req)
-	case message.Eth:
+	case defines.CHAIN_CODE_ETH:
 		err = ti.ethOp.SendTx(req)
-	case message.Btc:
+	case defines.CHAIN_CODE_BTC:
 		err = ti.btcOp.SendTx(req)
 	default:
 		return errors.New("not found")
