@@ -1175,7 +1175,7 @@ func (bs *BlockStore) validateEthSignReq(req *pb.SignRequest) int {
 	}
 	addr := ew.HexToAddress(addrStr)
 	localInput, err := bs.ethWatcher.EncodeInput(ethRecharge.Method, ethRecharge.TokenTo, addr, ethRecharge.Amount, req.WatchedEvent.TxID)
-	if err!=nil{
+	if err != nil {
 		bsLogger.Error("sign encode eth inpu err")
 	}
 	if !bytes.Equal(req.NewlyTx.Data, localInput) {
