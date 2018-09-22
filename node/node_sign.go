@@ -147,6 +147,7 @@ func mergeMortgageTx(watcher *btwatcher.Watcher, tx interface{},
 type collector interface {
 	createTx(req *pb.SignRequest) interface{}
 	check(tx interface{}, res *pb.SignResult) bool
+	// 返回值:新交易 签名前txid 是否成功
 	merge(tx interface{}, results []*pb.SignResult, quorumN int) (interface{}, string, bool)
 }
 

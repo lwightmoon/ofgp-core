@@ -132,19 +132,20 @@ func (eop *ethOperator) CreateTx(req message.CreateReq) (*pb.NewlyTx, error) {
 	return nil, errors.New("eth createReq type err")
 }
 
+// SendTx eth 无需send在sign阶段已经完成
 func (eop *ethOperator) SendTx(req ISendReq) error {
-	tx := req.GetTx()
-	input, ok := tx.([]byte)
-	leaderLogger.Debug("send eth tx", "scTxID", req.GetID())
-	if !ok {
-		nodeLogger.Error("send eth req type err", "scTxID", req.GetID())
-		return errors.New("send eth req err")
-	}
-	_, err := eop.cli.SendTranxByInput(eop.signer.PubKeyHex, eop.signer.PubkeyHash, input)
-	if err != nil {
-		nodeLogger.Error("send eth tx err", "error", err, "id", req.GetID())
-	}
-	return err
+	// tx := req.GetTx()
+	// input, ok := tx.([]byte)
+	// leaderLogger.Debug("send eth tx", "scTxID", req.GetID())
+	// if !ok {
+	// 	nodeLogger.Error("send eth req type err", "scTxID", req.GetID())
+	// 	return errors.New("send eth req err")
+	// }
+	// _, err := eop.cli.SendTranxByInput(eop.signer.PubKeyHex, eop.signer.PubkeyHash, input)
+	// if err != nil {
+	// 	nodeLogger.Error("send eth tx err", "error", err, "id", req.GetID())
+	// }
+	// return err
 	return nil
 }
 
