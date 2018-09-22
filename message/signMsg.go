@@ -27,3 +27,8 @@ type CreateAndSignMsg struct {
 	Req CreateReq
 	Msg *WaitSignMsg
 }
+
+// GetScTxID 获取源链txid
+func (msg *CreateAndSignMsg) GetScTxID() string {
+	return msg.Msg.ScTxID
+}

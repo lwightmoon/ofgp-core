@@ -619,26 +619,26 @@ func (ts *TxStore) heartbeatCheck(ctx context.Context) {
 
 func (ts *TxStore) doHeartbeat() {
 	innerTxHasOverdue := false
-	// watchedTxHasOverdue := false
-	// ts.waitingSignTx.Range(func(k, v interface{}) bool {
-	// 	msg := v.(*signMsgWithtimeMs)
-	// 	if msg.IsOverdue() {
-	// 		scTxID := msg.msg.ScTxID
-	// 		if ts.waitPackingTx.getByPubTxID(scTxID) != nil {
-	// 			return true
-	// 		}
-	// 		if GetTxIdBySidechainTxId(ts.db, scTxID) != nil {
-	// 			ts.watchedTxEvent.Delete(scTxID) //删除监听到的event
-	// 			ts.waitingSignTx.Delete(scTxID)  //删除等待签名的请求
-	// 			return true
-	// 		}
-	// 		bsLogger.Error("wait sign tx timeout", "sctxid", scTxID)
-	// 		watchedTxHasOverdue = true
-	// 		// 重新设置超时时间 防止重复accuse
-	// 		msg.resetWaitingTolerance()
-	// 	}
-	// 	return true
-	// })
+	watchedTxHasOverdue := false
+	ts.createAndSignMsg.Range(func(k, v interface{}) bool {
+		msg := v.(*signMsgWithtimeMs)
+		if msg.IsOverdue() {
+			scTxID := msg.msg.GetScTxID()
+			if ts.waitPackingTx.getByPubTxID(scTxID) != nil {
+				return true
+			}
+			if GetTxIdBySidechainTxId(ts.db, scTxID) != nil {
+				ts.watchedTxEvent.Delete(scTxID)   //删除监听到的event
+				ts.createAndSignMsg.Delete(scTxID) //删除等待签名的请求
+				return true
+			}
+			bsLogger.Error("wait sign tx timeout", "sctxid", scTxID)
+			watchedTxHasOverdue = true
+			// 重新设置超时时间 防止重复accuse
+			msg.resetWaitingTolerance()
+		}
+		return true
+	})
 
 	innerTxHasOverdue = ts.waitPackingTx.hasTimeoutTx(ts.db)
 
