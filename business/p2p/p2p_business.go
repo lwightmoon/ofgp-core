@@ -207,6 +207,7 @@ func newWaitToSign(info *P2PInfo) *message.WaitSignMsg {
 			Business: info.Event.Business,
 			ID:       info.Event.GetTxID(),
 			ScTxID:   info.Event.GetTxID(),
+			Event:    info.Event,
 			Recharge: rechargeData,
 		}
 	case defines.CHAIN_CODE_ETH:
@@ -222,6 +223,7 @@ func newWaitToSign(info *P2PInfo) *message.WaitSignMsg {
 			Business: info.Event.Business,
 			ID:       info.Event.GetTxID(),
 			ScTxID:   info.Event.GetTxID(),
+			Event:    info.Event,
 			Recharge: rechargeData,
 		}
 

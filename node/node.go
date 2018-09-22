@@ -652,11 +652,11 @@ func (bn *BraftNode) watchNewTx(ctx context.Context) {
 	nodeLogger.Debug("bch watch info", "height", bchHeight, "index", bchIndex)
 	bn.bchWatcher.StartWatch(bchHeight, int(bchIndex), eventCh)
 	btcHeight, btcIndex := bn.getTxPosition(dgwConf.BtcHeight, dgwConf.BtcTranIx, defines.CHAIN_CODE_BTC)
-	nodeLogger.Debug("bch watch info", "height", btcHeight, "index", btcIndex)
+	nodeLogger.Debug("btc watch info", "height", btcHeight, "index", btcIndex)
 	bn.btcWatcher.StartWatch(btcHeight, int(btcIndex), eventCh)
 
 	ethHeight, ethIndex := bn.getTxPosition(dgwConf.EthHeight, dgwConf.EthTranIdx, defines.CHAIN_CODE_ETH)
-	nodeLogger.Debug("bch watch info", "height", ethHeight, "index", ethIndex)
+	nodeLogger.Debug("eth watch info", "height", ethHeight, "index", ethIndex)
 	bn.ethWatcher.StartWatch(*big.NewInt(ethHeight), int(ethIndex), eventCh)
 	for event := range eventCh {
 		if event.GetBusiness() != "" {
@@ -1261,7 +1261,7 @@ func RunNew(id int32, multiSigInfos []cluster.MultiSigInfo) (*grpc.Server, *Braf
 		cluster.SetCurrMultiSig(latestMultiSig)
 		braftNode.changeFederationAddrs(latestMultiSig, multiSigInfos)
 	}
-	braftNode.Run()
+	// braftNode.Run()
 
 	return grpcServer, braftNode
 }
