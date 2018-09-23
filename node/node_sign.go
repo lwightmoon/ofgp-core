@@ -348,6 +348,7 @@ func (node *BraftNode) doSave(msg *pb.SignResult) {
 			}
 			//标记已签名 替换SignedEvent
 			node.markTxSigned(msg.ScTxID)
+
 			//通知相关业务已被签名
 			node.pubSigned(msg, msg.To, newlyTx, signBeforeTxID, signReq.Term)
 			// sendTxToChain的时间可能会比较长，因为涉及到链上交易，所以需要提前把锁释放
@@ -384,30 +385,44 @@ func (node *BraftNode) saveSignedResult(ctx context.Context) {
 
 // isTxSigned 判断是否已被签名
 func (node *BraftNode) isTxSigned(scTxID string) bool {
-	_, ok := node.signedTxs.Load(scTxID)
-	return ok
+	return node.txStore.IsTxSigned(scTxID)
 }
 
+// checkSignTimeout 检查是否签名超时
 func (node *BraftNode) checkSignTimeout() {
-	node.signedResultCache.Range(func(k, v interface{}) bool {
-		scTxID := k.(string)
-		cache := v.(*SignedResultCache)
-		now := time.Now().Unix()
-		if now-cache.initTime > signTimeout && !cache.isDone() { //sign达成共识超时，重新放回处理队列
-
-			leaderLogger.Debug("sign timeout", "scTxID", scTxID)
-
-			//删除sign标记
+	msgs := node.txStore.GetCheckSigned()
+	now := time.Now().Unix()
+	for _, msg := range msgs {
+		scTxID := msg.GetScTxID()
+		if now-msg.Time > signTimeout &&
+			!node.txStore.IsTxSigned(scTxID) && node.txStore.HasCheckSigned(scTxID) {
+			nodeLogger.Debug("sign timeout", "scTxID", scTxID)
 			node.signedResultCache.Delete(scTxID)
-			signReq := node.blockStore.GetSignReq(scTxID)
-			if signReq == nil { //本地尚未签名
-				return true
-			}
 			node.blockStore.DeleteSignReqMsg(scTxID)
-			watchedEvent := signReq.GetWatchedEvent()
-			if watchedEvent.IsTransferEvent() {
-				node.txStore.DeleteWatchedEvent(scTxID)
-			}
+			node.txStore.AddTxtoWaitSign(msg)
+		}
+	}
+}
+// func (node *BraftNode) checkSignTimeout() {
+// 	node.signedResultCache.Range(func(k, v interface{}) bool {
+// 		scTxID := k.(string)
+// 		cache := v.(*SignedResultCache)
+// 		now := time.Now().Unix()
+// 		if now-cache.initTime > signTimeout && !cache.isDone() { //sign达成共识超时，重新放回处理队列
+
+// 			leaderLogger.Debug("sign timeout", "scTxID", scTxID)
+
+// 			//删除sign标记
+// 			node.signedResultCache.Delete(scTxID)
+// 			signReq := node.blockStore.GetSignReq(scTxID)
+// 			if signReq == nil { //本地尚未签名
+// 				return true
+// 			}
+// 			node.blockStore.DeleteSignReqMsg(scTxID)
+// 			watchedEvent := signReq.GetWatchedEvent()
+// 			if watchedEvent.IsTransferEvent() {
+// 				node.txStore.DeleteWatchedEvent(scTxID)
+// 			}
 			// if !watchedEvent.IsTransferEvent() {
 			// if !node.isTxSigned(scTxID) { //如果签名已经共识
 			// 	node.txStore.AddTxtoWaitSign(&message.WaitSignMsg{

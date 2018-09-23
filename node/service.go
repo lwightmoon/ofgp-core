@@ -60,7 +60,7 @@ func (node *BraftNode) Clear(scTxID string, term int64) {
 	//删除等待队列
 	node.txStore.DeleteWaitSign(scTxID)
 	//删除已签名标记
-	node.signedTxs.Delete(scTxID)
+	node.txStore.DelSigned(scTxID)
 }
 
 // AccuseWithTerm 业务发起accuse

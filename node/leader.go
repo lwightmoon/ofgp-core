@@ -447,6 +447,7 @@ func (ld *Leader) createSignReq(ctx context.Context) {
 						continue
 					}
 					ld.broadcastSignReq(req, cluster.NodeList, cluster.QuorumN)
+
 					leaderLogger.Debug("broadcast sign", "business", req.GetBusiness(), "scTxID", req.GetWatchedEvent().GetTxID())
 				}
 			}
@@ -511,3 +512,5 @@ func (ld *Leader) createTx(req message.CreateReq) (*pb.NewlyTx, error) {
 	}
 	return nil, errors.New("is not leader")
 }
+
+

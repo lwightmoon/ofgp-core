@@ -97,7 +97,7 @@ type BraftNode struct {
 	syncDaemon    *SyncDaemon
 	mu            sync.Mutex
 
-	signedTxs    sync.Map //已签名交易
+	// signedTxs    sync.Map //已签名交易
 	quit         context.CancelFunc
 	isInReconfig bool
 
@@ -765,7 +765,7 @@ func (bn *BraftNode) dealEthEvent(ev *ew.PushEvent) {
 
 // markTxSigned 标记已签名交易
 func (bn *BraftNode) markTxSigned(scTxID string) {
-	bn.signedTxs.Store(scTxID, struct{}{})
+	bn.txStore.AddSigned(scTxID)
 }
 
 func (bn *BraftNode) onNewBlockCommitted(pack *pb.BlockPack) {
@@ -776,10 +776,10 @@ func (bn *BraftNode) onNewBlockCommitted(pack *pb.BlockPack) {
 			defer bn.mu.Unlock()
 			for _, tx := range block.Txs { //删除已签名标记
 				for _, pubtx := range tx.Vin {
-					bn.signedTxs.Delete(pubtx.GetTxID())
+					bn.txStore.DelSigned(pubtx.GetTxID())
 				}
 				for _, pubtx := range tx.Vout {
-					bn.signedTxs.Delete(pubtx.GetTxID())
+					bn.txStore.DelSigned(pubtx.GetTxID())
 				}
 			}
 		}
@@ -792,7 +792,7 @@ func (bn *BraftNode) deleteFromSigned(scTxID string) {
 	bn.mu.Lock()
 	defer bn.mu.Unlock()
 	nodeLogger.Debug("delete from signed", "scTxID", scTxID)
-	bn.signedTxs.Delete(scTxID)
+	bn.txStore.DelSigned(scTxID)
 }
 
 /*

@@ -24,11 +24,17 @@ type CreateReq interface {
 
 //CreateAndSignMsg 创建并签名数据
 type CreateAndSignMsg struct {
-	Req CreateReq
-	Msg *WaitSignMsg
+	Req  CreateReq
+	Msg  *WaitSignMsg
+	Time int64
 }
 
 // GetScTxID 获取源链txid
 func (msg *CreateAndSignMsg) GetScTxID() string {
 	return msg.Msg.ScTxID
+}
+
+// SetTime 设置时间
+func (msg *CreateAndSignMsg) SetTime(time int64) {
+	msg.Time = time
 }

@@ -266,10 +266,12 @@ type TxStore struct {
 
 	watchedTxEvent    sync.Map //监听到的event
 	addWatchedEventCh chan *pb.WatchedEvent
-	// waitingSignTx      sync.Map //等待被签名交易
 
 	createAndSignMsg   sync.Map //等待被创建的请求
 	createAndSignMsgCh chan *message.CreateAndSignMsg
+
+	checkSignedMsg sync.Map //*message.CreateAndSignMsg chek是否被签名
+	signedTxs      sync.Map //已完成签名交易
 	//queryTxsChan   chan txsQuery
 	heartbeatTimer *time.Timer
 	sync.RWMutex
@@ -320,6 +322,7 @@ func (ts *TxStore) Run(ctx context.Context) {
 			signMsg := msg.Msg
 			bsLogger.Debug("add waitingSign tx", "business", signMsg.Business, "scTxID", signMsg.ScTxID)
 			ts.createAndSignMsg.Store(signMsg.ScTxID, newSignMsgWithtimeMs(msg))
+			ts.AddToCheckSigned(msg)
 		case <-ctx.Done():
 			return
 		}
@@ -429,7 +432,7 @@ func (ts *TxStore) DeleteWatchedEvent(scTxID string) {
 
 // CreateInnerTx 创建一笔网关本身的交易
 func (ts *TxStore) CreateInnerTx(innerTx *pb.Transaction) error {
-	for _, putx := range innerTx.Vout {
+	for _, putx := range innerTx.Vin {
 		signMsg := GetSignReq(ts.db, putx.TxID)
 		if signMsg == nil {
 			bsLogger.Error("create inner tx failed, sign msg not found", "signmsgid", putx.TxID)
@@ -445,10 +448,12 @@ func (ts *TxStore) CreateInnerTx(innerTx *pb.Transaction) error {
 	for _, pubtx := range innerTx.Vin {
 		ts.watchedTxEvent.Delete(pubtx.TxID)
 		ts.createAndSignMsg.Delete(pubtx.TxID)
+		ts.checkSignedMsg.Delete(pubtx.TxID)
 	}
 	for _, pubtx := range innerTx.Vout {
 		ts.watchedTxEvent.Delete(pubtx.TxID)
 		ts.createAndSignMsg.Delete(pubtx.TxID)
+		ts.checkSignedMsg.Delete(pubtx.TxID)
 	}
 	innerTx.UpdateId()
 	req := makeAddTxsRequest([]*pb.Transaction{innerTx})
@@ -521,6 +526,7 @@ func (ts *TxStore) cleanUpOnNewCommitted(committedTxs []*pb.Transaction, height 
 			SetTxIdMap(ts.db, pubTx.GetTxID(), tx.TxID)
 			ts.watchedTxEvent.Delete(pubTx.GetTxID())
 			ts.createAndSignMsg.Delete(pubTx.GetTxID())
+			ts.checkSignedMsg.Delete(pubtx.TxID)
 		}
 		//to链和tx_id 和网关tx_id的对应
 		for _, pubTx := range tx.Vout {
@@ -528,6 +534,7 @@ func (ts *TxStore) cleanUpOnNewCommitted(committedTxs []*pb.Transaction, height 
 			SetTxIdMap(ts.db, pubTx.GetTxID(), tx.TxID)
 			ts.watchedTxEvent.Delete(pubTx.GetTxID())
 			ts.createAndSignMsg.Delete(pubTx.GetTxID())
+			ts.checkSignedMsg.Delete(pubtx.TxID)
 		}
 		ts.waitPackingTx.delTx(tx)
 	}
@@ -731,4 +738,49 @@ func (ts *TxStore) ValidateWatchedEvent(event *pb.WatchedEvent) int {
 	}
 	bsLogger.Error("watched event validate fail", "business", event.GetBusiness(), "scTxID", event.GetTxID())
 	return Invalid
+}
+
+// AddToCheckSigned 添加到check是否被签名
+func (ts *TxStore) AddToCheckSigned(msg *message.CreateAndSignMsg) {
+	scTxID := msg.GetScTxID()
+	msg.SetTime(time.Now().Unix())
+	ts.checkSignedMsg.Store(scTxID, msg)
+}
+
+// DelCheckSigned del check被签名
+func (ts *TxStore) DelCheckSigned(scTxID string) {
+	ts.checkSignedMsg.Delete(scTxID)
+}
+
+// GetCheckSigned 获取等待被check的列表
+func (ts *TxStore) GetCheckSigned() []*message.CreateAndSignMsg {
+	msgs := make([]*message.CreateAndSignMsg, 0)
+	ts.checkSignedMsg.Range(func(k, v interface{}) bool {
+		msg := v.(*message.CreateAndSignMsg)
+		msgs = append(msgs, msg)
+		return true
+	})
+	return msgs
+}
+
+// HasCheckSigned 是否包含在check列表
+func (ts *TxStore) HasCheckSigned(scTxID string) bool {
+	_, ok := ts.checkSignedMsg.Load(scTxID)
+	return ok
+}
+
+// IsTxSigned 是否已完成签名
+func (ts *TxStore) IsTxSigned(scTxID string) bool {
+	_, ok := ts.signedTxs.Load(scTxID)
+	return ok
+}
+
+// AddSigned 添加已完成交易
+func (ts *TxStore) AddSigned(scTxID string) {
+	ts.signedTxs.Store(scTxID, struct{}{})
+}
+
+// DelSigned 删除已签名标记
+func (ts *TxStore) DelSigned(scTxID string) {
+	ts.signedTxs.Delete(scTxID)
 }
