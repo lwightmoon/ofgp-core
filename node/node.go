@@ -21,6 +21,7 @@ import (
 	"github.com/ofgp/ofgp-core/crypto"
 	"github.com/ofgp/ofgp-core/dgwdb"
 	"github.com/ofgp/ofgp-core/log"
+	"github.com/ofgp/ofgp-core/message"
 	"github.com/ofgp/ofgp-core/primitives"
 	pb "github.com/ofgp/ofgp-core/proto"
 	"github.com/ofgp/ofgp-core/util"
@@ -39,6 +40,7 @@ const (
 	maxSubscribers  = 100
 	// 多签地址的转出交易，基本采用0确认，内存池中有交易即可
 	defaultConfirmTolerance = 3 * time.Minute
+	confirmTolerance        = 200
 )
 
 var (
@@ -764,8 +766,8 @@ func (bn *BraftNode) dealEthEvent(ev *ew.PushEvent) {
 */
 
 // markTxSigned 标记已签名交易
-func (bn *BraftNode) markTxSigned(scTxID string) {
-	bn.txStore.AddSigned(scTxID)
+func (bn *BraftNode) markTxSigned(msg *message.SignedMsg) {
+	bn.txStore.AddSigned(msg)
 }
 
 func (bn *BraftNode) onNewBlockCommitted(pack *pb.BlockPack) {

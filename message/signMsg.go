@@ -38,3 +38,11 @@ func (msg *CreateAndSignMsg) GetScTxID() string {
 func (msg *CreateAndSignMsg) SetTime(time int64) {
 	msg.Time = time
 }
+
+// SignedMsg 已被签名
+type SignedMsg struct {
+	ScTxID         string
+	SignBeforeTxID string
+	Chain          uint32
+	Time           int64
+}

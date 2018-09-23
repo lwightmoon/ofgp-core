@@ -9,6 +9,7 @@ import (
 
 	"github.com/ofgp/common/defines"
 	"github.com/ofgp/ofgp-core/cluster"
+	"github.com/ofgp/ofgp-core/message"
 	pb "github.com/ofgp/ofgp-core/proto"
 	"github.com/ofgp/ofgp-core/util/assert"
 
@@ -347,7 +348,13 @@ func (node *BraftNode) doSave(msg *pb.SignResult) {
 				return
 			}
 			//标记已签名 替换SignedEvent
-			node.markTxSigned(msg.ScTxID)
+			signedMsg := &message.SignedMsg{
+				ScTxID:         msg.ScTxID,
+				SignBeforeTxID: signBeforeTxID,
+				Chain:          msg.GetTo(),
+				Time:           time.Now().Unix(),
+			}
+			node.markTxSigned(signedMsg)
 
 			//通知相关业务已被签名
 			node.pubSigned(msg, msg.To, newlyTx, signBeforeTxID, signReq.Term)
@@ -403,6 +410,47 @@ func (node *BraftNode) checkSignTimeout() {
 		}
 	}
 }
+
+func getConfirmTimeout(chain uint32) int64 {
+	chainCmp := uint8(chain)
+	switch chainCmp {
+	case defines.CHAIN_CODE_BCH:
+		fallthrough
+	case defines.CHAIN_CODE_BTC:
+		return int64(BchConfirms)*60*10 + confirmTolerance
+	case defines.CHAIN_CODE_ETH:
+		return int64(BchConfirms)*15 + confirmTolerance
+	default:
+		nodeLogger.Debug("chain type err", "chain", chain)
+		return confirmTolerance
+	}
+
+}
+func (node *BraftNode) checkConfirmTimeout() {
+	signedMsgs := node.txStore.GetAllSigned()
+	now := time.Now().Unix()
+	for _, msg := range signedMsgs {
+		scTxID := msg.ScTxID
+		if now-msg.Time > getConfirmTimeout(msg.Chain) && node.isTxSigned(scTxID) {
+			event := node.GetTxByHash(scTxID, uint8(msg.Chain))
+			if event == nil {
+				node.signedResultCache.Delete(scTxID)
+				node.blockStore.DeleteSignReq(scTxID)
+				node.txStore.DeleteWaitSign(scTxID)
+				node.txStore.DelSigned(scTxID)
+				msg := node.txStore.GetCreateAndSignMsg(scTxID)
+				if msg != nil {
+					node.txStore.AddTxtoWaitSign(msg)
+				} else {
+					nodeLogger.Error("confirm timeout can not find waitsignMsg", "scTxID", scTxID)
+				}
+			} else {
+				nodeLogger.Debug("confirm timeout getTxByHash not nil", "scTxID", scTxID)
+			}
+		}
+	}
+}
+
 // func (node *BraftNode) checkSignTimeout() {
 // 	node.signedResultCache.Range(func(k, v interface{}) bool {
 // 		scTxID := k.(string)
@@ -423,25 +471,25 @@ func (node *BraftNode) checkSignTimeout() {
 // 			if watchedEvent.IsTransferEvent() {
 // 				node.txStore.DeleteWatchedEvent(scTxID)
 // 			}
-			// if !watchedEvent.IsTransferEvent() {
-			// if !node.isTxSigned(scTxID) { //如果签名已经共识
-			// 	node.txStore.AddTxtoWaitSign(&message.WaitSignMsg{
-			// 		Business: signReq.Business,
-			// 		ScTxID:   signReq.GetWatchedEvent().GetTxID(),
-			// 		Event:    signReq.WatchedEvent,
-			// 		Tx:       signReq.NewlyTx,
-			// 	})
-			// } else {
-			// 	nodeLogger.Debug("tx is in waiting", "scTxID", scTxID)
-			// }
-			// } else {
-			// 	node.txStore.DeleteWatchedEvent(scTxID)
-			// }
-		}
-		return true
+// if !watchedEvent.IsTransferEvent() {
+// if !node.isTxSigned(scTxID) { //如果签名已经共识
+// 	node.txStore.AddTxtoWaitSign(&message.WaitSignMsg{
+// 		Business: signReq.Business,
+// 		ScTxID:   signReq.GetWatchedEvent().GetTxID(),
+// 		Event:    signReq.WatchedEvent,
+// 		Tx:       signReq.NewlyTx,
+// 	})
+// } else {
+// 	nodeLogger.Debug("tx is in waiting", "scTxID", scTxID)
+// }
+// } else {
+// 	node.txStore.DeleteWatchedEvent(scTxID)
+// }
+// 		}
+// 		return true
 
-	})
-}
+// 	})
+// }
 
 func (node *BraftNode) runCheckSignTimeout(ctx context.Context) {
 	go func() {
@@ -456,6 +504,23 @@ func (node *BraftNode) runCheckSignTimeout(ctx context.Context) {
 			select {
 			case <-tch:
 				node.checkSignTimeout()
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+}
+
+// runCheckConfirm check 确认超时
+func (node *BraftNode) runCheckConfirm(ctx context.Context) {
+	go func() {
+		interval := cluster.BlockInterval
+
+		tch := time.NewTicker(interval).C
+		for {
+			select {
+			case <-tch:
+				node.checkConfirmTimeout()
 			case <-ctx.Done():
 				return
 			}

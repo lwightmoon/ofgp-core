@@ -526,7 +526,7 @@ func (ts *TxStore) cleanUpOnNewCommitted(committedTxs []*pb.Transaction, height 
 			SetTxIdMap(ts.db, pubTx.GetTxID(), tx.TxID)
 			ts.watchedTxEvent.Delete(pubTx.GetTxID())
 			ts.createAndSignMsg.Delete(pubTx.GetTxID())
-			ts.checkSignedMsg.Delete(pubtx.TxID)
+			ts.checkSignedMsg.Delete(pubTx.GetTxID())
 		}
 		//to链和tx_id 和网关tx_id的对应
 		for _, pubTx := range tx.Vout {
@@ -534,7 +534,7 @@ func (ts *TxStore) cleanUpOnNewCommitted(committedTxs []*pb.Transaction, height 
 			SetTxIdMap(ts.db, pubTx.GetTxID(), tx.TxID)
 			ts.watchedTxEvent.Delete(pubTx.GetTxID())
 			ts.createAndSignMsg.Delete(pubTx.GetTxID())
-			ts.checkSignedMsg.Delete(pubtx.TxID)
+			ts.checkSignedMsg.Delete(pubTx.GetTxID())
 		}
 		ts.waitPackingTx.delTx(tx)
 	}
@@ -763,6 +763,16 @@ func (ts *TxStore) GetCheckSigned() []*message.CreateAndSignMsg {
 	return msgs
 }
 
+// GetCreateAndSignMsg 获取待签名数据
+func (ts *TxStore) GetCreateAndSignMsg(scTxID string) *message.CreateAndSignMsg {
+	val, exist := ts.checkSignedMsg.Load(scTxID)
+	if !exist {
+		return nil
+	}
+	msg := val.(*message.CreateAndSignMsg)
+	return msg
+}
+
 // HasCheckSigned 是否包含在check列表
 func (ts *TxStore) HasCheckSigned(scTxID string) bool {
 	_, ok := ts.checkSignedMsg.Load(scTxID)
@@ -776,11 +786,26 @@ func (ts *TxStore) IsTxSigned(scTxID string) bool {
 }
 
 // AddSigned 添加已完成交易
-func (ts *TxStore) AddSigned(scTxID string) {
-	ts.signedTxs.Store(scTxID, struct{}{})
+func (ts *TxStore) AddSigned(msg *message.SignedMsg) {
+	ts.signedTxs.Store(msg.ScTxID, msg)
 }
 
 // DelSigned 删除已签名标记
 func (ts *TxStore) DelSigned(scTxID string) {
 	ts.signedTxs.Delete(scTxID)
+}
+
+//GetAllSigned 获取已签名txid
+func (ts *TxStore) GetAllSigned() []*message.SignedMsg {
+	msgs := make([]*message.SignedMsg, 0)
+	ts.signedTxs.Range(func(k, v interface{}) bool {
+		scTxID := k.(string)
+		signBeforeTxID := v.(string)
+		msgs = append(msgs, &message.SignedMsg{
+			ScTxID:         scTxID,
+			SignBeforeTxID: signBeforeTxID,
+		})
+		return true
+	})
+	return msgs
 }

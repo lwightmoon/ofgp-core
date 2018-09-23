@@ -45,6 +45,8 @@ func (node *BraftNode) GetTxByHash(txid string, chain uint8) defines.PushEvent {
 	case defines.CHAIN_CODE_ETH:
 		event, _ := node.ethWatcher.GetEventByHash(txid)
 		return event
+	default:
+		nodeLogger.Debug("getTxByHash chain type err", "chain", chain)
 	}
 	return nil
 }
