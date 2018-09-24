@@ -482,6 +482,7 @@ func (bn *BraftNode) Run() {
 
 		go bn.saveSignedResult(ctx)
 		go bn.runCheckSignTimeout(ctx)
+		go bn.runCheckConfirm(ctx)
 	}
 	if startMode != cluster.ModeTest {
 		go bn.syncDaemon.Run(ctx)
@@ -778,9 +779,11 @@ func (bn *BraftNode) onNewBlockCommitted(pack *pb.BlockPack) {
 			defer bn.mu.Unlock()
 			for _, tx := range block.Txs { //删除已签名标记
 				for _, pubtx := range tx.Vin {
+					bn.txStore.DelCheckSigned(pubtx.GetTxID())
 					bn.txStore.DelSigned(pubtx.GetTxID())
 				}
 				for _, pubtx := range tx.Vout {
+					bn.txStore.DelCheckSigned(pubtx.GetTxID())
 					bn.txStore.DelSigned(pubtx.GetTxID())
 				}
 			}

@@ -448,12 +448,10 @@ func (ts *TxStore) CreateInnerTx(innerTx *pb.Transaction) error {
 	for _, pubtx := range innerTx.Vin {
 		ts.watchedTxEvent.Delete(pubtx.TxID)
 		ts.createAndSignMsg.Delete(pubtx.TxID)
-		ts.checkSignedMsg.Delete(pubtx.TxID)
 	}
 	for _, pubtx := range innerTx.Vout {
 		ts.watchedTxEvent.Delete(pubtx.TxID)
 		ts.createAndSignMsg.Delete(pubtx.TxID)
-		ts.checkSignedMsg.Delete(pubtx.TxID)
 	}
 	innerTx.UpdateId()
 	req := makeAddTxsRequest([]*pb.Transaction{innerTx})
@@ -526,7 +524,6 @@ func (ts *TxStore) cleanUpOnNewCommitted(committedTxs []*pb.Transaction, height 
 			SetTxIdMap(ts.db, pubTx.GetTxID(), tx.TxID)
 			ts.watchedTxEvent.Delete(pubTx.GetTxID())
 			ts.createAndSignMsg.Delete(pubTx.GetTxID())
-			ts.checkSignedMsg.Delete(pubTx.GetTxID())
 		}
 		//to链和tx_id 和网关tx_id的对应
 		for _, pubTx := range tx.Vout {
@@ -534,7 +531,6 @@ func (ts *TxStore) cleanUpOnNewCommitted(committedTxs []*pb.Transaction, height 
 			SetTxIdMap(ts.db, pubTx.GetTxID(), tx.TxID)
 			ts.watchedTxEvent.Delete(pubTx.GetTxID())
 			ts.createAndSignMsg.Delete(pubTx.GetTxID())
-			ts.checkSignedMsg.Delete(pubTx.GetTxID())
 		}
 		ts.waitPackingTx.delTx(tx)
 	}
@@ -799,12 +795,8 @@ func (ts *TxStore) DelSigned(scTxID string) {
 func (ts *TxStore) GetAllSigned() []*message.SignedMsg {
 	msgs := make([]*message.SignedMsg, 0)
 	ts.signedTxs.Range(func(k, v interface{}) bool {
-		scTxID := k.(string)
-		signBeforeTxID := v.(string)
-		msgs = append(msgs, &message.SignedMsg{
-			ScTxID:         scTxID,
-			SignBeforeTxID: signBeforeTxID,
-		})
+		msg := v.(*message.SignedMsg)
+		msgs = append(msgs, msg)
 		return true
 	})
 	return msgs

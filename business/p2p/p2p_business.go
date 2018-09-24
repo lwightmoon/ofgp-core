@@ -371,6 +371,7 @@ func (sh *signedHandler) retryFailed() {
 				createSign := &message.CreateAndSignMsg{
 					req,
 					waitToSign,
+					time.Now().Unix(),
 				}
 				sh.service.sendtoSign(createSign)
 			}
@@ -629,6 +630,7 @@ func (handler *confirmHandler) checkConfirmTimeout() {
 				createAndSign := &message.CreateAndSignMsg{
 					req,
 					waitToSign,
+					time.Now().Unix(),
 				}
 				handler.service.sendtoSign(createAndSign)
 			}
