@@ -382,6 +382,8 @@ func (sh *signedHandler) retryFailed() {
 		}
 	}
 }
+
+/*
 func (sh *signedHandler) runCheck() {
 	ticker := time.NewTicker(sh.interval * time.Second).C
 	go func() {
@@ -391,6 +393,8 @@ func (sh *signedHandler) runCheck() {
 		}
 	}()
 }
+*/
+/*
 func (sh *signedHandler) checkSignTimeout() {
 	waitTxs := sh.db.getAllWaitConfirm()
 	sh.retryFailed()
@@ -410,6 +414,7 @@ func (sh *signedHandler) checkSignTimeout() {
 		sh.Unlock()
 	}
 }
+*/
 func (sh *signedHandler) HandleEvent(event node.BusinessEvent) {
 	if signedEvent, ok := event.(*node.SignedEvent); ok {
 		p2pLogger.Info("handle signed")
@@ -581,6 +586,7 @@ func (handler *confirmHandler) isConfirmTimeout(sendedInfo *SendedInfo) bool {
 	return (time.Now().Unix() - sendedInfo.Time) > handler.getConfirmTimeout(sendedInfo.Chain)
 }
 
+/*
 func (handler *confirmHandler) runCheck() {
 	ticker := time.NewTicker(time.Second).C
 	go func() {
@@ -590,8 +596,10 @@ func (handler *confirmHandler) runCheck() {
 		}
 	}()
 }
+*/
 
 // checkConfirmTimeout check链上确认超时
+/*
 func (handler *confirmHandler) checkConfirmTimeout() {
 	sendedInfos := handler.db.getAllSendedInfo()
 	for _, sended := range sendedInfos {
@@ -642,6 +650,7 @@ func (handler *confirmHandler) checkConfirmTimeout() {
 		}
 	}
 }
+*/
 func (handler *confirmHandler) HandleEvent(event node.BusinessEvent) {
 	if confirmedEvent, ok := event.(*node.ConfirmEvent); ok {
 		txEvent := confirmedEvent.GetData()
