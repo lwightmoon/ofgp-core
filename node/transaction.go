@@ -245,7 +245,8 @@ func newBchOprator(watcher *btwatcher.Watcher) *bchOprator {
 }
 
 func (bchOP *bchOprator) CreateTx(req message.CreateReq) (*pb.NewlyTx, error) {
-	nodeLogger.Debug("create bch tx", "scTxID", req.GetID())
+	addr := hex.EncodeToString(req.GetAddr())
+	nodeLogger.Debug("create bch tx", "scTxID", req.GetID(), "adrr", addr, "amount", req.GetAmount(), "clusterSize", cluster.ClusterSize)
 	btTx, errCode := bchOP.bchWatcher.CreateCoinTx(req.GetAddr(), req.GetAmount(), cluster.ClusterSize)
 	if errCode != 0 {
 		nodeLogger.Error("create tx fail", "scTxID", req.GetID(), "errCode", errCode)

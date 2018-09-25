@@ -29,7 +29,7 @@ func (s *service) makeCreateTxReq(op uint8, info *P2PInfo) (message.CreateReq, e
 	case back:
 		addr = msg.SendAddr
 	default:
-		p2pLogger.Error("op err")
+		p2pLogger.Error("op err", "scTxID", info.Event.GetTxID())
 		return nil, nil
 	}
 	var req message.CreateReq

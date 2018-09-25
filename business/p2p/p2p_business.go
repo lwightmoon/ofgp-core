@@ -151,7 +151,7 @@ func (wh *watchedHandler) checkP2PInfo(info *P2PInfo) bool {
 func (wh *watchedHandler) sendBackTx(info *P2PInfo) {
 	//创建并发送回退交易
 	wh.db.setMatchedOne(info.GetScTxID(), "")
-	req, err := wh.service.makeCreateTxReq(confirmed, info)
+	req, err := wh.service.makeCreateTxReq(back, info)
 	if req != nil && err == nil {
 		signMsg := newWaitToSign(info)
 		createAndSignMsg := &message.CreateAndSignMsg{

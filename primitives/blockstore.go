@@ -1349,10 +1349,12 @@ func (bs *BlockStore) validateWatchedEvent(event *pb.WatchedEvent) bool {
 		case defines.CHAIN_CODE_BTC:
 			newEvent = bs.btcWatcher.GetTxByHash(event.GetTxID())
 			if event == nil {
+				bsLogger.Debug("valite btc sign not found", "scTxID", event.GetTxID())
 				return false
 			}
 			bs.addToEventCh(newEvent)
 		case defines.CHAIN_CODE_BCH:
+			bsLogger.Debug("valite bch sign not found", "scTxID", event.GetTxID())
 			newEvent = bs.bchWatcher.GetTxByHash(event.GetTxID())
 			if event == nil {
 				return false
@@ -1362,6 +1364,7 @@ func (bs *BlockStore) validateWatchedEvent(event *pb.WatchedEvent) bool {
 			var err error
 			newEvent, err = bs.ethWatcher.GetEventByHash(event.GetTxID())
 			if err != nil || newEvent == nil {
+				bsLogger.Debug("valite eth sign not found", "scTxID", event.GetTxID(), "err", err)
 				return false
 			}
 			bs.addToEventCh(newEvent)

@@ -650,7 +650,7 @@ func (ts *TxStore) doHeartbeat() {
 
 	innerTxHasOverdue = ts.waitPackingTx.hasTimeoutTx(ts.db)
 
-	if innerTxHasOverdue {
+	if innerTxHasOverdue || watchedTxHasOverdue {
 		ts.TxOverdueEvent.Emit(GetNodeTerm(ts.db))
 	}
 }
@@ -731,6 +731,7 @@ func (ts *TxStore) ValidateTx(tx *pb.Transaction) int {
 func (ts *TxStore) ValidateWatchedEvent(event *pb.WatchedEvent) int {
 	val, exist := ts.watchedTxEvent.Load(event.GetTxID())
 	if !exist {
+		bsLogger.Error("no watched event in local", "scTxID", event.GetTxID())
 		return NotExist
 	}
 	watchedEvent := val.(*pb.WatchedEvent)
