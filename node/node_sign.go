@@ -85,7 +85,7 @@ func (node *BraftNode) clearOnFail(signReq *pb.SignRequest) {
 
 	node.signedResultCache.Delete(scTxID)
 	node.blockStore.DeleteSignReqMsg(scTxID)
-
+	node.txStore.DelCheckSigned(scTxID)
 }
 
 /*
@@ -347,6 +347,9 @@ func (node *BraftNode) doSave(msg *pb.SignResult) {
 				node.clearOnFail(signReq) // merge 失败clearOnFail 处理
 				return
 			}
+			//通知相关业务已被签名
+			node.pubSigned(msg, msg.To, newlyTx, signBeforeTxID, signReq.Term)
+
 			//标记已签名 替换SignedEvent
 			signedMsg := &message.SignedMsg{
 				ScTxID:         msg.ScTxID,
@@ -355,9 +358,6 @@ func (node *BraftNode) doSave(msg *pb.SignResult) {
 				Time:           time.Now().Unix(),
 			}
 			node.markTxSigned(signedMsg)
-
-			//通知相关业务已被签名
-			node.pubSigned(msg, msg.To, newlyTx, signBeforeTxID, signReq.Term)
 			// sendTxToChain的时间可能会比较长，因为涉及到链上交易，所以需要提前把锁释放
 			// node.sendTxToChain(newlyTx, watcher, sigs, msg, signReqmsg)
 		}
