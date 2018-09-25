@@ -85,7 +85,7 @@ func (node *BraftNode) clearOnFail(signReq *pb.SignRequest) {
 
 	node.signedResultCache.Delete(scTxID)
 	node.blockStore.DeleteSignReqMsg(scTxID)
-	node.txStore.DelCheckSigned(scTxID)
+	node.txStore.DelCreateSignCache(scTxID)
 }
 
 /*
@@ -395,22 +395,6 @@ func (node *BraftNode) isTxSigned(scTxID string) bool {
 	return node.txStore.IsTxSigned(scTxID)
 }
 
-// checkSignTimeout 检查是否签名超时
-func (node *BraftNode) checkSignTimeout() {
-	msgs := node.txStore.GetCheckSigned()
-	now := time.Now().Unix()
-	for _, msg := range msgs {
-		scTxID := msg.GetScTxID()
-		if now-msg.Time > signTimeout &&
-			!node.txStore.IsTxSigned(scTxID) && node.txStore.HasCheckSigned(scTxID) {
-			nodeLogger.Debug("sign timeout", "scTxID", scTxID)
-			node.signedResultCache.Delete(scTxID)
-			node.blockStore.DeleteSignReqMsg(scTxID)
-			node.txStore.AddTxtoWaitSign(msg)
-		}
-	}
-}
-
 func getConfirmTimeout(chain uint32) int64 {
 	chainCmp := uint8(chain)
 	switch chainCmp {
@@ -426,6 +410,8 @@ func getConfirmTimeout(chain uint32) int64 {
 	}
 
 }
+
+// todo 清理内存
 func (node *BraftNode) checkConfirmTimeout() {
 	signedMsgs := node.txStore.GetAllSigned()
 	now := time.Now().Unix()
@@ -433,7 +419,7 @@ func (node *BraftNode) checkConfirmTimeout() {
 		scTxID := msg.ScTxID
 		if now-msg.Time > getConfirmTimeout(msg.Chain) && node.isTxSigned(scTxID) {
 			if node.txStore.HasTxInDB(scTxID) || node.txStore.IsTxInMem(scTxID) {
-				node.txStore.DelCheckSigned(scTxID)
+				node.txStore.DelCreateSignCache(scTxID)
 				node.txStore.DelSigned(scTxID)
 				continue
 			}
@@ -456,45 +442,43 @@ func (node *BraftNode) checkConfirmTimeout() {
 	}
 }
 
-// func (node *BraftNode) checkSignTimeout() {
-// 	node.signedResultCache.Range(func(k, v interface{}) bool {
-// 		scTxID := k.(string)
-// 		cache := v.(*SignedResultCache)
-// 		now := time.Now().Unix()
-// 		if now-cache.initTime > signTimeout && !cache.isDone() { //sign达成共识超时，重新放回处理队列
+func (node *BraftNode) checkSignTimeout() {
+	node.signedResultCache.Range(func(k, v interface{}) bool {
+		scTxID := k.(string)
+		cache := v.(*SignedResultCache)
+		now := time.Now().Unix()
+		if now-cache.initTime > signTimeout && !cache.isDone() { //sign达成共识超时，重新放回处理队列
 
-// 			leaderLogger.Debug("sign timeout", "scTxID", scTxID)
+			leaderLogger.Debug("sign timeout", "scTxID", scTxID)
 
-// 			//删除sign标记
-// 			node.signedResultCache.Delete(scTxID)
-// 			signReq := node.blockStore.GetSignReq(scTxID)
-// 			if signReq == nil { //本地尚未签名
-// 				return true
-// 			}
-// 			node.blockStore.DeleteSignReqMsg(scTxID)
-// 			watchedEvent := signReq.GetWatchedEvent()
-// 			if watchedEvent.IsTransferEvent() {
-// 				node.txStore.DeleteWatchedEvent(scTxID)
-// 			}
-// if !watchedEvent.IsTransferEvent() {
-// if !node.isTxSigned(scTxID) { //如果签名已经共识
-// 	node.txStore.AddTxtoWaitSign(&message.WaitSignMsg{
-// 		Business: signReq.Business,
-// 		ScTxID:   signReq.GetWatchedEvent().GetTxID(),
-// 		Event:    signReq.WatchedEvent,
-// 		Tx:       signReq.NewlyTx,
-// 	})
-// } else {
-// 	nodeLogger.Debug("tx is in waiting", "scTxID", scTxID)
-// }
-// } else {
-// 	node.txStore.DeleteWatchedEvent(scTxID)
-// }
-// 		}
-// 		return true
+			//删除sign标记
+			node.signedResultCache.Delete(scTxID)
+			signReq := node.blockStore.GetSignReq(scTxID)
+			if signReq == nil { //本地尚未签名
+				return true
+			}
+			node.blockStore.DeleteSignReqMsg(scTxID)
+			watchedEvent := signReq.GetWatchedEvent()
+			if watchedEvent.IsTransferEvent() {
+				node.txStore.DeleteWatchedEvent(scTxID)
+			}
+			if !watchedEvent.IsTransferEvent() {
+				if !node.isTxSigned(scTxID) { //如果签名已经共识
+					msg := node.txStore.GetCreateAndSignMsg(scTxID)
+					if msg != nil {
+						node.txStore.AddTxtoWaitSign(msg)
+					}
+				} else {
+					nodeLogger.Debug("tx is in waiting", "scTxID", scTxID)
+				}
+			} else {
+				node.txStore.DeleteWatchedEvent(scTxID)
+			}
+		}
+		return true
 
-// 	})
-// }
+	})
+}
 
 func (node *BraftNode) runCheckSignTimeout(ctx context.Context) {
 	go func() {
@@ -533,6 +517,7 @@ func (node *BraftNode) runCheckConfirm(ctx context.Context) {
 	}()
 }
 
+// SaveSignedResult 收集签名结果
 func (node *BraftNode) SaveSignedResult(msg *pb.SignResult) {
 	node.signedResultChan <- msg
 }

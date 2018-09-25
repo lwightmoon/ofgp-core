@@ -270,8 +270,9 @@ type TxStore struct {
 	createAndSignMsg   sync.Map //等待被创建的请求
 	createAndSignMsgCh chan *message.CreateAndSignMsg
 
-	checkSignedMsg sync.Map //*message.CreateAndSignMsg chek是否被签名
-	signedTxs      sync.Map //已完成签名交易
+	createSignTxCache sync.Map //*message.CreateAndSignMsg chek是否被签名
+
+	signedTxs sync.Map //已完成签名交易
 	//queryTxsChan   chan txsQuery
 	heartbeatTimer *time.Timer
 	sync.RWMutex
@@ -322,7 +323,7 @@ func (ts *TxStore) Run(ctx context.Context) {
 			signMsg := msg.Msg
 			bsLogger.Debug("add waitingSign tx", "business", signMsg.Business, "scTxID", signMsg.ScTxID)
 			ts.createAndSignMsg.Store(signMsg.ScTxID, newSignMsgWithtimeMs(msg))
-			ts.AddToCheckSigned(msg)
+			ts.AddToCreateSignCache(msg)
 		case <-ctx.Done():
 			return
 		}
@@ -448,10 +449,12 @@ func (ts *TxStore) CreateInnerTx(innerTx *pb.Transaction) error {
 	for _, pubtx := range innerTx.Vin {
 		ts.watchedTxEvent.Delete(pubtx.TxID)
 		ts.createAndSignMsg.Delete(pubtx.TxID)
+		ts.createSignTxCache.Delete(pubtx.TxID)
 	}
 	for _, pubtx := range innerTx.Vout {
 		ts.watchedTxEvent.Delete(pubtx.TxID)
 		ts.createAndSignMsg.Delete(pubtx.TxID)
+		ts.createSignTxCache.Delete(pubtx.TxID)
 	}
 	innerTx.UpdateId()
 	req := makeAddTxsRequest([]*pb.Transaction{innerTx})
@@ -524,6 +527,7 @@ func (ts *TxStore) cleanUpOnNewCommitted(committedTxs []*pb.Transaction, height 
 			SetTxIdMap(ts.db, pubTx.GetTxID(), tx.TxID)
 			ts.watchedTxEvent.Delete(pubTx.GetTxID())
 			ts.createAndSignMsg.Delete(pubTx.GetTxID())
+			ts.createSignTxCache.Delete(pubTx.GetTxID())
 		}
 		//to链和tx_id 和网关tx_id的对应
 		for _, pubTx := range tx.Vout {
@@ -531,6 +535,7 @@ func (ts *TxStore) cleanUpOnNewCommitted(committedTxs []*pb.Transaction, height 
 			SetTxIdMap(ts.db, pubTx.GetTxID(), tx.TxID)
 			ts.watchedTxEvent.Delete(pubTx.GetTxID())
 			ts.createAndSignMsg.Delete(pubTx.GetTxID())
+			ts.createSignTxCache.Delete(pubTx.GetTxID())
 		}
 		ts.waitPackingTx.delTx(tx)
 	}
@@ -736,32 +741,21 @@ func (ts *TxStore) ValidateWatchedEvent(event *pb.WatchedEvent) int {
 	return Invalid
 }
 
-// AddToCheckSigned 添加到check是否被签名
-func (ts *TxStore) AddToCheckSigned(msg *message.CreateAndSignMsg) {
+// AddToCreateSignCache 添加到cache
+func (ts *TxStore) AddToCreateSignCache(msg *message.CreateAndSignMsg) {
 	scTxID := msg.GetScTxID()
 	msg.SetTime(time.Now().Unix())
-	ts.checkSignedMsg.Store(scTxID, msg)
+	ts.createSignTxCache.Store(scTxID, msg)
 }
 
-// DelCheckSigned del check被签名
-func (ts *TxStore) DelCheckSigned(scTxID string) {
-	ts.checkSignedMsg.Delete(scTxID)
-}
-
-// GetCheckSigned 获取等待被check的列表
-func (ts *TxStore) GetCheckSigned() []*message.CreateAndSignMsg {
-	msgs := make([]*message.CreateAndSignMsg, 0)
-	ts.checkSignedMsg.Range(func(k, v interface{}) bool {
-		msg := v.(*message.CreateAndSignMsg)
-		msgs = append(msgs, msg)
-		return true
-	})
-	return msgs
+// DelCreateSignCache del create and sign req
+func (ts *TxStore) DelCreateSignCache(scTxID string) {
+	ts.createSignTxCache.Delete(scTxID)
 }
 
 // GetCreateAndSignMsg 获取待签名数据
 func (ts *TxStore) GetCreateAndSignMsg(scTxID string) *message.CreateAndSignMsg {
-	val, exist := ts.checkSignedMsg.Load(scTxID)
+	val, exist := ts.createSignTxCache.Load(scTxID)
 	if !exist {
 		return nil
 	}
@@ -769,9 +763,9 @@ func (ts *TxStore) GetCreateAndSignMsg(scTxID string) *message.CreateAndSignMsg 
 	return msg
 }
 
-// HasCheckSigned 是否包含在check列表
-func (ts *TxStore) HasCheckSigned(scTxID string) bool {
-	_, ok := ts.checkSignedMsg.Load(scTxID)
+// IsInCreateSignCache 是否在请求创建签名cache
+func (ts *TxStore) IsInCreateSignCache(scTxID string) bool {
+	_, ok := ts.createSignTxCache.Load(scTxID)
 	return ok
 }
 
