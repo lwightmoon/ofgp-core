@@ -99,7 +99,7 @@ func getP2PInfo(event *pb.WatchedEvent) *P2PInfo {
 	sendAddr := hex.EncodeToString(msg.SendAddr)
 	receiveAddr := hex.EncodeToString(msg.ReceiveAddr)
 	requireAddr := hex.EncodeToString(msg.RequireAddr)
-	p2pLogger.Debug("received event info", "chain", msg.Chain,
+	p2pLogger.Debug("received event info", "chain", msg.Chain, "scTxID", event.GetTxID(),
 		"amount", msg.Amount, "expiretime", msg.ExpiredTime, "sendAddr", sendAddr, "receiveAddr", receiveAddr, "requireAddr", requireAddr)
 	p2pMsg := msg.toPBMsg()
 	info := &P2PInfo{

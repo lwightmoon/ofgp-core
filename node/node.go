@@ -255,9 +255,9 @@ func NewBraftNode(localNodeInfo cluster.NodeInfo) *BraftNode {
 		eventCh:          eventCh,
 	}
 	//重新添加监听列表
-	if len(multiSigList) > 0 {
-		bn.changeFederationAddrs(multiSig, multiSigList)
-	}
+	// if len(multiSigList) > 0 {
+	bn.changeFederationAddrs(multiSig, multiSigList)
+	// }
 
 	bs.NeedSyncUpEvent.Subscribe(func(nodeId int32) {
 		nodeLogger.Debug("Need Syncup", "from", nodeId)
@@ -663,7 +663,7 @@ func (bn *BraftNode) watchNewTx(ctx context.Context) {
 	bn.ethWatcher.StartWatch(*big.NewInt(ethHeight), int(ethIndex), eventCh)
 	for event := range eventCh {
 		if event.GetBusiness() != "" {
-			nodeLogger.Debug("receive event", "chain", event.GetFrom(), "type", event.GetEventType(), "business", event.GetBusiness(), "to", event.GetTo())
+			nodeLogger.Debug("receive event", "scTxID", event.GetTxID(), "chain", event.GetFrom(), "type", event.GetEventType(), "business", event.GetBusiness(), "to", event.GetTo())
 		}
 
 		// 防止重复发布事件
