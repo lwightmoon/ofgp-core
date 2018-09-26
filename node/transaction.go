@@ -218,9 +218,9 @@ func (btcOP *btcOprator) CreateTx(req message.CreateReq) (*pb.NewlyTx, error) {
 		return nil, errors.New("create tx err")
 	}
 	buf := &bytes.Buffer{}
-	err := btTx.Deserialize(buf)
+	err := btTx.Serialize(buf)
 	if err != nil {
-		nodeLogger.Error("deserialize err", "err", err, "scTxID", req.GetID())
+		nodeLogger.Error("serialize err", "err", err, "scTxID", req.GetID())
 	}
 	newTx := &pb.NewlyTx{
 		Data: buf.Bytes(),
