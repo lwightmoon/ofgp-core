@@ -416,6 +416,7 @@ func (node *BraftNode) checkConfirmTimeout() {
 	signedMsgs := node.txStore.GetAllSigned()
 	now := time.Now().Unix()
 	for _, msg := range signedMsgs {
+		searchID := msg.SignBeforeTxID
 		scTxID := msg.ScTxID
 		if now-msg.Time > getConfirmTimeout(msg.Chain) && node.isTxSigned(scTxID) {
 			if node.txStore.HasTxInDB(scTxID) || node.txStore.IsTxInMem(scTxID) {
@@ -423,7 +424,8 @@ func (node *BraftNode) checkConfirmTimeout() {
 				node.txStore.DelSigned(scTxID)
 				continue
 			}
-			event := node.GetTxByHash(scTxID, uint8(msg.Chain))
+			nodeLogger.Debug("confirm timeout", "scTxID", scTxID)
+			event := node.GetTxByHash(searchID, uint8(msg.Chain))
 			if event == nil {
 				node.signedResultCache.Delete(scTxID)
 				node.blockStore.DeleteSignReq(scTxID)

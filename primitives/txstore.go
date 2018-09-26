@@ -451,11 +451,11 @@ func (ts *TxStore) CreateInnerTx(innerTx *pb.Transaction) error {
 		ts.createAndSignMsg.Delete(pubtx.TxID)
 		ts.createSignTxCache.Delete(pubtx.TxID)
 	}
-	for _, pubtx := range innerTx.Vout {
-		ts.watchedTxEvent.Delete(pubtx.TxID)
-		ts.createAndSignMsg.Delete(pubtx.TxID)
-		ts.createSignTxCache.Delete(pubtx.TxID)
-	}
+	// for _, pubtx := range innerTx.Vout {
+	// 	ts.watchedTxEvent.Delete(pubtx.TxID)
+	// 	ts.createAndSignMsg.Delete(pubtx.TxID)
+	// 	ts.createSignTxCache.Delete(pubtx.TxID)
+	// }
 	innerTx.UpdateId()
 	req := makeAddTxsRequest([]*pb.Transaction{innerTx})
 	ts.addTxsChan <- req
@@ -530,13 +530,13 @@ func (ts *TxStore) cleanUpOnNewCommitted(committedTxs []*pb.Transaction, height 
 			ts.createSignTxCache.Delete(pubTx.GetTxID())
 		}
 		//to链和tx_id 和网关tx_id的对应
-		for _, pubTx := range tx.Vout {
-			bsLogger.Debug("write tx to db and delete from mempool", "txid", pubTx.GetTxID())
-			SetTxIdMap(ts.db, pubTx.GetTxID(), tx.TxID)
-			ts.watchedTxEvent.Delete(pubTx.GetTxID())
-			ts.createAndSignMsg.Delete(pubTx.GetTxID())
-			ts.createSignTxCache.Delete(pubTx.GetTxID())
-		}
+		// for _, pubTx := range tx.Vout {
+		// 	bsLogger.Debug("write tx to db and delete from mempool", "txid", pubTx.GetTxID())
+		// 	SetTxIdMap(ts.db, pubTx.GetTxID(), tx.TxID)
+		// 	ts.watchedTxEvent.Delete(pubTx.GetTxID())
+		// 	ts.createAndSignMsg.Delete(pubTx.GetTxID())
+		// 	ts.createSignTxCache.Delete(pubTx.GetTxID())
+		// }
 		ts.waitPackingTx.delTx(tx)
 	}
 }

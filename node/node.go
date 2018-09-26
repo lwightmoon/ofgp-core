@@ -671,6 +671,12 @@ func (bn *BraftNode) watchNewTx(ctx context.Context) {
 			watchedEvent := newWatchedEvent(event)
 			bn.txStore.AddWatchedEvent(watchedEvent)
 			bn.pubWatcherEvent(watchedEvent)
+			//删除已签名标记 停止confirmTimeout check
+			if event.GetEventType() == defines.EVENT_P2P_SWAP_CONFIRM {
+				scTxID := event.GetProposal()
+				bn.signedResultCache.Delete(scTxID)
+				bn.txStore.DelSigned(scTxID)
+			}
 		}
 		//设置监听高度
 		bn.blockStore.SetTxPosition(event.GetFrom(), &pb.WatchedTxPosition{
@@ -779,11 +785,13 @@ func (bn *BraftNode) onNewBlockCommitted(pack *pb.BlockPack) {
 			defer bn.mu.Unlock()
 			for _, tx := range block.Txs { //删除已签名标记
 				for _, pubtx := range tx.Vin {
+					bn.signedResultCache.Delete(pubtx.GetTxID())
 					bn.txStore.DelSigned(pubtx.GetTxID())
 				}
-				for _, pubtx := range tx.Vout {
-					bn.txStore.DelSigned(pubtx.GetTxID())
-				}
+				// for _, pubtx := range tx.Vout {
+				// 	bn.signedResultCache.Delete(pubtx.GetTxID())
+				// 	bn.txStore.DelSigned(pubtx.GetTxID())
+				// }
 			}
 		}
 	}
