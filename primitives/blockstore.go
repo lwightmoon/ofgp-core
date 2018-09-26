@@ -642,7 +642,11 @@ func (bs *BlockStore) handleSignReq(tasks *task.Queue, msg *pb.SignRequest) {
 
 			buf := bytes.NewBuffer(msg.NewlyTx.Data)
 			newlyTx := new(wire.MsgTx)
-			newlyTx.Deserialize(buf)
+			err := newlyTx.Deserialize(buf)
+			if err != nil {
+				bsLogger.Error("desrialize btc err", "err", err, "scTxID", scTxID)
+				return
+			}
 
 			validateResult := bs.validateBtcSignReq(msg, newlyTx)
 			if validateResult != validatePass {
@@ -1237,7 +1241,7 @@ func (bs *BlockStore) validateBtcSignReq(req *pb.SignRequest, newlyTx *wire.MsgT
 	proto.Unmarshal(req.Recharge, recharge)
 
 	if len(newlyTx.TxOut) != 1 && len(newlyTx.TxOut) != 2 {
-		bsLogger.Warn("rechage txoutCnt check err", "newTxCount", len(newlyTx.TxOut))
+		bsLogger.Warn("recharge txoutCnt check err", "newTxCount", len(newlyTx.TxOut))
 		return wrongInputOutput
 	}
 	txOut := newlyTx.TxOut[0]
@@ -1249,6 +1253,8 @@ func (bs *BlockStore) validateBtcSignReq(req *pb.SignRequest, newlyTx *wire.MsgT
 		return wrongInputOutput
 	}
 	realAddr := btwatcher.ExtractPkScriptAddr(txOut.PkScript, coinType)
+	bsLogger.Debug("addr compare", "toString", rechargeAddr.String(), "encodeString",
+		rechargeAddr.EncodeAddress(), "realAddr", realAddr)
 	if rechargeAddr.String() != realAddr {
 		bsLogger.Error("addr is  not equal", "scTxID", scTxID)
 		return wrongInputOutput
