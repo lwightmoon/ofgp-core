@@ -270,9 +270,9 @@ type TxStore struct {
 	createAndSignMsg   sync.Map //等待被创建的请求
 	createAndSignMsgCh chan *message.CreateAndSignMsg
 
-	createSignTxCache sync.Map //*message.CreateAndSignMsg chek是否被签名
+	createSignTxCache sync.Map //*message.CreateAndSignMsg cache create tx req
 
-	signedTxs sync.Map //已完成签名交易
+	signedTxs sync.Map //已完成签名交易 // *message.SignedMsg 已完成签名
 	//queryTxsChan   chan txsQuery
 	heartbeatTimer *time.Timer
 	sync.RWMutex

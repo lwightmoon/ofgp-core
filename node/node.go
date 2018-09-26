@@ -674,8 +674,7 @@ func (bn *BraftNode) watchNewTx(ctx context.Context) {
 			//删除已签名标记 停止confirmTimeout check
 			if event.GetEventType() == defines.EVENT_P2P_SWAP_CONFIRM {
 				scTxID := event.GetProposal()
-				bn.signedResultCache.Delete(scTxID)
-				bn.txStore.DelSigned(scTxID)
+				bn.onTxConfirmed(scTxID)
 			}
 		}
 		//设置监听高度
@@ -795,6 +794,15 @@ func (bn *BraftNode) onNewBlockCommitted(pack *pb.BlockPack) {
 			}
 		}
 	}
+}
+
+// onTxConfirmed tx confirmed清理缓存
+func (bn *BraftNode) onTxConfirmed(scTxID string) {
+	bn.signedResultCache.Delete(scTxID)
+	bn.txStore.DelSigned(scTxID)
+	bn.txStore.DelCreateSignCache(scTxID)
+	bn.txStore.DeleteWaitSign(scTxID)
+	bn.txStore.DeleteWatchedEvent(scTxID)
 }
 
 //TODO
