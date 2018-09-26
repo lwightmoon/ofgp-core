@@ -660,10 +660,10 @@ func (handler *confirmHandler) HandleEvent(event node.BusinessEvent) {
 		}
 		//交易确认info
 		info := getP2PConfirmInfo(txEvent)
-		p2pLogger.Info("handle confirm", "scTxID", info.Msg.Id)
 
 		//之前的交易id
 		oldTxID := txEvent.GetProposal()
+		p2pLogger.Info("handle confirm", "scTxID", oldTxID)
 		waitConfirm := handler.db.getWaitConfirm(oldTxID)
 		if waitConfirm == nil {
 			p2pLogger.Error("never matched tx", "scTxID", oldTxID)

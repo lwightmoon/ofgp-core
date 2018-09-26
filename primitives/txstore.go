@@ -272,7 +272,8 @@ type TxStore struct {
 
 	createSignTxCache sync.Map //*message.CreateAndSignMsg cache create tx req
 
-	signedTxs sync.Map //已完成签名交易 // *message.SignedMsg 已完成签名
+	signedTxs    sync.Map //已完成签名交易 // *message.SignedMsg 已完成签名
+	confirmedTxs sync.Map //标记已confirm交易
 	//queryTxsChan   chan txsQuery
 	heartbeatTimer *time.Timer
 	sync.RWMutex
@@ -436,8 +437,11 @@ func (ts *TxStore) CreateInnerTx(innerTx *pb.Transaction) error {
 	for _, putx := range innerTx.Vin {
 		signMsg := GetSignReq(ts.db, putx.TxID)
 		if signMsg == nil {
-			bsLogger.Error("create inner tx failed, sign msg not found", "signmsgid", putx.TxID)
-			return errors.New("vout has unsigned tx")
+			bsLogger.Error("create inner tx failed not sign", "scTxID", putx.TxID)
+			if !ts.IsConfirmed(putx.TxID) {
+				bsLogger.Error("create inner tx failed not confirmed", "scTxID", putx.TxID)
+				return errors.New("never sign and confirmed")
+			}
 		}
 	}
 	txID := innerTx.TxID
@@ -528,6 +532,7 @@ func (ts *TxStore) cleanUpOnNewCommitted(committedTxs []*pb.Transaction, height 
 			ts.watchedTxEvent.Delete(pubTx.GetTxID())
 			ts.createAndSignMsg.Delete(pubTx.GetTxID())
 			ts.createSignTxCache.Delete(pubTx.GetTxID())
+			ts.DelConfirmed(pubTx.GetTxID())
 		}
 		//to链和tx_id 和网关tx_id的对应
 		// for _, pubTx := range tx.Vout {
@@ -795,4 +800,20 @@ func (ts *TxStore) GetAllSigned() []*message.SignedMsg {
 		return true
 	})
 	return msgs
+}
+
+// AddToConfirmed 标记已confirm
+func (ts *TxStore) AddToConfirmed(scTxID string) {
+	ts.confirmedTxs.Store(scTxID, struct{}{})
+}
+
+// IsConfirmed 是否confirm
+func (ts *TxStore) IsConfirmed(scTxID string) bool {
+	_, ok := ts.confirmedTxs.Load(scTxID)
+	return ok
+}
+
+// DelConfirmed del confirmed
+func (ts *TxStore) DelConfirmed(scTxID string) {
+	ts.confirmedTxs.Delete(scTxID)
 }

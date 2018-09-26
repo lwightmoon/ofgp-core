@@ -120,3 +120,7 @@ func TestPosition(t *testing.T) {
 	position := primitives.GetWatchedPosition(db, 1)
 	t.Logf("height:%d,index:%d", position.GetHeight(), position.GetIndex())
 }
+
+func TestSignReq(t *testing.T) {
+	
+}

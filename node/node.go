@@ -798,6 +798,7 @@ func (bn *BraftNode) onNewBlockCommitted(pack *pb.BlockPack) {
 
 // onTxConfirmed tx confirmed清理缓存
 func (bn *BraftNode) onTxConfirmed(scTxID string) {
+	bn.txStore.AddToConfirmed(scTxID)
 	bn.signedResultCache.Delete(scTxID)
 	bn.txStore.DelSigned(scTxID)
 	bn.txStore.DelCreateSignCache(scTxID)
