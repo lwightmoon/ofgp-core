@@ -4,10 +4,11 @@ import  "github.com/ofgp/ofgp-core/proto/braft.proto";
 package p2p;
 
 message p2pMsg {
-    bytes send_addr = 2; //发送地址
-    bytes receive_addr = 3; //接收地址
-    uint32 chain = 4; //接收链
-    uint32 token_id = 5;
+    bytes send_addr = 1; //发送地址
+    bytes receive_addr = 2; //接收地址
+    uint32 chain = 3; //接收链
+    uint32 token_id = 4;
+    uint32 from_token = 5;
     uint64 amount = 6;
     uint64 fee = 7;
     uint32 expired_time=8;

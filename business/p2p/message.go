@@ -45,6 +45,7 @@ type p2pMsg struct {
 	ReceiveAddr []byte //在对应链接收币的地址 25
 	Chain       uint8  //接收方链
 	TokenID     uint32 //接收方token
+	FromToken   uint32
 	Amount      uint64 //接收数量
 	Fee         uint64 //矿工费
 	ExpiredTime uint32 //exchange过期时间
@@ -57,6 +58,7 @@ func (msg *p2pMsg) toPBMsg() *P2PMsg {
 		ReceiveAddr: msg.ReceiveAddr,
 		Chain:       uint32(msg.Chain),
 		TokenId:     uint32(msg.TokenID),
+		FromToken:   msg.FromToken,
 		Amount:      msg.Amount,
 		Fee:         msg.Fee,
 		ExpiredTime: msg.ExpiredTime,
@@ -73,6 +75,7 @@ func (msg *p2pMsg) Decode(data []byte) {
 
 	readInt(r, &msg.Chain)
 	readInt(r, &msg.TokenID)
+	readInt(r, &msg.FromToken)
 	readInt(r, &msg.Amount)
 	readInt(r, &msg.Fee)
 	readInt(r, &msg.ExpiredTime)

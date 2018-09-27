@@ -22,16 +22,18 @@ func newService(node *node.BraftNode) *service {
 func (s *service) makeCreateTxReq(op uint8, info *P2PInfo) (message.CreateReq, error) {
 	var addr []byte
 	var chain uint8
-
+	var token uint32
 	msg := info.GetMsg()
 	event := info.GetEvent()
 	switch op {
 	case confirmed:
 		addr = msg.ReceiveAddr
 		chain = uint8(msg.Chain)
+		token = msg.TokenId
 	case back:
 		addr = msg.SendAddr
 		chain = uint8(info.Event.GetFrom())
+		token = msg.FromToken
 	default:
 		p2pLogger.Error("op err", "scTxID", info.Event.GetTxID())
 		return nil, nil
@@ -54,7 +56,7 @@ func (s *service) makeCreateTxReq(op uint8, info *P2PInfo) (message.CreateReq, e
 		ethReq.ID = event.GetTxID()
 		ethReq.Addr = addr
 		ethReq.Amount = msg.Amount
-		ethReq.TokenTo = msg.TokenId
+		ethReq.TokenTo = token
 		req = ethReq
 	default:
 		p2pLogger.Error("chain type err")

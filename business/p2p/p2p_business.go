@@ -155,7 +155,7 @@ func (wh *watchedHandler) sendBackTx(info *P2PInfo) {
 	wh.db.setMatchedOne(info.GetScTxID(), "")
 	req, err := wh.service.makeCreateTxReq(back, info)
 	if req != nil && err == nil {
-		signMsg := newWaitToSign(info)
+		signMsg := newWaitToSign(back, info)
 		createAndSignMsg := &message.CreateAndSignMsg{
 			Req: req,
 			Msg: signMsg,
@@ -193,16 +193,31 @@ func (wh *watchedHandler) runCheckMatchTimeout() {
 	}()
 }
 
-func newWaitToSign(info *P2PInfo) *message.WaitSignMsg {
+func newWaitToSign(op uint8, info *P2PInfo) *message.WaitSignMsg {
 	var waitToSign *message.WaitSignMsg
-	chain := uint8(info.Msg.Chain)
+	var chain uint8
+	var addr []byte
+	var token uint32
+	switch op {
+	case confirmed:
+		chain = uint8(info.Msg.Chain)
+		addr = info.Msg.ReceiveAddr
+		token = info.Msg.TokenId
+	case back:
+		chain = uint8(info.Event.GetFrom())
+		addr = info.Msg.SendAddr
+		token = info.Msg.FromToken
+	default:
+		p2pLogger.Error("create signreq op err", "scTxID", info.Event.GetTxID())
+		return nil
+	}
 	switch chain {
 	case defines.CHAIN_CODE_BTC:
 		fallthrough
 	case defines.CHAIN_CODE_BCH:
 		recharge := &pb.BtcRecharge{
 			Amount: info.Msg.Amount,
-			Addr:   info.Msg.ReceiveAddr,
+			Addr:   addr,
 		}
 		rechargeData, _ := proto.Marshal(recharge)
 		waitToSign = &message.WaitSignMsg{
@@ -214,9 +229,9 @@ func newWaitToSign(info *P2PInfo) *message.WaitSignMsg {
 		}
 	case defines.CHAIN_CODE_ETH:
 		recharge := &pb.EthRecharge{
-			Addr:     info.Msg.ReceiveAddr,
+			Addr:     addr,
 			Amount:   info.Msg.Amount,
-			TokenTo:  info.Msg.TokenId,
+			TokenTo:  token,
 			Method:   ew.VOTE_METHOD_MATCHSWAP,
 			Proposal: info.Event.GetTxID(),
 		}
@@ -277,7 +292,7 @@ func (wh *watchedHandler) HandleEvent(event node.BusinessEvent) {
 				for _, info := range infos {
 					req, err := wh.service.makeCreateTxReq(confirmed, info)
 					if req != nil && err == nil {
-						signMsg := newWaitToSign(info)
+						signMsg := newWaitToSign(confirmed, info)
 						createAndSignMsg := &message.CreateAndSignMsg{
 							Req: req,
 							Msg: signMsg,
@@ -691,7 +706,7 @@ func (handler *confirmHandler) HandleEvent(event node.BusinessEvent) {
 			}
 
 		} else if waitConfirm.Opration == back { //回退交易 commit当前confirmInfo和对应的p2pInfo
-			p2pLogger.Debug("hanle confirm back", "scTxID", info.Msg.Id)
+			p2pLogger.Debug("hanle confirm back", "scTxID", oldTxID)
 			confirmInfos := []*P2PConfirmInfo{info}
 			oldTxIDs := []string{oldTxID}
 			p2pInfos := handler.db.getP2PInfos(oldTxIDs)
