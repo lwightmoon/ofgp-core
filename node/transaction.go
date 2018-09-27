@@ -181,21 +181,20 @@ func sendCointTx(watcher *btwatcher.Watcher, req ISendReq, chain string) error {
 	start := time.Now().UnixNano()
 	tx := req.GetTx()
 	var err error
+	var txHash string
 	if newlyTx, ok := tx.(*wire.MsgTx); ok {
 		scTxID := req.GetID()
-		txHash, rpcErr := watcher.SendTx(newlyTx, scTxID)
+		txHash, err = watcher.SendTx(newlyTx, scTxID)
 
 		end := time.Now().UnixNano()
 		leaderLogger.Debug("sendCointime", "time", (end-start)/1e6, "chian", chain)
-		if rpcErr != nil {
-			leaderLogger.Error("send signed tx  failed", "err", rpcErr.Message, "rpcErrCode", rpcErr.Code, "sctxid", req.GetID(), "chian", chain)
-			err = errors.New(rpcErr.Message)
+		if err != nil {
+			leaderLogger.Error("send signed tx  failed", "err", err, "sctxid", req.GetID(), "chian", chain)
 		}
-		leaderLogger.Debug("sendTx", "scTxID", req.GetID(), "newTxHash", txHash, "err", err.Error())
+		leaderLogger.Debug("sendTx", "scTxID", req.GetID(), "newTxHash", txHash)
 	} else {
 		leaderLogger.Debug("tx type err", "scTxID", req.GetID())
 	}
-
 	return err
 }
 

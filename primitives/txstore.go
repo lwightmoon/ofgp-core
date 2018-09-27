@@ -447,6 +447,7 @@ func (ts *TxStore) CreateInnerTx(innerTx *pb.Transaction) error {
 	txID := innerTx.TxID
 	innerTx.UpdateId()
 	if !bytes.Equal(txID.Data, innerTx.TxID.Data) {
+		bsLogger.Error("inner tx validate err", "id", hex.EncodeToString(txID.Data))
 		return errors.New("txid validate fail")
 	}
 	// 这个时候监听到的交易已经成功处理并上链了，先清理监听交易缓存

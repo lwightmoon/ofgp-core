@@ -245,6 +245,10 @@ func (node *BraftNode) doSave(msg *pb.SignResult) {
 	// var watcher *btcwatcher.MortgageWatcher
 	collector := node.collectorFactory.getCollector(msg.GetTo())
 	scTxID := msg.GetScTxID()
+	if node.txStore.IsConfirmed(scTxID) {
+		leaderLogger.Debug("tx is already confirmed", "sctxid", scTxID)
+		return
+	}
 	if node.blockStore.IsSignFailed(scTxID, msg.Term) {
 		leaderLogger.Debug("signmsg is failed in this term", "sctxid", scTxID, "term", msg.Term)
 		return
@@ -418,7 +422,7 @@ func (node *BraftNode) checkConfirmTimeout() {
 	for _, msg := range signedMsgs {
 		searchID := msg.SignBeforeTxID
 		scTxID := msg.ScTxID
-		if now-msg.Time > getConfirmTimeout(msg.Chain) && node.isTxSigned(scTxID) {
+		if now-msg.Time > getConfirmTimeout(msg.Chain) && node.isTxSigned(scTxID) && !node.txStore.IsConfirmed(scTxID) {
 			if node.txStore.HasTxInDB(scTxID) || node.txStore.IsTxInMem(scTxID) {
 				node.txStore.DelCreateSignCache(scTxID)
 				node.txStore.DelSigned(scTxID)
@@ -449,7 +453,7 @@ func (node *BraftNode) checkSignTimeout() {
 		scTxID := k.(string)
 		cache := v.(*SignedResultCache)
 		now := time.Now().Unix()
-		if now-cache.initTime > signTimeout && !cache.isDone() { //sign达成共识超时，重新放回处理队列
+		if now-cache.initTime > signTimeout && !cache.isDone() && !node.txStore.IsConfirmed(scTxID) { //sign达成共识超时，重新放回处理队列
 
 			leaderLogger.Debug("sign timeout", "scTxID", scTxID)
 

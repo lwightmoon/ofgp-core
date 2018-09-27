@@ -85,6 +85,5 @@ func (node *BraftNode) MarkFail(scTxID string) {
 // IsSignFailed 判断签名本term内是否失败
 func (node *BraftNode) IsSignFailed(scTxID string) bool {
 	term := node.blockStore.GetNodeTerm()
-	nodeLogger.Debug("is sign fail", "scTxID", scTxID, "term", term)
 	return node.blockStore.IsSignFailed(scTxID, term)
 }
