@@ -21,33 +21,36 @@ func newService(node *node.BraftNode) *service {
 
 func (s *service) makeCreateTxReq(op uint8, info *P2PInfo) (message.CreateReq, error) {
 	var addr []byte
+	var chain uint8
+
 	msg := info.GetMsg()
 	event := info.GetEvent()
 	switch op {
 	case confirmed:
 		addr = msg.ReceiveAddr
+		chain = uint8(msg.Chain)
 	case back:
 		addr = msg.SendAddr
+		chain = uint8(info.Event.GetFrom())
 	default:
 		p2pLogger.Error("op err", "scTxID", info.Event.GetTxID())
 		return nil, nil
 	}
 	var req message.CreateReq
-	chain := uint8(msg.Chain)
 	p2pLogger.Debug("send tx to", "chain", chain)
 	switch chain {
 	case defines.CHAIN_CODE_BCH:
 		fallthrough
 	case defines.CHAIN_CODE_BTC:
 		req = &node.BaseCreateReq{
-			Chain:  msg.Chain,
+			Chain:  uint32(chain),
 			ID:     event.GetTxID(),
 			Addr:   addr,
 			Amount: msg.Amount,
 		}
 	case defines.CHAIN_CODE_ETH:
 		ethReq := &node.EthCreateReq{}
-		ethReq.Chain = msg.Chain
+		ethReq.Chain = uint32(chain)
 		ethReq.ID = event.GetTxID()
 		ethReq.Addr = addr
 		ethReq.Amount = msg.Amount

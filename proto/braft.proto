@@ -256,6 +256,7 @@ message SignRequest{
     string business =7;
     int64 time = 8;
     bytes recharge = 9;
+    uint32 send_to = 10;
 }
 
 // 签名结果

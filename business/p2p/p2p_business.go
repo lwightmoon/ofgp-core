@@ -335,6 +335,7 @@ func (sh *signedHandler) delSignFailed(scTxID string) {
 	delete(sh.signFailTxs, scTxID)
 }
 
+/*
 func (sh *signedHandler) retryFailed() {
 	for _, waitConfirmTx := range sh.signFailTxs {
 		scTxID := waitConfirmTx.ScTxId
@@ -384,7 +385,7 @@ func (sh *signedHandler) retryFailed() {
 		}
 	}
 }
-
+*/
 /*
 func (sh *signedHandler) runCheck() {
 	ticker := time.NewTicker(sh.interval * time.Second).C

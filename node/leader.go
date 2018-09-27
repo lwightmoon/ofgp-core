@@ -387,7 +387,7 @@ func (ld *Leader) watchFormerMultisig(ctx context.Context) {
 							clusterSnapshot := ld.blockStore.GetClusterSnapshot(address)
 							transferTx := ld.createTransferTx(watcher, address, clusterSnapshot)
 							signTxReq, err := pb.MakeSignReqMsg(ld.blockStore.GetNodeTerm(), ld.nodeInfo.Id,
-								watchedTxInfo, transferTx, address, ld.signer, nil)
+								watchedTxInfo, transferTx, address, ld.signer, nil, watchedTxInfo.To)
 							if err != nil {
 								leaderLogger.Error("make sign transfer tx failed", "err", err)
 								continue
@@ -437,7 +437,7 @@ func (ld *Leader) createSignReq(ctx context.Context) {
 						leaderLogger.Error("create tx err", "err", err, "scTxID", signMsg.ScTxID, "chain", createReq.GetChain())
 						continue
 					}
-					req, err := pb.MakeSignReqMsg(ld.blockStore.GetNodeTerm(), ld.nodeInfo.Id, signMsg.Event, newTx, "", ld.signer, signMsg.Recharge)
+					req, err := pb.MakeSignReqMsg(ld.blockStore.GetNodeTerm(), ld.nodeInfo.Id, signMsg.Event, newTx, "", ld.signer, signMsg.Recharge, createReq.GetChain())
 					if err != nil {
 						leaderLogger.Error("make sign tx failed", "err", err, "scTxID", signMsg.ScTxID)
 						continue
@@ -512,5 +512,3 @@ func (ld *Leader) createTx(req message.CreateReq) (*pb.NewlyTx, error) {
 	}
 	return nil, errors.New("is not leader")
 }
-
-

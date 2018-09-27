@@ -605,7 +605,7 @@ func (bs *BlockStore) handleSignReq(tasks *task.Queue, msg *pb.SignRequest) {
 	bsLogger.Debug("begin handle sign tx msg")
 	var signResult *pb.SignResult
 	var err error
-	targetChain := msg.GetWatchedEvent().GetTo()
+	targetChain := msg.GetSendTo()
 	targetChainCompare := uint8(targetChain)
 	nodeTerm := GetNodeTerm(bs.db)
 
