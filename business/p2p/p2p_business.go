@@ -59,7 +59,9 @@ func NewP2P(braftNode *node.BraftNode, path string) *P2P {
 	// sh.runCheck()
 	confirmH := newConfirmHandler(db, 180, service, 10)
 	// confirmH.runCheck()
-	commitH := &commitHandler{}
+	commitH := &commitHandler{
+		db: db,
+	}
 	wh.SetSuccessor(sh)
 	sh.SetSuccessor(confirmH)
 	confirmH.SetSuccessor(commitH)
