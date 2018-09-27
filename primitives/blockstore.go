@@ -1245,7 +1245,7 @@ func (bs *BlockStore) validateBtcSignReq(req *pb.SignRequest, newlyTx *wire.MsgT
 		return wrongInputOutput
 	}
 	txOut := newlyTx.TxOut[0]
-	coinType := uint8(req.GetWatchedEvent().GetTo())
+	coinType := uint8(req.GetSendTo())
 	rechargeAddr, err := btwatcher.DecodeCheckBytesAddr(recharge.Addr, coinType)
 	scTxID := req.GetWatchedEvent().GetTxID()
 	if err != nil {
@@ -1253,8 +1253,13 @@ func (bs *BlockStore) validateBtcSignReq(req *pb.SignRequest, newlyTx *wire.MsgT
 		return wrongInputOutput
 	}
 	realAddr := btwatcher.ExtractPkScriptAddr(txOut.PkScript, coinType)
+	if rechargeAddr == nil {
+		bsLogger.Error("get addr from vout err", "scTxID", scTxID)
+		return wrongInputOutput
+	}
 	bsLogger.Debug("addr compare", "toString", rechargeAddr.String(), "encodeString",
 		rechargeAddr.EncodeAddress(), "realAddr", realAddr)
+
 	if rechargeAddr.String() != realAddr {
 		bsLogger.Error("addr is  not equal", "scTxID", scTxID)
 		return wrongInputOutput
