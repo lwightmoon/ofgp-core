@@ -137,6 +137,10 @@ func isMatching(db *p2pdb, txID string) bool {
 // checkP2PInfo check点对点交易是否合法
 func (wh *watchedHandler) checkP2PInfo(info *P2PInfo) bool {
 	txID := info.GetScTxID()
+	if wh.db.getP2PInfo(txID) != nil {
+		p2pLogger.Warn("tx already received", "scTxID", txID)
+		return false
+	}
 	if isMatching(wh.db, txID) {
 		p2pLogger.Warn("tx is matching or has already been matched", "scTxID", txID)
 		return false
@@ -144,6 +148,7 @@ func (wh *watchedHandler) checkP2PInfo(info *P2PInfo) bool {
 	if info.IsExpired() {
 		//发起回退交易
 		p2pLogger.Warn("tx has already been expired", "scTxID", txID)
+		wh.db.setP2PInfo(info)
 		wh.sendBackTx(info)
 		return false
 	}
