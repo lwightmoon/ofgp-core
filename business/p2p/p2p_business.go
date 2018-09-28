@@ -137,10 +137,6 @@ func isMatching(db *p2pdb, txID string) bool {
 // checkP2PInfo check点对点交易是否合法
 func (wh *watchedHandler) checkP2PInfo(info *P2PInfo) bool {
 	txID := info.GetScTxID()
-	if wh.db.getP2PInfo(txID) != nil {
-		p2pLogger.Warn("tx already received", "scTxID", txID)
-		return false
-	}
 	if isMatching(wh.db, txID) {
 		p2pLogger.Warn("tx is matching or has already been matched", "scTxID", txID)
 		return false
@@ -261,9 +257,14 @@ func (wh *watchedHandler) HandleEvent(event node.BusinessEvent) {
 			p2pLogger.Error("data is nil", "business", watchedEvent.GetBusiness())
 			return
 		}
+		if wh.db.getP2PInfo(txEvent.GetTxID()) != nil {
+			p2pLogger.Warn("tx already received", "scTxID", txEvent.GetTxID())
+			return
+		}
 		info := getP2PInfo(txEvent)
+
 		if !wh.checkP2PInfo(info) {
-			p2pLogger.Debug("check p2pinfo fail", "scTxID", info.GetScTxID)
+			p2pLogger.Debug("check p2pinfo fail", "scTxID", info.GetScTxID())
 			return
 		}
 
@@ -284,7 +285,7 @@ func (wh *watchedHandler) HandleEvent(event node.BusinessEvent) {
 					continue
 				}
 				if !wh.checkP2PInfo(matchedInfo) {
-					p2pLogger.Debug("check matched p2pinfo fail", "scTxID", info.GetScTxID)
+					p2pLogger.Debug("check matched p2pinfo fail", "scTxID", info.GetScTxID())
 					continue
 				}
 				//保存已匹配的两笔交易的txid
