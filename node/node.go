@@ -662,26 +662,26 @@ func (bn *BraftNode) watchNewTx(ctx context.Context) {
 	nodeLogger.Debug("eth watch info", "height", ethHeight, "index", ethIndex)
 	bn.ethWatcher.StartWatch(*big.NewInt(ethHeight), int(ethIndex), eventCh)
 	for event := range eventCh {
-		if event.GetBusiness() != "" {
+		if event != nil && event.GetBusiness() != "" && (event.GetEventType() == defines.EVENT_P2P_SWAP_REQUIRE || event.GetEventType() == defines.EVENT_P2P_SWAP_CONFIRM) {
 			nodeLogger.Debug("receive event", "scTxID", event.GetTxID(), "chain", event.GetFrom(), "type", event.GetEventType(), "business", event.GetBusiness(), "to", event.GetTo())
+			// 防止重复发布事件
+			if bn.pubsub.hasTopic(event.GetBusiness()) && !bn.txStore.IsWatched(event.GetTxID()) && !bn.txStore.HasTxInDB(event.GetTxID()) {
+				watchedEvent := newWatchedEvent(event)
+				bn.txStore.AddWatchedEvent(watchedEvent)
+				bn.pubWatcherEvent(watchedEvent)
+				//删除已签名标记 停止confirmTimeout check
+				if event.GetEventType() == defines.EVENT_P2P_SWAP_CONFIRM {
+					scTxID := event.GetProposal()
+					bn.onTxConfirmed(scTxID)
+				}
+			}
+			//设置监听高度
+			bn.blockStore.SetTxPosition(event.GetFrom(), &pb.WatchedTxPosition{
+				Height: event.GetHeight(),
+				Index:  int64(event.GetTranxIx()),
+			})
 		}
 
-		// 防止重复发布事件
-		if event.GetBusiness() != "" && bn.pubsub.hasTopic(event.GetBusiness()) && !bn.txStore.IsWatched(event.GetTxID()) && !bn.txStore.HasTxInDB(event.GetTxID()) {
-			watchedEvent := newWatchedEvent(event)
-			bn.txStore.AddWatchedEvent(watchedEvent)
-			bn.pubWatcherEvent(watchedEvent)
-			//删除已签名标记 停止confirmTimeout check
-			if event.GetEventType() == defines.EVENT_P2P_SWAP_CONFIRM {
-				scTxID := event.GetProposal()
-				bn.onTxConfirmed(scTxID)
-			}
-		}
-		//设置监听高度
-		bn.blockStore.SetTxPosition(event.GetFrom(), &pb.WatchedTxPosition{
-			Height: event.GetHeight(),
-			Index:  int64(event.GetTranxIx()),
-		})
 	}
 	// bchTxChan := bn.bchWatcher.GetTxChan()
 	// btcTxChan := bn.btcWatcher.GetTxChan()
@@ -798,6 +798,7 @@ func (bn *BraftNode) onNewBlockCommitted(pack *pb.BlockPack) {
 
 // onTxConfirmed tx confirmed清理缓存
 func (bn *BraftNode) onTxConfirmed(scTxID string) {
+	nodeLogger.Debug("confirm tx", "scTxID", scTxID)
 	bn.txStore.AddToConfirmed(scTxID)
 	bn.signedResultCache.Delete(scTxID)
 	bn.txStore.DelSigned(scTxID)

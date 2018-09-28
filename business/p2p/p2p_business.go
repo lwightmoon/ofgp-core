@@ -700,7 +700,15 @@ func (handler *confirmHandler) HandleEvent(event node.BusinessEvent) {
 
 			//先前匹配的交易id
 			oldMatchedTxID := handler.db.getMatched(oldTxID)
+			if oldMatchedTxID == "" {
+				p2pLogger.Error("can not find matched", "oldTxID", oldTxID)
+				return
+			}
 			oldWaitConfirm := handler.db.getWaitConfirm(oldMatchedTxID)
+			if oldWaitConfirm == nil {
+				p2pLogger.Error("matched tx never send to sign", "oldMatchTxID", oldMatchedTxID)
+				return
+			}
 			if oldWaitConfirm.Info != nil { //与oldTxID匹配的交易已被confirm
 				confirmInfos := []*P2PConfirmInfo{info, oldWaitConfirm.Info}
 				oldTxIDs := []string{oldTxID, oldMatchedTxID}
