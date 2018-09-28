@@ -1,6 +1,7 @@
 package primitives
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"log"
 	"math/big"
@@ -228,6 +229,9 @@ func GetCommitsByHeightSec(db *dgwdb.LDBDatabase, start, end int64) []*pb.BlockP
 func IsCommitted(db *dgwdb.LDBDatabase, blockId *crypto.Digest256) bool {
 	k := append(keyCommitHsByIdsPrefix, blockId.Data...)
 	_, err := db.Get(k)
+	if err == nil {
+		log.Printf("already commited")
+	}
 	return err == nil
 }
 
@@ -249,9 +253,17 @@ func GetCommitByID(db *dgwdb.LDBDatabase, blockID *crypto.Digest256) *pb.BlockPa
 // IsConnectingTop check whether the blockPack is right upon the top
 func IsConnectingTop(db *dgwdb.LDBDatabase, blockPack *pb.BlockPack) bool {
 	top := GetCommitTop(db)
-	return blockPack.PrevBlockId().EqualTo(top.BlockId()) &&
+	res := blockPack.PrevBlockId().EqualTo(top.BlockId()) &&
 		blockPack.Term() >= top.Term() &&
 		blockPack.Height() == top.Height()+1
+
+	if !res {
+		preHash := hex.EncodeToString(blockPack.PrevBlockId().Data)
+		hashNow := hex.EncodeToString(blockPack.BlockId().Data)
+		log.Printf("check conn top err,packTerm:%d,topTerm:%d,packHeight:%d,topHeight:%d,preHash:%s,hashNow:%s",
+			blockPack.Term(), top.Term(), blockPack.Height(), top.Height(), preHash, hashNow)
+	}
+	return res
 }
 
 // SetTxLookupEntry 保存交易的索引信息

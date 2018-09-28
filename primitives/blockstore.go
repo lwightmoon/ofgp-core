@@ -426,10 +426,12 @@ func (bs *BlockStore) handleInitMsg(tasks *task.Queue, init *pb.InitMsg) {
 		newFresh := pb.NewBlockPack(init)
 		bsLogger.Debug("in handle init msg, begin validate txs")
 		allTxValid := bs.validateTxs(newFresh)
-		bsLogger.Debug("in handle init msg, validate txs done")
+		bsLogger.Debug("in handle init msg, validate txs done", "validate res", allTxValid)
 
 		reconfigValid := bs.checkReconfigBlock(newFresh)
-
+		if !reconfigValid {
+			bsLogger.Debug("check reconfig not pass", "check res", reconfigValid)
+		}
 		if !IsCommitted(bs.db, init.BlockId()) && IsConnectingTop(bs.db, newFresh) &&
 			allTxValid == Valid && reconfigValid {
 			// 仅在term有变更的情况下才去检查init消息里面的投票信息，因为这意味着有新的主节点, 需要检查合法性
@@ -461,7 +463,8 @@ func (bs *BlockStore) handleInitMsg(tasks *task.Queue, init *pb.InitMsg) {
 			// tasks.Add(func() { bs.NeedSyncUpEvent.Emit(init.NodeId) })
 			return
 		} else {
-			bsLogger.Warn("got invalid new fresh", "fresh", newFresh)
+			// bsLogger.Warn("got invalid new fresh", "fresh", newFresh)
+			bsLogger.Warn("got invalid new fresh", "fresh", newFresh.BlockId())
 			tasks.Add(func() { bs.NewWeakAccuseEvent.Emit(init.Term) })
 		}
 	}
@@ -990,6 +993,7 @@ func (bs *BlockStore) validateTxs(blockPack *pb.BlockPack) int {
 					case defines.CHAIN_CODE_BCH:
 						chainTx := bs.bchWatcher.GetTxByHash(pubtx.TxID)
 						if chainTx == nil {
+							bsLogger.Error("bch getTxByHash nil", "scTxID", pubtx.TxID)
 							resultChan <- Invalid
 						} else {
 							resultChan <- Valid
@@ -997,6 +1001,7 @@ func (bs *BlockStore) validateTxs(blockPack *pb.BlockPack) int {
 					case defines.CHAIN_CODE_BTC:
 						chainTx := bs.btcWatcher.GetTxByHash(pubtx.TxID)
 						if chainTx == nil {
+							bsLogger.Error("btc getTxByHash nil", "scTxID", pubtx.TxID)
 							resultChan <- Invalid
 						} else {
 							resultChan <- Valid
@@ -1016,6 +1021,7 @@ func (bs *BlockStore) validateTxs(blockPack *pb.BlockPack) int {
 						resultChan <- Valid
 
 					default:
+						bsLogger.Error("validate tx type err", "type", chain)
 						resultChan <- Invalid
 					}
 				}
@@ -1025,6 +1031,7 @@ func (bs *BlockStore) validateTxs(blockPack *pb.BlockPack) int {
 		for {
 			result := <-resultChan
 			if result == Invalid {
+				bsLogger.Error("validateTxs fail")
 				return Invalid
 			}
 			receivedCount++
