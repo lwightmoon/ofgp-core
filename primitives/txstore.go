@@ -267,7 +267,7 @@ type TxStore struct {
 	watchedTxEvent    sync.Map //监听到的event
 	addWatchedEventCh chan *pb.WatchedEvent
 
-	createAndSignMsg   sync.Map //等待被创建的请求
+	createAndSignMsg   sync.Map //*message.CreateAndSignMsg 等待被创建的请求
 	createAndSignMsgCh chan *message.CreateAndSignMsg
 
 	createSignTxCache sync.Map //*message.CreateAndSignMsg cache create tx req

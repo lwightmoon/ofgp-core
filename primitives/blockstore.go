@@ -1021,7 +1021,7 @@ func (bs *BlockStore) validateTxs(blockPack *pb.BlockPack) int {
 						resultChan <- Valid
 
 					default:
-						bsLogger.Error("validate tx type err", "type", chain)
+						bsLogger.Error("validate tx type err", "type", chain, "scTxID", tx.TxID)
 						resultChan <- Invalid
 					}
 				}
