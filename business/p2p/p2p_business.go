@@ -276,9 +276,10 @@ func (wh *watchedHandler) HandleEvent(event node.BusinessEvent) {
 		p2pLogger.Debug("search coniditon", "chian", chain, "addr", addr, "amount", amount)
 		// 使用要求的数据匹配交易数据
 		txIDs := wh.index.GetTxID(chain, addr, amount)
-		p2pLogger.Debug("matchIDs", "txIDs", txIDs)
+
 		if txIDs != nil {
 			for _, txID := range txIDs {
+				p2pLogger.Debug("matchedTxID", "txID", txID, "scTxID", txEvent.GetTxID())
 				matchedInfo := wh.db.getP2PInfo(txID)
 				if matchedInfo == nil {
 					p2pLogger.Error("get p2pInfo nil", "business", event.GetBusiness(), "scTxID", txEvent.GetTxID())

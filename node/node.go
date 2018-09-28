@@ -804,7 +804,6 @@ func (bn *BraftNode) onTxConfirmed(scTxID string) {
 	bn.txStore.DelSigned(scTxID)
 	bn.txStore.DelCreateSignCache(scTxID)
 	bn.txStore.DeleteWaitSign(scTxID)
-	bn.txStore.DeleteWatchedEvent(scTxID)
 }
 
 //TODO

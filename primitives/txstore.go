@@ -452,7 +452,6 @@ func (ts *TxStore) CreateInnerTx(innerTx *pb.Transaction) error {
 	}
 	// 这个时候监听到的交易已经成功处理并上链了，先清理监听交易缓存
 	for _, pubtx := range innerTx.Vin {
-		ts.watchedTxEvent.Delete(pubtx.TxID)
 		ts.createAndSignMsg.Delete(pubtx.TxID)
 		ts.createSignTxCache.Delete(pubtx.TxID)
 	}
