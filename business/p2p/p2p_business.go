@@ -540,7 +540,7 @@ func getPubTxFromConfirmInfo(info *P2PConfirmInfo) *pb.PublicTx {
 	}
 	event := info.GetEvent()
 	pubTx := &pb.PublicTx{
-		Chain:  event.GetFrom(),
+		Chain:  event.GetTo(),
 		TxID:   event.GetTxID(),
 		Amount: int64(event.GetAmount()),
 		Data:   event.GetData(),
