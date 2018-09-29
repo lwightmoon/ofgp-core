@@ -293,6 +293,7 @@ func (wh *watchedHandler) HandleEvent(event node.BusinessEvent) {
 				wh.db.setMatched(info.GetScTxID(), matchedInfo.GetScTxID())
 				//删除索引 防止重复匹配
 				wh.index.Del(info)
+				wh.index.Del(matchedInfo)
 
 				infos := []*P2PInfo{info, matchedInfo}
 				//创建交易发送签名

@@ -280,6 +280,7 @@ func (node *BraftNode) doSave(msg *pb.SignResult) {
 			cache.addSignedCount()
 			cache.addCache(msg.NodeID, msg)
 		} else {
+			leaderLogger.Debug("signed fail", "scTxID", scTxID)
 			cache.addErrCnt()
 		}
 		return

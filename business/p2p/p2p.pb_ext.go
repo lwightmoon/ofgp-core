@@ -91,7 +91,11 @@ func (ti *txIndex) Add(info *P2PInfo) {
 
 func (ti *txIndex) Del(info *P2PInfo) {
 	chain := fmt.Sprintf("%d", info.Event.From)
-	sendAddr := string(info.Msg.SendAddr)
+	sendAddr, err := swaputils.CheckBytesToStr(info.Msg.GetSendAddr(), uint8(info.Event.From))
+	if err != nil {
+		p2pLogger.Error("send addr to str err", "err", err)
+		return
+	}
 	amount := fmt.Sprintf("%d", info.Event.Amount)
 	addrNode := ti.root.getNode(chain)
 	txID := info.GetScTxID()
