@@ -255,9 +255,9 @@ func NewBraftNode(localNodeInfo cluster.NodeInfo) *BraftNode {
 		eventCh:          eventCh,
 	}
 	//重新添加监听列表
-	// if len(multiSigList) > 0 {
-	bn.changeFederationAddrs(multiSig, multiSigList)
-	// }
+	if startMode != cluster.ModeWatch && startMode != cluster.ModeTest {
+		bn.changeFederationAddrs(multiSig, multiSigList)
+	}
 
 	bs.NeedSyncUpEvent.Subscribe(func(nodeId int32) {
 		nodeLogger.Debug("Need Syncup", "from", nodeId)

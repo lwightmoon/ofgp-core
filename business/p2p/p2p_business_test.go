@@ -300,15 +300,18 @@ func TestIndex(t *testing.T) {
 	p2pInfo := &P2PInfo{
 		Event: event,
 		Msg:   msgUse,
+		Index: 1,
 	}
 	index.Add(p2pInfo)
 	p2pInfo.Event.TxID = "testTxID2"
+	p2pInfo.Index = 0
 	index.Add(p2pInfo)
 	txIDs := index.GetTxID(1, string(msgUse.SendAddr), uint64(event.Amount))
 	t.Logf("get txIDs:%s", txIDs)
 	index.Del(p2pInfo)
 	t.Logf("del res:%v", index.root.Childs)
 	p2pInfo.Event.TxID = "testTxID"
+	p2pInfo.Index = 1
 	index.Del(p2pInfo)
 	t.Logf("del res:%v", index.root.Childs)
 }
@@ -324,7 +327,7 @@ func TestSignTimeout(t *testing.T) {
 		Time:     time.Now().Unix(),
 	})
 	// sh.checkSignTimeout()
-	sh.runCheck()
+	// sh.runCheck()
 	time.Sleep(2 * time.Second)
 	go func() {
 		for {
@@ -344,8 +347,8 @@ func TestSignTimeout(t *testing.T) {
 }
 
 func TestConfirmTimeout(t *testing.T) {
-	service := newService(checkNode)
-	ch := newConfirmHandler(p2pDB, 1, service, 1)
+	// service := newService(checkNode)
+	// ch := newConfirmHandler(p2pDB, 1, service, 1)
 
 	temp := getBytes(32)
 	temp[0] = byte(2)
@@ -358,7 +361,7 @@ func TestConfirmTimeout(t *testing.T) {
 		Time:           time.Now().Unix(),
 	})
 
-	ch.runCheck()
+	// ch.runCheck()
 	time.Sleep(10 * time.Second)
 	// matchEvent := &node.ConfirmEvent{}
 	// matchEvent.Business = "p2p"

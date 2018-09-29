@@ -25,8 +25,8 @@ func ExampleP2PInfo() {
 	event := &pb.WatchedEvent{
 		TxID:   "testTxID",
 		Amount: 1,
-		From:   defines.CHAIN_CODE_BCH,
-		To:     defines.CHAIN_CODE_ETH,
+		From:   uint32(defines.CHAIN_CODE_BCH),
+		To:     uint32(defines.CHAIN_CODE_ETH),
 		Data:   p2pMsg.Encode(),
 	}
 	p2pInfo := &P2PInfo{
@@ -34,9 +34,14 @@ func ExampleP2PInfo() {
 		Msg:   msgUse,
 	}
 	p2pDB.setP2PInfo(p2pInfo)
-	info := p2pDB.getP2PInfo(event.TxID)
-	fmt.Printf("get p2pInfo txID:%s\n", info.Event.TxID)
-	// Output: get p2pInfo txID:testTxID
+	p2pInfo.Event.TxID = "testTxID2"
+	p2pDB.setP2PInfo(p2pInfo)
+	p2pInfo.Event.TxID = "testTxID3"
+	p2pDB.setP2PInfo(p2pInfo)
+	fmt.Printf("p2pInfoIndex:%d\n", p2pInfo.Index)
+	info := p2pDB.getP2PInfo("testTxID3")
+	fmt.Printf("get p2pInfo txID:%s,Index:%d\n", info.Event.TxID, info.Index)
+	// Output: get p2pInfo txID:testTxID3,Index:3
 }
 
 func TestWaitConfirm(t *testing.T) {
@@ -63,8 +68,8 @@ func TestGetAllInfo(t *testing.T) {
 	event := &pb.WatchedEvent{
 		TxID:   "testTxID",
 		Amount: 1,
-		From:   defines.CHAIN_CODE_BCH,
-		To:     defines.CHAIN_CODE_ETH,
+		From:   uint32(defines.CHAIN_CODE_BCH),
+		To:     uint32(defines.CHAIN_CODE_ETH),
 		Data:   p2pMsg.Encode(),
 	}
 	p2pInfo := &P2PInfo{
@@ -131,4 +136,10 @@ func TestSign(t *testing.T) {
 	})
 	exist := p2pDB.existSendedInfo(scTxID + "_")
 	t.Logf("exist sended:%v", exist)
+}
+
+func TestSetIndex(t *testing.T) {
+	p2pDB.setIndex(12)
+	res := p2pDB.getIndex()
+	t.Logf("get index:%d", res)
 }

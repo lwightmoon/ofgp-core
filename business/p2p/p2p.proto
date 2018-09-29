@@ -19,6 +19,7 @@ message p2pInfo {
    proto.WatchedEvent  event = 1;
    p2pMsg msg = 2;
    int64 time = 3;
+   uint32 index = 4;
 }
 
 

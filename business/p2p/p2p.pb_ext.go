@@ -2,6 +2,7 @@ package p2p
 
 import (
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/antimoth/swaputils"
@@ -85,6 +86,8 @@ func (ti *txIndex) Add(info *P2PInfo) {
 	child = child.add(sendAddr)
 	amount := fmt.Sprintf("%d", info.Event.Amount)
 	child = child.add(amount)
+	index := fmt.Sprintf("%d", info.GetIndex())
+	child = child.add(index)
 	txID := info.Event.TxID
 	child.add(txID)
 }
@@ -97,6 +100,7 @@ func (ti *txIndex) Del(info *P2PInfo) {
 		return
 	}
 	amount := fmt.Sprintf("%d", info.Event.Amount)
+	index := fmt.Sprintf("%d", info.Index)
 	addrNode := ti.root.getNode(chain)
 	txID := info.GetScTxID()
 	if addrNode == nil {
@@ -106,12 +110,20 @@ func (ti *txIndex) Del(info *P2PInfo) {
 	if amountNode == nil {
 		return
 	}
-	txIDNode := amountNode.getNode(amount)
+	txIndexNode := amountNode.getNode(amount)
+	if txIndexNode == nil {
+		return
+	}
+	txIDNode := txIndexNode.getNode(index)
 	if txIDNode == nil {
 		return
 	}
+
 	delete(txIDNode.Childs, txID)
 	if len(txIDNode.Childs) == 0 {
+		delete(txIndexNode.Childs, index)
+	}
+	if len(txIndexNode.Childs) == 0 {
 		delete(amountNode.Childs, amount)
 	}
 	if len(amountNode.Childs) == 0 {
@@ -155,10 +167,20 @@ func (ti *txIndex) GetTxID(chain uint32, addr string, amount uint64) []string {
 		return nil
 	}
 	amountStr := fmt.Sprintf("%d", amount)
-	txIDNode := amountNode.getNode(amountStr)
-	if txIDNode == nil {
+	txIndexNode := amountNode.getNode(amountStr)
+	if txIndexNode == nil {
 		return nil
 	}
-	txIDs := txIDNode.getNodeVals()
+	indexs := txIndexNode.getNodeVals()
+	sort.Strings(indexs)
+	fmt.Printf("---------indexs:%v\n", indexs)
+	var txIDs []string
+	for _, index := range indexs {
+		txIDNode := txIndexNode.Childs[index]
+		fmt.Println(txIDNode)
+		for txID := range txIDNode.Childs {
+			txIDs = append(txIDs, txID)
+		}
+	}
 	return txIDs
 }

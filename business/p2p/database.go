@@ -10,6 +10,7 @@ import (
 
 var (
 	p2pInfoPrefix     = []byte("p2pInfo")
+	p2pInfoIndex      = []byte("p2pInfoIndex")
 	waitConfirmPrefix = []byte("waitConfirm")
 	matchedPrefix     = []byte("matched")
 	sendedPrefix      = []byte("sended")
@@ -20,22 +21,50 @@ type p2pdb struct {
 }
 
 func newP2PDB(db *dgwdb.LDBDatabase) *p2pdb {
-	return &p2pdb{
+	p2pDB := &p2pdb{
 		db: db,
 	}
+	return p2pDB
 }
 
 // getID 获取db存储key
-
+func (db *p2pdb) getIndex() uint32 {
+	data, err := db.db.Get(p2pInfoIndex)
+	if err != nil {
+		p2pLogger.Error("get Index err", "err", err)
+		return 0
+	}
+	res := bigEndian.Uint32(data)
+	return res
+}
+func (db *p2pdb) setIndex(index uint32) {
+	indexData := make([]byte, 4)
+	bigEndian.PutUint32(indexData, index)
+	err := db.db.Put(p2pInfoIndex, indexData)
+	if err != nil {
+		p2pLogger.Error("set index err", "err", err)
+	}
+}
 func (db *p2pdb) setP2PInfo(tx *P2PInfo) {
 	txID := tx.Event.TxID
 	key := append(p2pInfoPrefix, []byte(txID)...)
+	index := db.getIndex()
+	tx.Index = index + 1
 	data, err := proto.Marshal(tx)
 	if err != nil {
-		p2pLogger.Error("set P2PInfo", "err", err)
+		p2pLogger.Error("marshal P2PInfo err", "err", err)
 		return
 	}
-	db.db.Put(key, data)
+	batch := new(leveldb.Batch)
+	// db.db.Put(key, data)
+	batch.Put(key, data)
+	indexData := make([]byte, 4)
+	bigEndian.PutUint32(indexData, tx.Index)
+	batch.Put(p2pInfoIndex, indexData)
+	err = db.db.LDB().Write(batch, nil)
+	if err != nil {
+		p2pLogger.Error("set p2pInfo err", "err", err)
+	}
 }
 
 func (db *p2pdb) getP2PInfo(txID string) *P2PInfo {
