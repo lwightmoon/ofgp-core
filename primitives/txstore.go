@@ -640,6 +640,9 @@ func (ts *TxStore) doHeartbeat() {
 			if ts.waitPackingTx.getByPubTxID(scTxID) != nil {
 				return true
 			}
+			if ts.IsConfirmed(scTxID) {
+				return true
+			}
 			if GetTxIdBySidechainTxId(ts.db, scTxID) != nil {
 				ts.watchedTxEvent.Delete(scTxID)   //删除监听到的event
 				ts.createAndSignMsg.Delete(scTxID) //删除等待签名的请求

@@ -85,7 +85,7 @@ func (node *BraftNode) clearOnFail(signReq *pb.SignRequest) {
 
 	node.signedResultCache.Delete(scTxID)
 	node.blockStore.DeleteSignReqMsg(scTxID)
-	node.txStore.DelCreateSignCache(scTxID)
+	// node.txStore.DelCreateSignCache(scTxID)
 }
 
 /*
