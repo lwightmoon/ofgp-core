@@ -10,7 +10,7 @@ import (
 
 var (
 	p2pInfoPrefix     = []byte("p2pInfo")
-	p2pInfoIndex      = []byte("p2pInfoIndex")
+	p2pInfoIndex      = []byte("indexp2pInfo")
 	waitConfirmPrefix = []byte("waitConfirm")
 	matchedPrefix     = []byte("matched")
 	sendedPrefix      = []byte("sended")

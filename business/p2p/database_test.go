@@ -75,8 +75,10 @@ func TestGetAllInfo(t *testing.T) {
 	p2pInfo := &P2PInfo{
 		Event: event,
 		Msg:   msgUse,
+		Index: 0,
 	}
 	p2pDB.setP2PInfo(p2pInfo)
+	// p2pDB.getP2PInfo("testTxID")
 	infos := p2pDB.getAllP2PInfos()
 	for _, info := range infos {
 		t.Logf("info:%s", info.GetScTxID())

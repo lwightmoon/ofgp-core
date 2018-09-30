@@ -17,7 +17,8 @@ const (
 	ERROR    = logLevel(log.LvlError)
 	CRITICAL = logLevel(log.LvlCrit)
 
-	timeFormat  = "2006-01-02 15:04:05.999"
+	// timeFormat  = "2006-01-02 15:04:05.999"
+	timeFormat  = "2006-01-02 15:04:05.000"
 	termMsgJust = 40
 )
 
