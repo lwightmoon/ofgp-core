@@ -451,19 +451,20 @@ func (sh *signedHandler) HandleEvent(event node.BusinessEvent) {
 		}
 		txID := signedData.TxID
 		sh.Lock()
-		if !sh.service.isSignFail(txID) && !sh.isInSignFailed(txID) && !sh.db.existSendedInfo(txID) && !sh.service.isDone(txID) {
+		if !sh.service.isSignFail(txID) && !sh.db.existSendedInfo(txID) && !sh.service.isDone(txID) {
 			p2pLogger.Debug("receive signedData", "scTxID", signedData.ID)
 			//发送交易
 			err := sh.service.sendTx(signedData)
 			if err != nil {
 				p2pLogger.Error("send tx err", "err", err, "scTxID", signedData.ID, "business", signedEvent.Business)
+			} else {
+				sh.db.setSendedInfo(&SendedInfo{
+					TxId:           signedData.TxID,
+					SignTerm:       signedData.Term,
+					Chain:          signedData.Chain,
+					SignBeforeTxId: signedData.SignBeforeTxID,
+				})
 			}
-			sh.db.setSendedInfo(&SendedInfo{
-				TxId:           signedData.TxID,
-				SignTerm:       signedData.Term,
-				Chain:          signedData.Chain,
-				SignBeforeTxId: signedData.SignBeforeTxID,
-			})
 		} else {
 			p2pLogger.Debug("already sended", "scTxID", txID)
 		}
