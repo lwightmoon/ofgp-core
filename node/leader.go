@@ -435,11 +435,13 @@ func (ld *Leader) createSignReq(ctx context.Context) {
 					newTx, err := ld.txInvoker.CreateTx(createReq)
 					if err != nil {
 						leaderLogger.Error("create tx err", "err", err, "scTxID", signMsg.ScTxID, "chain", createReq.GetChain())
+						ld.txStore.AddTxtoWaitSign(msg)
 						continue
 					}
 					req, err := pb.MakeSignReqMsg(ld.blockStore.GetNodeTerm(), ld.nodeInfo.Id, signMsg.Event, newTx, "", ld.signer, signMsg.Recharge, createReq.GetChain())
 					if err != nil {
 						leaderLogger.Error("make sign tx failed", "err", err, "scTxID", signMsg.ScTxID)
+						ld.txStore.AddTxtoWaitSign(msg)
 						continue
 					}
 					if !ld.isInCharge() {
