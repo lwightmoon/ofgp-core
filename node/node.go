@@ -201,7 +201,7 @@ func NewBraftNode(localNodeInfo cluster.NodeInfo) *BraftNode {
 	//事件监听ch
 	eventCh := make(chan defines.PushEvent)
 
-	bs := primitives.NewBlockStore(db, ts, btcWatcher, bchWatcher, ethWatcher, signer, localNodeInfo.Id, eventCh)
+	bs := primitives.NewBlockStore(db, ts, btcWatcher, bchWatcher, ethWatcher, signer, localNodeInfo.Id)
 
 	var txInvoker *txInvoker
 	var collectorFactory *collectorFactory
@@ -665,11 +665,13 @@ func (bn *BraftNode) watchNewTx(ctx context.Context) {
 		if event != nil && event.GetBusiness() != "" && (event.GetEventType() == defines.EVENT_P2P_SWAP_REQUIRE || event.GetEventType() == defines.EVENT_P2P_SWAP_CONFIRM) {
 			nodeLogger.Debug("receive event", "scTxID", event.GetTxID(), "chain", event.GetFrom(), "type", event.GetEventType(), "business", event.GetBusiness(), "to", event.GetTo())
 			// 防止重复发布事件
-			if bn.pubsub.hasTopic(event.GetBusiness()) && !bn.txStore.IsWatched(event.GetTxID()) && !bn.txStore.HasTxInDB(event.GetTxID()) {
+			if bn.pubsub.hasTopic(event.GetBusiness()) && !bn.txStore.HasTxInDB(event.GetTxID()) {
 				watchedEvent := newWatchedEvent(event)
 				//校验只需require类型的tx
 				if event.GetEventType() == defines.EVENT_P2P_SWAP_REQUIRE {
-					bn.txStore.AddWatchedEvent(watchedEvent)
+					if !bn.txStore.IsWatched(event.GetTxID()) {
+						bn.txStore.AddWatchedEvent(watchedEvent)
+					}
 				}
 				bn.pubWatcherEvent(watchedEvent)
 				//删除已签名标记 停止confirmTimeout check

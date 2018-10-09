@@ -3,6 +3,7 @@ package p2p
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"time"
 
 	"github.com/antimoth/swaputils"
@@ -147,10 +148,13 @@ func (tn *TxNode) add(val string) *TxNode {
 func (tn *TxNode) getNode(key string) *TxNode {
 	return tn.Childs[key]
 }
-func (tn *TxNode) getNodeVals() []string {
-	var vals []string
+func (tn *TxNode) getNodeVals() []int {
+	var vals []int
 	for _, node := range tn.Childs {
-		vals = append(vals, node.Value)
+		if node.Value != "" {
+			num, _ := strconv.Atoi(node.Value)
+			vals = append(vals, num)
+		}
 	}
 	return vals
 }
@@ -172,11 +176,12 @@ func (ti *txIndex) GetTxID(chain uint32, addr string, amount uint64) []string {
 		return nil
 	}
 	indexs := txIndexNode.getNodeVals()
-	sort.Strings(indexs)
+	sort.Ints(indexs)
 	fmt.Printf("---------indexs:%v\n", indexs)
 	var txIDs []string
 	for _, index := range indexs {
-		txIDNode := txIndexNode.Childs[index]
+		key := strconv.Itoa(index)
+		txIDNode := txIndexNode.Childs[key]
 		fmt.Println(txIDNode)
 		for txID := range txIDNode.Childs {
 			txIDs = append(txIDs, txID)

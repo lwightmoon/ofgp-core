@@ -240,7 +240,7 @@ func (its *innerTxStore) hasTimeoutTx(db *dgwdb.LDBDatabase) bool {
 				delete(its.txs, k)
 				continue
 			}
-			bsLogger.Error("pack tx timeout", "scTxID", k)
+			bsLogger.Error("pack tx timeout", "innerTxID", k)
 			innerTxHasOverdue = true
 			txInfo.resetWaitingTolerance()
 		}

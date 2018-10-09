@@ -55,8 +55,6 @@ type BlockStore struct {
 	prepareCache map[int64]map[int64][]*pb.PrepareMsg
 	commitCache  map[int64]map[int64][]*pb.CommitMsg
 
-	eventCh chan defines.PushEvent //接收监听事件
-
 	NeedSyncUpEvent            *util.Event
 	NewInitedEvent             *util.Event
 	NewPreparedEvent           *util.Event
@@ -78,7 +76,7 @@ type BlockStore struct {
 
 // NewBlockStore 生成一个BlockStore对象
 func NewBlockStore(db *dgwdb.LDBDatabase, ts *TxStore, btcWatcher *btwatcher.Watcher, bchWatcher *btwatcher.Watcher,
-	ethWatcher *ew.Client, signer *crypto.SecureSigner, localNodeId int32, eventCh chan defines.PushEvent) *BlockStore {
+	ethWatcher *ew.Client, signer *crypto.SecureSigner, localNodeId int32) *BlockStore {
 	return &BlockStore{
 		db:           db,
 		ts:           ts,
@@ -90,7 +88,6 @@ func NewBlockStore(db *dgwdb.LDBDatabase, ts *TxStore, btcWatcher *btwatcher.Wat
 		localNodeId:  localNodeId,
 		prepareCache: make(map[int64]map[int64][]*pb.PrepareMsg),
 		commitCache:  make(map[int64]map[int64][]*pb.CommitMsg),
-		eventCh:      eventCh,
 
 		NeedSyncUpEvent:            util.NewEvent(),
 		NewInitedEvent:             util.NewEvent(),
@@ -1344,10 +1341,6 @@ func (bs *BlockStore) baseCheckSignReq(req *pb.SignRequest) int {
 	return validatePass
 }
 
-func (bs *BlockStore) addToEventCh(event defines.PushEvent) {
-	bs.eventCh <- event
-}
-
 func isEuqal(event *pb.WatchedEvent, pushEvent defines.PushEvent) bool {
 	return event.GetBusiness() == pushEvent.GetBusiness() &&
 		event.GetEventType() == pushEvent.GetEventType() &&
@@ -1355,6 +1348,20 @@ func isEuqal(event *pb.WatchedEvent, pushEvent defines.PushEvent) bool {
 		event.GetFrom() == uint32(pushEvent.GetFrom()) &&
 		event.GetTo() == uint32(pushEvent.GetTo()) &&
 		event.GetTxID() == pushEvent.GetTxID()
+}
+
+func newWatchedEvent(event defines.PushEvent) *pb.WatchedEvent {
+	return &pb.WatchedEvent{
+		Business:  event.GetBusiness(),
+		EventType: event.GetEventType(),
+		TxID:      event.GetTxID(),
+		Amount:    event.GetAmount(),
+		Fee:       event.GetFee(),
+		From:      uint32(event.GetFrom()),
+		To:        uint32(event.GetTo()),
+		Data:      event.GetData(),
+		Proposal:  event.GetProposal(),
+	}
 }
 
 // validateWatchedEvent 校验监听到的event 代替validateWatchedTx
@@ -1376,14 +1383,16 @@ func (bs *BlockStore) validateWatchedEvent(event *pb.WatchedEvent) bool {
 				bsLogger.Debug("valite btc sign not found", "scTxID", event.GetTxID())
 				return false
 			}
-			bs.addToEventCh(newEvent)
+			pbEvent := newWatchedEvent(newEvent)
+			bs.ts.AddWatchedEvent(pbEvent)
 		case defines.CHAIN_CODE_BCH:
 			bsLogger.Debug("valite bch sign not found", "scTxID", event.GetTxID())
 			newEvent = bs.bchWatcher.GetTxByHash(event.GetTxID())
 			if newEvent == nil {
 				return false
 			}
-			bs.addToEventCh(newEvent)
+			pbEvent := newWatchedEvent(newEvent)
+			bs.ts.AddWatchedEvent(pbEvent)
 		case defines.CHAIN_CODE_ETH:
 			var err error
 			newEvent, err = bs.ethWatcher.GetEventByHash(event.GetTxID())
@@ -1391,7 +1400,8 @@ func (bs *BlockStore) validateWatchedEvent(event *pb.WatchedEvent) bool {
 				bsLogger.Debug("valite eth sign not found", "scTxID", event.GetTxID(), "err", err)
 				return false
 			}
-			bs.addToEventCh(newEvent)
+			pbEvent := newWatchedEvent(newEvent)
+			bs.ts.AddWatchedEvent(pbEvent)
 		}
 		if newEvent == nil {
 			return false
