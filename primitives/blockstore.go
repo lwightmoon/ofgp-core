@@ -988,6 +988,10 @@ func (bs *BlockStore) validateTxs(blockPack *pb.BlockPack) int {
 		for _, tx := range checkChainTx {
 			go func(tx *pb.Transaction) {
 				for _, pubtx := range tx.Vout {
+					if bs.ts.IsConfirmed(pubtx.TxID) {
+						resultChan <- Valid
+						continue
+					}
 					chain := uint8(pubtx.Chain)
 					switch chain {
 					case defines.CHAIN_CODE_BCH:
@@ -1057,6 +1061,7 @@ func (bs *BlockStore) validateOnChainTx(chain uint8, event defines.PushEvent, tx
 					bsLogger.Error("bch/btc amount is not equal to recharge", "scTxID", proposal)
 					return false
 				}
+				return true
 			case defines.CHAIN_CODE_ETH:
 				ethRecharge := &pb.EthRecharge{}
 				proto.Unmarshal(pubTx.Recharge, ethRecharge)
@@ -1064,6 +1069,7 @@ func (bs *BlockStore) validateOnChainTx(chain uint8, event defines.PushEvent, tx
 					bsLogger.Error("eth amount is not equal to recharge", "scTxID", proposal)
 					return false
 				}
+				return true
 			}
 		}
 	}
@@ -1362,7 +1368,7 @@ func (bs *BlockStore) validateWatchedEvent(event *pb.WatchedEvent) bool {
 	case Invalid:
 		return false
 	case NotExist:
-		chain := uint8(event.GetTo())
+		chain := uint8(event.GetFrom())
 		switch chain {
 		case defines.CHAIN_CODE_BTC:
 			newEvent = bs.btcWatcher.GetTxByHash(event.GetTxID())

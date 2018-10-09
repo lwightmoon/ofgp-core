@@ -667,7 +667,10 @@ func (bn *BraftNode) watchNewTx(ctx context.Context) {
 			// 防止重复发布事件
 			if bn.pubsub.hasTopic(event.GetBusiness()) && !bn.txStore.IsWatched(event.GetTxID()) && !bn.txStore.HasTxInDB(event.GetTxID()) {
 				watchedEvent := newWatchedEvent(event)
-				bn.txStore.AddWatchedEvent(watchedEvent)
+				//校验只需require类型的tx
+				if event.GetEventType() == defines.EVENT_P2P_SWAP_REQUIRE {
+					bn.txStore.AddWatchedEvent(watchedEvent)
+				}
 				bn.pubWatcherEvent(watchedEvent)
 				//删除已签名标记 停止confirmTimeout check
 				if event.GetEventType() == defines.EVENT_P2P_SWAP_CONFIRM {
