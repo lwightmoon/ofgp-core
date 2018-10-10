@@ -267,7 +267,7 @@ type TxStore struct {
 	watchedTxEvent    sync.Map //监听到的event
 	addWatchedEventCh chan *pb.WatchedEvent
 
-	createAndSignMsg   sync.Map //*message.CreateAndSignMsg 等待被创建的请求
+	createAndSignMsg   map[string]*signMsgWithtimeMs //*message.CreateAndSignMsg 等待被创建的请求
 	createAndSignMsgCh chan *message.CreateAndSignMsg
 
 	createSignTxCache sync.Map //*message.CreateAndSignMsg cache create tx req
@@ -294,6 +294,7 @@ func NewTxStore(db *dgwdb.LDBDatabase) *TxStore {
 		addTxsChan:         make(chan addTxsRequest),
 		fetchTxsChan:       make(chan txsFetcher),
 		addWatchedEventCh:  make(chan *pb.WatchedEvent),
+		createAndSignMsg:   make(map[string]*signMsgWithtimeMs),
 		createAndSignMsgCh: make(chan *message.CreateAndSignMsg),
 		//queryTxsChan:   make(chan txsQuery),
 		heartbeatTimer: time.NewTimer(heartbeatInterval),
@@ -323,7 +324,7 @@ func (ts *TxStore) Run(ctx context.Context) {
 		case msg := <-ts.createAndSignMsgCh:
 			signMsg := msg.Msg
 			bsLogger.Debug("add waitingSign tx", "business", signMsg.Business, "scTxID", signMsg.ScTxID)
-			ts.createAndSignMsg.Store(signMsg.ScTxID, newSignMsgWithtimeMs(msg))
+			ts.AddWaitSign(signMsg.ScTxID, newSignMsgWithtimeMs(msg))
 			ts.AddToCreateSignCache(msg)
 		case <-ctx.Done():
 			return
@@ -386,45 +387,48 @@ func (ts *TxStore) AddTxtoWaitSign(msg *message.CreateAndSignMsg) {
 
 // GetWaitingSignTxs 获取待签名交易
 func (ts *TxStore) GetWaitingSignTxs() []*message.CreateAndSignMsg {
-
+	ts.Lock()
+	defer ts.Unlock()
 	var txs []*message.CreateAndSignMsg
-	ts.createAndSignMsg.Range(func(k, v interface{}) bool {
-		msgWt, ok := v.(*signMsgWithtimeMs)
-		if ok {
-			tx := msgWt.msg
-			scTxID := tx.Msg.ScTxID
-			// 本term内已经确定加签失败的交易，下个term再重新发起
-			if IsSignFailed(ts.db, scTxID, ts.currTerm) {
-				bsLogger.Debug("sign failed", "scTxID", scTxID)
-				return true
-			}
-			if ts.HasTxInDB(scTxID) || ts.IsTxInMem(scTxID) {
-				bsLogger.Debug("tx in fresh has been in mem or db", "scTxID", scTxID)
-				ts.createAndSignMsg.Delete(scTxID)
-				return true
-			}
-			bsLogger.Debug("add watched tx to queue", "sctxid", scTxID)
-			txs = append(txs, tx)
+	for _, msgWt := range ts.createAndSignMsg {
+		tx := msgWt.msg
+		scTxID := tx.Msg.ScTxID
+		// 本term内已经确定加签失败的交易，下个term再重新发起
+		if IsSignFailed(ts.db, scTxID, ts.currTerm) {
+			bsLogger.Debug("sign failed", "scTxID", scTxID)
+			continue
 		}
-		return true
-	})
-	ts.createAndSignMsg = sync.Map{}
+		if ts.HasTxInDB(scTxID) || ts.IsTxInMem(scTxID) {
+			bsLogger.Debug("tx in fresh has been in mem or db", "scTxID", scTxID)
+			delete(ts.createAndSignMsg, scTxID)
+			continue
+		}
+		bsLogger.Debug("add watched tx to queue", "sctxid", scTxID)
+		txs = append(txs, tx)
+	}
+	ts.createAndSignMsg = make(map[string]*signMsgWithtimeMs)
 	return txs
 }
 
 // HasWaitSignTx 待签名交易是否为空
 func (ts *TxStore) HasWaitSignTx() bool {
-	var has bool
-	ts.createAndSignMsg.Range(func(k, v interface{}) bool {
-		has = true
-		return false
-	})
-	return has
+	ts.Lock()
+	defer ts.Unlock()
+	return len(ts.createAndSignMsg) > 0
 }
 
 // DeleteWaitSign 删除待签名交易
 func (ts *TxStore) DeleteWaitSign(scTxID string) {
-	ts.createAndSignMsg.Delete(scTxID)
+	ts.Lock()
+	defer ts.Unlock()
+	delete(ts.createAndSignMsg, scTxID)
+}
+
+// AddWaitSign 添加等待签名
+func (ts *TxStore) AddWaitSign(scTxID string, msgWait *signMsgWithtimeMs) {
+	ts.Lock()
+	defer ts.Unlock()
+	ts.createAndSignMsg[scTxID] = msgWait
 }
 
 // DeleteWatchedEvent 删除监听到的事件
@@ -452,14 +456,10 @@ func (ts *TxStore) CreateInnerTx(innerTx *pb.Transaction) error {
 	}
 	// 这个时候监听到的交易已经成功处理并上链了，先清理监听交易缓存
 	for _, pubtx := range innerTx.Vin {
-		ts.createAndSignMsg.Delete(pubtx.TxID)
+		ts.DeleteWaitSign(pubtx.TxID)
 		ts.createSignTxCache.Delete(pubtx.TxID)
 	}
-	// for _, pubtx := range innerTx.Vout {
-	// 	ts.watchedTxEvent.Delete(pubtx.TxID)
-	// 	ts.createAndSignMsg.Delete(pubtx.TxID)
-	// 	ts.createSignTxCache.Delete(pubtx.TxID)
-	// }
+
 	innerTx.UpdateId()
 	req := makeAddTxsRequest([]*pb.Transaction{innerTx})
 	ts.addTxsChan <- req
@@ -530,7 +530,7 @@ func (ts *TxStore) cleanUpOnNewCommitted(committedTxs []*pb.Transaction, height 
 			bsLogger.Debug("write tx to db and delete from mempool", "txid", pubTx.GetTxID())
 			SetTxIdMap(ts.db, pubTx.GetTxID(), tx.TxID)
 			ts.watchedTxEvent.Delete(pubTx.GetTxID())
-			ts.createAndSignMsg.Delete(pubTx.GetTxID())
+			ts.DeleteWaitSign(pubTx.GetTxID())
 			ts.createSignTxCache.Delete(pubTx.GetTxID())
 			ts.DelConfirmed(pubTx.GetTxID())
 		}
@@ -633,31 +633,31 @@ func (ts *TxStore) heartbeatCheck(ctx context.Context) {
 func (ts *TxStore) doHeartbeat() {
 	innerTxHasOverdue := false
 	watchedTxHasOverdue := false
-	ts.createAndSignMsg.Range(func(k, v interface{}) bool {
-		msg := v.(*signMsgWithtimeMs)
+	ts.Lock()
+	for _, msg := range ts.createAndSignMsg {
 		if msg.IsOverdue() {
 			scTxID := msg.msg.GetScTxID()
 			if ts.IsTxSigned(scTxID) {
-				return true
+				continue
 			}
 			if ts.IsConfirmed(scTxID) {
-				return true
+				continue
 			}
 			if ts.waitPackingTx.getByPubTxID(scTxID) != nil {
-				return true
+				continue
 			}
 			if GetTxIdBySidechainTxId(ts.db, scTxID) != nil {
-				ts.watchedTxEvent.Delete(scTxID)   //删除监听到的event
-				ts.createAndSignMsg.Delete(scTxID) //删除等待签名的请求
-				return true
+				ts.watchedTxEvent.Delete(scTxID)    //删除监听到的event
+				delete(ts.createAndSignMsg, scTxID) //删除等待签名的请求
+				continue
 			}
 			bsLogger.Error("wait sign tx timeout", "sctxid", scTxID)
 			watchedTxHasOverdue = true
 			// 重新设置超时时间 防止重复accuse
 			msg.resetWaitingTolerance()
 		}
-		return true
-	})
+	}
+	ts.Unlock()
 
 	innerTxHasOverdue = ts.waitPackingTx.hasTimeoutTx(ts.db)
 
