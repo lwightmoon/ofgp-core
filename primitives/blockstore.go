@@ -626,6 +626,15 @@ func (bs *BlockStore) handleSignReq(tasks *task.Queue, msg *pb.SignRequest) {
 		}
 	case msg.Term == nodeTerm:
 		bsLogger.Debug("begin sign tx", "sctxid", msg.GetWatchedEvent().GetTxID())
+		scTxID := msg.GetWatchedEvent().GetTxID()
+		if bs.ts.IsTxSigned(scTxID) {
+			bsLogger.Error("tx is already signed", "scTxID", scTxID)
+			return
+		}
+		if bs.ts.IsConfirmed(scTxID) {
+			bsLogger.Error("tx is already confirmed", "scTxID", scTxID)
+			return
+		}
 		targetChainCompare := uint8(targetChain)
 		if targetChainCompare == defines.CHAIN_CODE_BCH || targetChainCompare == defines.CHAIN_CODE_BTC {
 			var watcher *btwatcher.Watcher
@@ -637,6 +646,7 @@ func (bs *BlockStore) handleSignReq(tasks *task.Queue, msg *pb.SignRequest) {
 
 			//源链txID
 			scTxID := msg.GetWatchedEvent().GetTxID()
+
 			//所属业务
 			business := msg.GetWatchedEvent().GetBusiness()
 

@@ -637,10 +637,13 @@ func (ts *TxStore) doHeartbeat() {
 		msg := v.(*signMsgWithtimeMs)
 		if msg.IsOverdue() {
 			scTxID := msg.msg.GetScTxID()
-			if ts.waitPackingTx.getByPubTxID(scTxID) != nil {
+			if ts.IsTxSigned(scTxID) {
 				return true
 			}
 			if ts.IsConfirmed(scTxID) {
+				return true
+			}
+			if ts.waitPackingTx.getByPubTxID(scTxID) != nil {
 				return true
 			}
 			if GetTxIdBySidechainTxId(ts.db, scTxID) != nil {
