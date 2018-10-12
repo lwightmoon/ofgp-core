@@ -10,7 +10,7 @@ import (
 
 	ew "swap/ethwatcher"
 
-	"github.com/antimoth/swaputils"
+	"github.com/antimoth/addrutils"
 	"github.com/btcsuite/btcd/wire"
 	"github.com/ofgp/common/defines"
 	"github.com/ofgp/ofgp-core/cluster"
@@ -115,7 +115,7 @@ func newEthOperator(cli *ew.Client, bs *primitives.BlockStore, signer *crypto.Se
 func (eop *ethOperator) CreateTx(req message.CreateReq) (*pb.NewlyTx, error) {
 	if ereq, ok := req.(*EthCreateReq); ok {
 		nodeLogger.Debug("create eth tx", "scTxID", req.GetID())
-		addrStr, err := swaputils.CheckBytesToStr(ereq.GetAddr(), uint8(req.GetChain()))
+		addrStr, err := addrutils.CheckBytesToStr(ereq.GetAddr(), uint8(req.GetChain()))
 		if err != nil {
 			leaderLogger.Error("addr to str err", "err", err, "scTxID", req.GetID())
 			return nil, err

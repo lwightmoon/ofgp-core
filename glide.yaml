@@ -30,7 +30,7 @@ import:
   - connectivity
 - package: gopkg.in/mgo.v2
 - package: gopkg.in/urfave/cli.v1
-- package: github.com/antimoth/swaputils
+- package: github.com/antimoth/addrutils
 - package: github.com/antimoth/logger
 ignore:
 - bitcoinWatcher/coinmanager

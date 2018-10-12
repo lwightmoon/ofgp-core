@@ -199,6 +199,6 @@ imports:
   version: 5420a8b6744d3b0345ab293f6fcba19c978f1183
 - name: github.com/antimoth/logger
   version: 9c52cc913a23dca3567e3f84efc6dcea43586d41
-- name: github.com/antimoth/swaputils
-  version: d316d5821c35b5b65ed9460b1c97188e3341a0e0
+- name: github.com/antimoth/addrutils
+  version: b7dd76fb3fa5ea0d0b422013f64640356dbca800
 testImports: []

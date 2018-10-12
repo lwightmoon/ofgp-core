@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/antimoth/swaputils"
+	"github.com/antimoth/addrutils"
 	"github.com/ofgp/ofgp-core/cluster"
 	"github.com/ofgp/ofgp-core/crypto"
 	"github.com/ofgp/ofgp-core/dgwdb"
@@ -1192,7 +1192,7 @@ func (bs *BlockStore) validateEthSignReq(req *pb.SignRequest) int {
 	}
 	ethRecharge := &pb.EthRecharge{}
 	proto.Unmarshal(req.Recharge, ethRecharge)
-	addrStr, err := swaputils.CheckBytesToStr(ethRecharge.GetAddr(), defines.CHAIN_CODE_ETH)
+	addrStr, err := addrutils.CheckBytesToStr(ethRecharge.GetAddr(), defines.CHAIN_CODE_ETH)
 	if err != nil {
 		bsLogger.Error("validateEth addr to str err", "err", err, "scTxID", req.WatchedEvent.TxID)
 		return wrongInputOutput

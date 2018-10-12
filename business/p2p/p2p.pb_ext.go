@@ -6,14 +6,14 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/antimoth/swaputils"
+	"github.com/antimoth/addrutils"
 )
 
 // getExchangeInfo 获取交换数据
 func (info *P2PInfo) getExchangeInfo() (chain uint32, addr string, amount uint64) {
 	chain = info.Msg.GetChain()
 	var err error
-	addr, err = swaputils.CheckBytesToStr(info.Msg.GetRequireAddr(), uint8(chain))
+	addr, err = addrutils.CheckBytesToStr(info.Msg.GetRequireAddr(), uint8(chain))
 	if err != nil {
 		p2pLogger.Error("addr to str err", "err", err)
 		return
@@ -79,7 +79,7 @@ func (ti *txIndex) AddInfos(infos []*P2PInfo) {
 func (ti *txIndex) Add(info *P2PInfo) {
 	chain := fmt.Sprintf("%d", info.Event.From)
 	child := ti.root.add(chain)
-	sendAddr, err := swaputils.CheckBytesToStr(info.Msg.GetSendAddr(), uint8(info.Event.From))
+	sendAddr, err := addrutils.CheckBytesToStr(info.Msg.GetSendAddr(), uint8(info.Event.From))
 	if err != nil {
 		p2pLogger.Error("send addr to str err", "err", err)
 		return
@@ -95,7 +95,7 @@ func (ti *txIndex) Add(info *P2PInfo) {
 
 func (ti *txIndex) Del(info *P2PInfo) {
 	chain := fmt.Sprintf("%d", info.Event.From)
-	sendAddr, err := swaputils.CheckBytesToStr(info.Msg.GetSendAddr(), uint8(info.Event.From))
+	sendAddr, err := addrutils.CheckBytesToStr(info.Msg.GetSendAddr(), uint8(info.Event.From))
 	if err != nil {
 		p2pLogger.Error("send addr to str err", "err", err)
 		return
