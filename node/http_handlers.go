@@ -9,6 +9,7 @@ import (
 
 	ew "swap/ethwatcher"
 
+	"github.com/ofgp/common/defines"
 	"github.com/ofgp/ofgp-core/primitives"
 	pb "github.com/ofgp/ofgp-core/proto"
 
@@ -53,15 +54,15 @@ func (node *BraftNode) AddWatchedEvent(event *pb.WatchedEvent) error {
 
 //blcokView for api
 type BlockView struct {
-	Height      int64     `json:"height"`
-	ID          string    `json:"id"`
-	PreID       string    `json:"pre_id"`
-	TxCnt       int       `json:"tx_cnt"`
-	Txs         []*TxView `json:"txs"`
-	Time        int64     `json:"time"`         //unix 时间戳
-	Size        int       `json:"size"`         //块大小
-	CreatedUsed int64     `json:"created_used"` //块被创建花费的时间
-	Miner       string    `json:"miner"`        //产生块的服务器
+	Height      int64       `json:"height"`
+	ID          string      `json:"id"`
+	PreID       string      `json:"pre_id"`
+	TxCnt       int         `json:"tx_cnt"`
+	Txs         []*TxViewV1 `json:"txs"`
+	Time        int64       `json:"time"`         //unix 时间戳
+	Size        int         `json:"size"`         //块大小
+	CreatedUsed int64       `json:"created_used"` //块被创建花费的时间
+	Miner       string      `json:"miner"`        //产生块的服务器
 }
 
 type TxView struct {
@@ -82,6 +83,26 @@ type TxView struct {
 	AppCode     uint32   `json:"app_code"`
 }
 
+// PubTx 公网tx
+type PubTx struct {
+	Chain  uint32 `json:"chain"`
+	TxID   string `json:"tx_id"`
+	Amount int64  `json:"amount"`
+	Code   uint32 `json:"code"`
+}
+
+// TxViewV1 tx json
+type TxViewV1 struct {
+	Block       string   `json:"block"`        //所在区块blockID
+	BlockHeight int64    `json:"block_height"` //所在区块高度
+	DGWFee      int64    `json:"dgw_fee"`      // 网关手续费
+	TxID        string   `json:"tx_id"`
+	Business    string   `json:"business"`
+	Vin         []*PubTx `json:"vin"`
+	Vout        []*PubTx `json:"vout"`
+	Time        int64    `json:"time"`
+}
+
 func getHexString(digest *crypto.Digest256) string {
 	if digest == nil || len(digest.Data) == 0 {
 		return ""
@@ -89,8 +110,51 @@ func getHexString(digest *crypto.Digest256) string {
 	return hex.EncodeToString(digest.Data)
 }
 
-//todo tx类型修改
-func (node *BraftNode) createTxView(blockID string, height int64, tx *pb.TransactionOld) *TxView {
+func getPubTxs(txs []*pb.PublicTx) []*PubTx {
+	var pubTxs []*PubTx
+	for _, tx := range txs {
+		pubTx := &PubTx{
+			Chain:  tx.GetChain(),
+			TxID:   tx.GetTxID(),
+			Amount: tx.GetAmount(),
+			Code:   tx.GetCode(),
+		}
+		pubTxs = append(pubTxs, pubTx)
+	}
+
+	return pubTxs
+}
+func (node *BraftNode) createTxViewV1(blockID string, height int64, tx *pb.Transaction) *TxViewV1 {
+	if tx == nil {
+		apiLog.Error(fmt.Sprintf("block:%s transaciton is nil", blockID))
+		return nil
+	}
+	txView := &TxViewV1{
+		Block:       blockID,
+		BlockHeight: height,
+		TxID:        getHexString(tx.TxID),
+		Business:    tx.GetBusiness(),
+		Vin:         getPubTxs(tx.Vin),
+		Vout:        getPubTxs(tx.Vout),
+		Time:        tx.GetTime(),
+	}
+	return txView
+}
+
+func getChain(chain string) uint32 {
+	switch chain {
+	case "bch":
+		return uint32(defines.CHAIN_CODE_BCH)
+	case "eth":
+		return uint32(defines.CHAIN_CODE_ETH)
+	case "btc":
+		return uint32(defines.CHAIN_CODE_BTC)
+	}
+	return 0
+}
+
+// tx类型修改
+func (node *BraftNode) createTxView(blockID string, height int64, tx *pb.TransactionOld) *TxViewV1 {
 	if tx == nil {
 		apiLog.Error(fmt.Sprintf("block:%s transaciton is nil", blockID))
 		return nil
@@ -105,32 +169,56 @@ func (node *BraftNode) createTxView(blockID string, height int64, tx *pb.Transac
 	for _, addr := range addrList {
 		addrs = append(addrs, addr.Address)
 	}
-	var tokenCode, appCode uint32
-	if watchedTx.From == "eth" { //熔币
-		tokenCode, appCode = watchedTx.TokenTo, watchedTx.TokenFrom
-	} else { //铸币
-		tokenCode, appCode = watchedTx.TokenFrom, watchedTx.TokenTo
-	}
-	txView := &TxView{
-		FromTxHash:  watchedTx.GetTxid(),
-		DGWTxHash:   getHexString(tx.GetId()),
-		ToTxHash:    tx.NewlyTxId,
-		From:        watchedTx.From,
-		To:          watchedTx.To,
+	// var tokenCode, appCode uint32
+	// if watchedTx.From == "eth" { //熔币
+	// 	tokenCode, appCode = watchedTx.TokenTo, watchedTx.TokenFrom
+	// } else { //铸币
+	// 	tokenCode, appCode = watchedTx.TokenFrom, watchedTx.TokenTo
+	// }
+	// txView := &TxView{
+	// 	FromTxHash:  watchedTx.GetTxid(),
+	// 	DGWTxHash:   getHexString(tx.GetId()),
+	// 	ToTxHash:    tx.NewlyTxId,
+	// 	From:        watchedTx.From,
+	// 	To:          watchedTx.To,
+	// 	Block:       blockID,
+	// 	BlockHeight: height,
+	// 	Amount:      watchedTx.Amount,
+	// 	FromFee:     watchedTx.GetFee(),
+	// 	ToAddrs:     addrs,
+	// 	Time:        tx.Time,
+	// 	TokenCode:   tokenCode,
+	// 	AppCode:     appCode,
+	// }
+
+	txView := &TxViewV1{
 		Block:       blockID,
 		BlockHeight: height,
-		Amount:      watchedTx.Amount,
-		FromFee:     watchedTx.GetFee(),
-		ToAddrs:     addrs,
-		Time:        tx.Time,
-		TokenCode:   tokenCode,
-		AppCode:     appCode,
+		TxID:        getHexString(tx.GetId()),
+		Business:    "mint", //todo 铸币熔币业务name
+		Vin: []*PubTx{
+			&PubTx{
+				Chain:  getChain(watchedTx.From),
+				TxID:   watchedTx.GetTxid(),
+				Amount: watchedTx.Amount,
+				Code:   watchedTx.TokenFrom,
+			},
+		},
+		Vout: []*PubTx{
+			&PubTx{
+				Chain:  getChain(watchedTx.To),
+				TxID:   tx.NewlyTxId,
+				Amount: watchedTx.Amount,
+				Code:   watchedTx.TokenTo,
+			},
+		},
+		Time: tx.Time,
 	}
 	return txView
 }
 func (node *BraftNode) createBlockView(createdUsed int64, blockPack *pb.BlockPack) *BlockView {
 	block := blockPack.Block()
-	var txViews []*TxView
+	var txViews []*TxViewV1
 	if block == nil {
 		return nil
 	}
@@ -145,15 +233,29 @@ func (node *BraftNode) createBlockView(createdUsed int64, blockPack *pb.BlockPac
 	if peerNode != nil {
 		miner = peerNode.Name
 	}
-	txs := block.TxOlds
-	txViews = make([]*TxView, 0)
-	blockID := getHexString(block.GetId())
-	for _, tx := range txs {
-		txView := node.createTxView(blockID, height, tx)
-		if txView != nil {
-			txViews = append(txViews, txView)
-		} else {
-			apiLog.Error("create txview err", "transaction", tx)
+	txViews = make([]*TxViewV1, 0)
+	if len(block.TxOlds) > 0 {
+		txs := block.TxOlds
+		blockID := getHexString(block.GetId())
+		for _, tx := range txs {
+			txView := node.createTxView(blockID, height, tx)
+			if txView != nil {
+				txViews = append(txViews, txView)
+			} else {
+				apiLog.Error("create txview err", "transaction", tx)
+			}
+		}
+	}
+	if len(block.Txs) > 0 {
+		txs := block.Txs
+		blockID := getHexString(block.GetId())
+		for _, tx := range txs {
+			txView := node.createTxViewV1(blockID, height, tx)
+			if txView != nil {
+				txViews = append(txViews, txView)
+			} else {
+				apiLog.Error("create txview err", "transaction", tx)
+			}
 		}
 	}
 
@@ -171,13 +273,13 @@ func (node *BraftNode) createBlockView(createdUsed int64, blockPack *pb.BlockPac
 	return bw
 }
 
-//获取最新区块
+// GetBlockCurrent 获取最新区块
 func (node *BraftNode) GetBlockCurrent() *BlockView {
 	curHeight := node.blockStore.GetCommitHeight()
 	return node.GetBlockBytHeight(curHeight)
 }
 
-//获取区块 start 开始高度 end结束高度[start,end)
+// GetBlocks 获取区块 start 开始高度 end结束高度[start,end)
 func (node *BraftNode) GetBlocks(start, end int64) []*BlockView {
 	if end <= start {
 		apiLog.Error(fmt.Sprintf("end:%d is less than start:%d", start, end))
@@ -226,7 +328,7 @@ func (node *BraftNode) GetBlocks(start, end int64) []*BlockView {
 	return blcokViews
 }
 
-//根据高度获取block
+// GetBlockBytHeight 根据高度获取block
 func (node *BraftNode) GetBlockBytHeight(height int64) *BlockView {
 	views := node.GetBlocks(height, height+1)
 	if len(views) == 0 {
@@ -234,6 +336,8 @@ func (node *BraftNode) GetBlockBytHeight(height int64) *BlockView {
 	}
 	return views[0]
 }
+
+// GetBlockByID 获取BLock
 func (node *BraftNode) GetBlockByID(id string) (*BlockView, error) {
 	idreal, err := hex.DecodeString(id)
 	if err != nil {
@@ -252,8 +356,8 @@ func (node *BraftNode) GetBlockByID(id string) (*BlockView, error) {
 	return blockView, nil
 }
 
-//根据tx_id查询 transaction 不同链的tx_id用相同的pre存储
-func (node *BraftNode) GetTransacitonByTxID(txID string) *TxView {
+// GetTransacitonByTxID 根据tx_id查询 transaction 不同链的tx_id用相同的pre存储
+func (node *BraftNode) GetTransacitonByTxID(txID string) *TxViewV1 {
 	txQueryResult := node.txStore.GetTx(txID)
 	if txQueryResult == nil {
 		return nil
@@ -270,7 +374,7 @@ func (node *BraftNode) FakeCommitBlock(blockPack *pb.BlockPack) {
 	node.txStore.OnNewBlockCommitted(blockPack)
 }
 
-//节点数据
+// NodeView 节点数据
 type NodeView struct {
 	id        int
 	IP        string `json:"ip"`
@@ -283,6 +387,7 @@ type NodeView struct {
 	BtcHeight int64  `json:"btc_height"`
 }
 
+// GetNodes 获取所有节点
 func (node *BraftNode) GetNodes() []NodeView {
 	nodeViews := make([]NodeView, 0)
 	leaderID := cluster.LeaderNodeOfTerm(node.leader.term)

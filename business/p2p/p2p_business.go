@@ -492,7 +492,7 @@ func newConfirmHandler(db *p2pdb, confirmTolerance int64, service *service, inte
 	}
 }
 
-// getPubTxFromInfo huoqu g
+// getPubTxFromInfo 获取网关tx vin
 func getPubTxFromInfo(info *P2PInfo) *pb.PublicTx {
 	if info == nil {
 		return nil
@@ -522,6 +522,7 @@ func getPubTxFromInfo(info *P2PInfo) *pb.PublicTx {
 		Amount:   int64(event.GetAmount()),
 		Data:     event.GetData(),
 		Recharge: rechargeData,
+		Code:     info.GetMsg().GetFromToken(),
 	}
 	return pubTx
 }
@@ -534,6 +535,28 @@ func getVin(infos []*P2PInfo) []*pb.PublicTx {
 		}
 	}
 	return pubtxs
+}
+
+func getPubTxVout(info *P2PInfo, confirmInfo *P2PConfirmInfo) *pb.PublicTx {
+	if info == nil || confirmInfo == nil {
+		p2pLogger.Error("get pubtx vout info confirm info is nil")
+		return nil
+	}
+	event := info.GetEvent()
+	var code uint32
+	if msg := info.GetMsg(); msg != nil {
+		code = msg.GetTokenId()
+	} else {
+		panic("info msg is nil")
+	}
+	pubTx := &pb.PublicTx{
+		Chain:  event.GetTo(),
+		TxID:   event.GetTxID(),
+		Amount: int64(event.GetAmount()),
+		Data:   event.GetData(),
+		Code:   code,
+	}
+	return pubTx
 }
 
 func getPubTxFromConfirmInfo(info *P2PConfirmInfo) *pb.PublicTx {
@@ -609,75 +632,16 @@ func (handler *confirmHandler) getConfirmTimeout(chain uint32) int64 {
 
 }
 
-func (handler *confirmHandler) isConfirmTimeout(sendedInfo *SendedInfo) bool {
-	return (time.Now().Unix() - sendedInfo.Time) > handler.getConfirmTimeout(sendedInfo.Chain)
-}
-
-/*
-func (handler *confirmHandler) runCheck() {
-	ticker := time.NewTicker(time.Second).C
-	go func() {
-		for {
-			<-ticker
-			handler.checkConfirmTimeout()
-		}
-	}()
-}
-*/
-
-// checkConfirmTimeout check链上确认超时
-/*
-func (handler *confirmHandler) checkConfirmTimeout() {
-	sendedInfos := handler.db.getAllSendedInfo()
-	for _, sended := range sendedInfos {
-		if handler.isConfirmTimeout(sended) {
-			scTxID := sended.TxId
-			p2pLogger.Debug("confirm timeout", "scTxID", scTxID)
-			waitConfirm := handler.db.getWaitConfirm(scTxID)
-			if waitConfirm != nil {
-				p2pLogger.Error("check confirm timeout waitconfirm is nil", "scTxID", scTxID)
-				continue
-			}
-			p2pInfo := handler.db.getP2PInfo(scTxID)
-			if p2pInfo == nil {
-				p2pLogger.Error("check confirm timeout p2pInfo is nil", "scTxID", scTxID)
-				handler.db.clear(scTxID)
-				continue
-			}
-			// check交易是否在链上存在 btc bch
-			chain := uint8(sended.Chain)
-			if chain == defines.CHAIN_CODE_BCH || chain == defines.CHAIN_CODE_BTC {
-				if handler.service.isTxOnChain(sended.SignBeforeTxId, uint8(sended.Chain)) {
-					p2pLogger.Info("check confirm already onchain", "scTxID", scTxID)
-					continue
-				}
-			}
-
-			req, err := handler.service.makeCreateTxReq(uint8(waitConfirm.Opration), p2pInfo)
-			if err != nil {
-				p2pLogger.Error("create tx err", "err", err, "scTxID", scTxID)
-				continue
-			}
-			handler.service.clear(scTxID, sended.SignTerm)
-			handler.db.delSendedInfo(scTxID)
-			if req != nil {
-				waitToSign := newWaitToSign(p2pInfo)
-				createAndSign := &message.CreateAndSignMsg{
-					req,
-					waitToSign,
-					time.Now().Unix(),
-				}
-				handler.service.sendtoSign(createAndSign)
-			}
-
-			//update waitconfirm time
-			waitConfirm.Time = time.Now().Unix()
-			handler.db.setWaitConfirm(scTxID, waitConfirm)
-			handler.service.accuseWithTerm(sended.SignTerm)
-		}
+func createVinAndVout(info *P2PInfo, confirmInfo *P2PConfirmInfo) (inTx, outTx *pb.PublicTx) {
+	if info == nil || confirmInfo == nil {
+		p2pLogger.Error("info confirm info can't be nil")
+		return
 	}
+	inTx = getPubTxFromInfo(info)
+	outTx = getPubTxVout(info, confirmInfo)
+	return
 }
-*/
+
 func (handler *confirmHandler) HandleEvent(event node.BusinessEvent) {
 	if confirmedEvent, ok := event.(*node.ConfirmEvent); ok {
 		txEvent := confirmedEvent.GetData()
@@ -686,7 +650,7 @@ func (handler *confirmHandler) HandleEvent(event node.BusinessEvent) {
 			return
 		}
 		//交易确认info
-		info := getP2PConfirmInfo(txEvent)
+		nowConfirmInfo := getP2PConfirmInfo(txEvent)
 
 		//之前的交易id
 		oldTxID := txEvent.GetProposal()
@@ -698,7 +662,7 @@ func (handler *confirmHandler) HandleEvent(event node.BusinessEvent) {
 		}
 		if waitConfirm.Opration == confirmed { //确认交易 需要等待发起和匹配交易确认
 
-			waitConfirm.Info = info
+			waitConfirm.Info = nowConfirmInfo
 			handler.db.setWaitConfirm(oldTxID, waitConfirm)
 
 			//先前匹配的交易id
@@ -707,24 +671,38 @@ func (handler *confirmHandler) HandleEvent(event node.BusinessEvent) {
 				p2pLogger.Error("can not find matched", "oldTxID", oldTxID)
 				return
 			}
-			oldWaitConfirm := handler.db.getWaitConfirm(oldMatchedTxID)
-			if oldWaitConfirm == nil {
+			matchedWaitConfirm := handler.db.getWaitConfirm(oldMatchedTxID)
+			if matchedWaitConfirm == nil {
 				p2pLogger.Error("matched tx never send to sign", "oldMatchTxID", oldMatchedTxID)
 				return
 			}
-			if oldWaitConfirm.Info != nil { //与oldTxID匹配的交易已被confirm
-				confirmInfos := []*P2PConfirmInfo{info, oldWaitConfirm.Info}
-				oldTxIDs := []string{oldTxID, oldMatchedTxID}
-				p2pLogger.Debug("get old info", "txIDs", oldTxIDs)
-				p2pInfos := handler.db.getP2PInfos(oldTxIDs)
-				handler.commitTx(event.GetBusiness(), p2pInfos, confirmInfos)
+			if matchedConfirmInfo := matchedWaitConfirm.Info; matchedConfirmInfo != nil { //与oldTxID匹配的交易已被confirm
+				/*
+					confirmInfos := []*P2PConfirmInfo{info, oldWaitConfirm.Info}
+					oldTxIDs := []string{oldTxID, oldMatchedTxID}
+					p2pLogger.Debug("get old info", "txIDs", oldTxIDs)
+					p2pInfos := handler.db.getP2PInfos(oldTxIDs)
+					handler.commitTx(event.GetBusiness(), p2pInfos, confirmInfos)
+				*/
+				nowRequireInfo := handler.db.getP2PInfo(oldTxID)
+				vinNow, voutNow := createVinAndVout(nowRequireInfo, nowConfirmInfo)
+				matchedRequireInfo := handler.db.getP2PInfo(oldMatchedTxID)
+				vinMatched, voutMatched := createVinAndVout(matchedRequireInfo, matchedConfirmInfo)
+				dgwTx := &pb.Transaction{
+					Business: event.GetBusiness(),
+					Vin:      []*pb.PublicTx{vinMatched, vinNow},
+					Vout:     []*pb.PublicTx{voutMatched, voutNow},
+					Time:     time.Now().Unix(),
+				}
+				dgwTx.UpdateId()
+				handler.service.commitTx(dgwTx)
 			} else {
 				p2pLogger.Info("wait another tx confirm", "scTxID", oldTxID)
 			}
 
 		} else if waitConfirm.Opration == back { //回退交易 commit当前confirmInfo和对应的p2pInfo
 			p2pLogger.Debug("hanle confirm back", "scTxID", oldTxID)
-			confirmInfos := []*P2PConfirmInfo{info}
+			confirmInfos := []*P2PConfirmInfo{nowConfirmInfo}
 			oldTxIDs := []string{oldTxID}
 			p2pInfos := handler.db.getP2PInfos(oldTxIDs)
 			handler.commitTx(event.GetBusiness(), p2pInfos, confirmInfos)

@@ -110,6 +110,7 @@ message PublicTx{
     int64 amount = 3;
     bytes data = 4;
     bytes recharge = 5;
+    uint32 code = 6;
 }
 
 message Transaction {
