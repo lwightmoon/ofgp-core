@@ -585,17 +585,31 @@ func feedBlockFields(hasher *crypto.Hasher256, fieldName string, block *Block) {
 		switch block.Type {
 		case Block_GENESIS:
 		case Block_TXS:
-			util.FeedField(hs, "TxIDs", func(h *crypto.Hasher256) {
-				for _, tx := range block.Txs {
-					util.FeedDigestField(h, "TxID", tx.TxID)
+			util.FeedField(hs, "TxIds", func(h *crypto.Hasher256) {
+				for _, tx := range block.TxOlds {
+					util.FeedDigestField(h, "TxId", tx.Id)
 				}
 			})
+			if len(block.Txs) > 0 {
+				util.FeedField(hs, "TxIDs", func(h *crypto.Hasher256) {
+					for _, tx := range block.Txs {
+						util.FeedDigestField(h, "TxID", tx.TxID)
+					}
+				})
+			}
 		case Block_BCH:
-			util.FeedField(hs, "TxIDs", func(h *crypto.Hasher256) {
-				for _, tx := range block.Txs {
-					util.FeedDigestField(h, "TxID", tx.TxID)
+			util.FeedField(hs, "TxIds", func(h *crypto.Hasher256) {
+				for _, tx := range block.TxOlds {
+					util.FeedDigestField(h, "TxId", tx.Id)
 				}
 			})
+			if len(block.Txs) > 0 {
+				util.FeedField(hs, "TxIDs", func(h *crypto.Hasher256) {
+					for _, tx := range block.Txs {
+						util.FeedDigestField(h, "TxID", tx.TxID)
+					}
+				})
+			}
 			util.FeedDigestField(hs, "BchBlockHeader", block.BchBlockHeader.Id())
 		case Block_RECONFIG:
 			util.FeedDigestField(hs, "ReconfigId", block.Reconfig.Id())
