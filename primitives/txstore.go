@@ -535,13 +535,13 @@ func (ts *TxStore) cleanUpOnNewCommitted(committedTxs []*pb.Transaction, height 
 			ts.DelConfirmed(pubTx.GetTxID())
 		}
 		//to链和tx_id 和网关tx_id的对应
-		// for _, pubTx := range tx.Vout {
-		// 	bsLogger.Debug("write tx to db and delete from mempool", "txid", pubTx.GetTxID())
-		// 	SetTxIdMap(ts.db, pubTx.GetTxID(), tx.TxID)
-		// 	ts.watchedTxEvent.Delete(pubTx.GetTxID())
-		// 	ts.createAndSignMsg.Delete(pubTx.GetTxID())
-		// 	ts.createSignTxCache.Delete(pubTx.GetTxID())
-		// }
+		for _, pubTx := range tx.Vout {
+			// bsLogger.Debug("write tx to db and delete from mempool", "txid", pubTx.GetTxID())
+			SetTxIdMap(ts.db, pubTx.GetTxID(), tx.TxID)
+			// ts.watchedTxEvent.Delete(pubTx.GetTxID())
+			// ts.createAndSignMsg.Delete(pubTx.GetTxID())
+			// ts.createSignTxCache.Delete(pubTx.GetTxID())
+		}
 		ts.waitPackingTx.delTx(tx)
 	}
 }
@@ -609,13 +609,25 @@ func (ts *TxStore) GetTx(txid string) *TxQueryResult {
 		bsLogger.Debug("query transaction block not found", "height", entry.Height)
 		return nil
 	}
-	assert.True(int(entry.Index) < len(blockPack.Block().Txs) && entry.Index >= 0)
-	tx := blockPack.Block().TxOlds[entry.Index]
-	return &TxQueryResult{
-		TxOld:   tx,
-		Height:  entry.Height,
-		BlockID: blockPack.Id(),
+	block := blockPack.Block()
+	if len(block.TxOlds) > 0 {
+		assert.True(int(entry.Index) < len(block.TxOlds) && entry.Index >= 0)
+		tx := blockPack.Block().TxOlds[entry.Index]
+		return &TxQueryResult{
+			TxOld:   tx,
+			Height:  entry.Height,
+			BlockID: blockPack.Id(),
+		}
+	} else if len(block.Txs) > 0 {
+		assert.True(int(entry.Index) < len(block.Txs) && entry.Index >= 0)
+		tx := block.Txs[entry.Index]
+		return &TxQueryResult{
+			Tx:      tx,
+			Height:  entry.Height,
+			BlockID: blockPack.Id(),
+		}
 	}
+	return nil
 }
 
 func (ts *TxStore) heartbeatCheck(ctx context.Context) {

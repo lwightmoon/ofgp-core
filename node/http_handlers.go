@@ -362,10 +362,18 @@ func (node *BraftNode) GetTransacitonByTxID(txID string) *TxViewV1 {
 	if txQueryResult == nil {
 		return nil
 	}
-	tx := txQueryResult.TxOld
-	blockID := getHexString(txQueryResult.BlockID)
-	txView := node.createTxView(blockID, txQueryResult.Height, tx)
-	return txView
+	if txQueryResult.TxOld != nil {
+		tx := txQueryResult.TxOld
+		blockID := getHexString(txQueryResult.BlockID)
+		txView := node.createTxView(blockID, txQueryResult.Height, tx)
+		return txView
+	} else if txQueryResult.Tx != nil {
+		tx := txQueryResult.Tx
+		blockID := getHexString(txQueryResult.BlockID)
+		txView := node.createTxViewV1(blockID, txQueryResult.Height, tx)
+		return txView
+	}
+	return nil
 }
 
 // FakeCommitBlock 人工写区块，仅做测试用

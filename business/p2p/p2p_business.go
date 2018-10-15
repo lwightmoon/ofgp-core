@@ -542,7 +542,7 @@ func getPubTxVout(info *P2PInfo, confirmInfo *P2PConfirmInfo) *pb.PublicTx {
 		p2pLogger.Error("get pubtx vout info confirm info is nil")
 		return nil
 	}
-	event := info.GetEvent()
+	event := confirmInfo.GetEvent()
 	var code uint32
 	if msg := info.GetMsg(); msg != nil {
 		code = msg.GetTokenId()
@@ -695,6 +695,8 @@ func (handler *confirmHandler) HandleEvent(event node.BusinessEvent) {
 					Time:     time.Now().Unix(),
 				}
 				dgwTx.UpdateId()
+				txJSON, _ := json.Marshal(dgwTx)
+				p2pLogger.Debug("commit data", "data", string(txJSON))
 				handler.service.commitTx(dgwTx)
 			} else {
 				p2pLogger.Info("wait another tx confirm", "scTxID", oldTxID)
@@ -702,10 +704,23 @@ func (handler *confirmHandler) HandleEvent(event node.BusinessEvent) {
 
 		} else if waitConfirm.Opration == back { //回退交易 commit当前confirmInfo和对应的p2pInfo
 			p2pLogger.Debug("hanle confirm back", "scTxID", oldTxID)
-			confirmInfos := []*P2PConfirmInfo{nowConfirmInfo}
-			oldTxIDs := []string{oldTxID}
-			p2pInfos := handler.db.getP2PInfos(oldTxIDs)
-			handler.commitTx(event.GetBusiness(), p2pInfos, confirmInfos)
+			// confirmInfos := []*P2PConfirmInfo{nowConfirmInfo}
+			// oldTxIDs := []string{oldTxID}
+			// p2pInfos := handler.db.getP2PInfos(oldTxIDs)
+			// handler.commitTx(event.GetBusiness(), p2pInfos, confirmInfos)
+			nowRequireInfo := handler.db.getP2PInfo(oldTxID)
+			vin, vout := createVinAndVout(nowRequireInfo, nowConfirmInfo)
+			dgwTx := &pb.Transaction{
+				Business: event.GetBusiness(),
+				Vin:      []*pb.PublicTx{vin},
+				Vout:     []*pb.PublicTx{vout},
+				Time:     time.Now().Unix(),
+			}
+			dgwTx.UpdateId()
+			txJSON, _ := json.Marshal(dgwTx)
+			p2pLogger.Debug("commit data", "data", string(txJSON))
+			handler.service.commitTx(dgwTx)
+
 		} else {
 			p2pLogger.Error("oprationtype wrong", "opration", waitConfirm.Opration)
 		}
