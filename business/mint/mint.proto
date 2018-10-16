@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+import  "github.com/ofgp/ofgp-core/proto/braft.proto";
+
+package mint;
+
+message mintRequire{
+    uint32 chain_code = 1;
+    uint32 token_code = 2;
+    bytes  receiver = 3;
+}
+
+message mintInfo {
+    proto.WatchedEvent  event = 1;
+    mintRequire req = 2;
+}
