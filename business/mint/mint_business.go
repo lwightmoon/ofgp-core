@@ -2,6 +2,7 @@ package mint
 
 import (
 	"encoding/json"
+	"errors"
 	"time"
 
 	proto "github.com/golang/protobuf/proto"
@@ -16,6 +17,12 @@ import (
 
 var mintLogger = log.New("DEBUG", "node")
 
+// Processer 处理铸币熔币
+type Processer struct {
+	ch      chan node.BusinessEvent
+	handler business.IHandler
+}
+
 type watchedHandler struct {
 	business.Handler
 	db      *mintDB
@@ -23,12 +30,50 @@ type watchedHandler struct {
 }
 
 func makeCreateTxReq(info *MintInfo) (message.CreateReq, error) {
+	event := info.GetEvent()
+	require := info.GetReq()
 
-	return nil, nil
+	chain := uint8(event.GetTo())
+
+	var txReq message.CreateReq
+	switch chain {
+	case defines.CHAIN_CODE_BCH:
+		fallthrough
+	case defines.CHAIN_CODE_BTC:
+		txReq = &node.BaseCreateReq{
+			Chain:  uint32(chain),
+			ID:     event.GetTxID(),
+			Addr:   require.Receiver,
+			Amount: event.GetAmount(),
+		}
+	case defines.CHAIN_CODE_ETH:
+		ethReq := &node.EthCreateReq{}
+		ethReq.Chain = uint32(chain)
+		ethReq.ID = event.GetTxID()
+		ethReq.Addr = require.Receiver
+		ethReq.Amount = event.GetAmount()
+		ethReq.TokenTo = require.TokenTo
+		txReq = ethReq
+	default:
+		mintLogger.Error("chain type err")
+		return nil, errors.New("chain type err")
+	}
+	return txReq, nil
 }
 
 func makeSignMsg(info *MintInfo) *message.WaitSignMsg {
-	return nil
+	event := info.GetEvent()
+	requireInfo := info.GetReq()
+	chain := uint8(event.GetTo())
+	recharge := getRecharge(info)
+	signMsg := &message.WaitSignMsg{
+		Business: event.GetBusiness(),
+		ID:       event.GetTxID(),
+		ScTxID:   event.GetTxID(),
+		Event:    event,
+		Recharge: recharge,
+	}
+	return signMsg
 }
 
 func (handler *watchedHandler) HandleEvent(event node.BusinessEvent) {
@@ -105,10 +150,11 @@ type confirmedHandler struct {
 	service *business.Service
 }
 
-func getRecharge(chain uint8, info *MintInfo) []byte {
+func getRecharge(info *MintInfo) []byte {
 	var data []byte
 	event := info.GetEvent()
 	req := info.GetReq()
+	chain := uint8(event.GetTo())
 	switch chain {
 	case defines.CHAIN_CODE_BTC:
 		fallthrough
@@ -133,7 +179,7 @@ func getRecharge(chain uint8, info *MintInfo) []byte {
 func getVin(info *MintInfo) *pb.PublicTx {
 	event := info.GetEvent()
 	req := info.GetReq()
-	recharge := getRecharge(uint8(event.GetTo()), info)
+	recharge := getRecharge(info)
 	pubTx := &pb.PublicTx{
 		Chain:    event.GetFrom(),
 		TxID:     event.GetTxID(),
