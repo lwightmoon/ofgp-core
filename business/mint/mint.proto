@@ -5,8 +5,8 @@ import  "github.com/ofgp/ofgp-core/proto/braft.proto";
 package mint;
 
 message mintRequire{
-    uint32 chain_code = 1;
-    uint32 token_code = 2;
+    uint32 token_from = 1;
+    uint32 token_to = 2;
     bytes  receiver = 3;
 }
 

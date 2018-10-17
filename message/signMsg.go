@@ -10,7 +10,7 @@ type WaitSignMsg struct {
 	ID       string //标识
 	ScTxID   string //源链txid
 	Event    *pb.WatchedEvent
-	Tx       *pb.NewlyTx //待签名交易
+	// Tx       *pb.NewlyTx //待签名交易
 	Recharge []byte
 }
 
