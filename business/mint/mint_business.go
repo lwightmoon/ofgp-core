@@ -63,8 +63,6 @@ func makeCreateTxReq(info *MintInfo) (message.CreateReq, error) {
 
 func makeSignMsg(info *MintInfo) *message.WaitSignMsg {
 	event := info.GetEvent()
-	requireInfo := info.GetReq()
-	chain := uint8(event.GetTo())
 	recharge := getRecharge(info)
 	signMsg := &message.WaitSignMsg{
 		Business: event.GetBusiness(),
@@ -131,7 +129,7 @@ func (hd *signedHandler) HandleEvent(event node.BusinessEvent) {
 			//发送交易
 			err := hd.service.SendTx(signedData)
 			if err != nil {
-				mintLogger.Error("send tx err", "err", err, "scTxID", signedData.ID, "business", event.Business)
+				mintLogger.Error("send tx err", "err", err, "scTxID", signedData.ID, "business", event.GetBusiness())
 			} else {
 				hd.db.setSended(txID)
 			}
@@ -163,7 +161,7 @@ func getRecharge(info *MintInfo) []byte {
 			Amount: event.GetAmount(),
 			Addr:   req.GetReceiver(),
 		}
-		data, _ := proto.Marshal(recharge)
+		data, _ = proto.Marshal(recharge)
 	case defines.CHAIN_CODE_ETH:
 		recharge := &pb.EthRecharge{
 			Addr:     req.GetReceiver(),
@@ -172,7 +170,7 @@ func getRecharge(info *MintInfo) []byte {
 			Method:   "",
 			Proposal: event.GetTxID(),
 		}
-		data, _ := proto.Marshal(recharge)
+		data, _ = proto.Marshal(recharge)
 	}
 	return data
 }

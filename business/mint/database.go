@@ -76,9 +76,9 @@ func (db *mintDB) isSended(ScTxID string) bool {
 func (db *mintDB) clear(scTxID string) {
 	batch := new(leveldb.Batch)
 	mintInfoKey := append(mintInfoPrefix, []byte(scTxID)...)
-	sendedKey := append(sended, []byte(sended)...)
+	sendedKey := append(sended, []byte(scTxID)...)
 	batch.Delete(mintInfoKey)
-	batch.Delete(mintInfoKey)
+	batch.Delete(sendedKey)
 	ldb := db.db.LDB()
 	err := ldb.Write(batch, nil)
 	if err != nil {

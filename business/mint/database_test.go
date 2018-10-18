@@ -21,9 +21,20 @@ func TestDB(t *testing.T) {
 	newinfo := mintdb.getMintInfo("testTxID")
 	if newinfo == nil {
 		t.Error("get nil")
+	} else {
+		t.Logf("info txid:%s", newinfo.Event.GetTxID())
 	}
 	exist := mintdb.existMintInfo("testTxID")
 	if !exist {
 		t.Error("exist err")
+	}
+	mintdb.setSended("testTxID")
+	exist = mintdb.isSended("testTxID")
+	if !exist {
+		t.Error("sended err")
+	}
+	mintdb.clear("testTxID")
+	if mintdb.existMintInfo("testTxID") || mintdb.isSended("testTxID") {
+		t.Error("clear err")
 	}
 }
