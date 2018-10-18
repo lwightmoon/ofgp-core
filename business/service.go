@@ -15,6 +15,13 @@ type Service struct {
 	node *node.BraftNode
 }
 
+// NewService create
+func NewService(node *node.BraftNode) *Service {
+	return &Service{
+		node: node,
+	}
+}
+
 // SendToSign send to sign
 func (s *Service) SendToSign(req *message.CreateAndSignMsg) {
 	signMsg := req.Msg
@@ -39,7 +46,6 @@ func (s *Service) IsDone(scTxID string) bool {
 
 // IsTxOnChain tx 是否在链上
 func (s *Service) IsTxOnChain(txID string, chain uint8) bool {
-
 	return s.node.GetTxByHash(txID, chain) != nil
 }
 
@@ -51,4 +57,10 @@ func (s *Service) IsSignFail(txID string) bool {
 // CommitTx commit tx
 func (s *Service) CommitTx(tx *pb.Transaction) {
 	s.node.Commit(tx)
+}
+
+// SubScribe 订阅相关业务的Event
+func (s *Service) SubScribe(business string) chan node.BusinessEvent {
+	ch := s.node.SubScribe(business)
+	return ch
 }

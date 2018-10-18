@@ -23,10 +23,53 @@ type Processer struct {
 	handler business.IHandler
 }
 
+// NewProcesser 创建铸币熔币处理
+func NewProcesser(srv *business.Service, path string) *Processer {
+	ldb, _ := business.OpenDbOrDie(path, "mint")
+
+	// mintdb
+	db := newMintDB(ldb)
+	// eventchannel todo
+	eventCh := srv.SubScribe("")
+
+	watchedHd := newWatchedHandler(db, srv)
+	signedHd := newSignedHandler(db, srv)
+	confirmedHd := newConfirmHandler(db, srv)
+	commitedHd := newCommitHandler(db)
+
+	watchedHd.SetSuccessor(signedHd)
+	signedHd.SetSuccessor(confirmedHd)
+	confirmedHd.SetSuccessor(commitedHd)
+
+	p := &Processer{
+		ch:      eventCh,
+		handler: watchedHd,
+	}
+	return p
+}
+
+// Run start
+func (p *Processer) Run() {
+	go p.processEvent()
+}
+
+func (p *Processer) processEvent() {
+	for event := range p.ch {
+		p.handler.HandleEvent(event)
+	}
+}
+
 type watchedHandler struct {
 	business.Handler
 	db      *mintDB
 	service *business.Service
+}
+
+func newWatchedHandler(db *mintDB, service *business.Service) *watchedHandler {
+	return &watchedHandler{
+		db:      db,
+		service: service,
+	}
 }
 
 func makeCreateTxReq(info *MintInfo) (message.CreateReq, error) {
@@ -117,6 +160,13 @@ type signedHandler struct {
 	service *business.Service
 }
 
+func newSignedHandler(db *mintDB, srv *business.Service) *signedHandler {
+	return &signedHandler{
+		db:      db,
+		service: srv,
+	}
+}
+
 func (hd *signedHandler) HandleEvent(event node.BusinessEvent) {
 	if val, ok := event.(*node.SignedEvent); ok {
 		signedData := val.GetData()
@@ -147,6 +197,13 @@ type confirmedHandler struct {
 	db *mintDB
 	business.Handler
 	service *business.Service
+}
+
+func newConfirmHandler(db *mintDB, srv *business.Service) *confirmedHandler {
+	return &confirmedHandler{
+		db:      db,
+		service: srv,
+	}
 }
 
 func getRecharge(info *MintInfo) []byte {
@@ -233,6 +290,12 @@ func (hd *confirmedHandler) HandleEvent(event node.BusinessEvent) {
 type commitedHandler struct {
 	business.Handler
 	db *mintDB
+}
+
+func newCommitHandler(db *mintDB) *commitedHandler {
+	return &commitedHandler{
+		db: db,
+	}
 }
 
 func (hd *commitedHandler) HandleEvent(event node.BusinessEvent) {

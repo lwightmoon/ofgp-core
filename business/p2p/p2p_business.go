@@ -74,7 +74,6 @@ func (p2p *P2P) Run() {
 	go p2p.processEvent()
 }
 func (p2p *P2P) processEvent() {
-	//等待leader选举
 	for event := range p2p.ch {
 		p2p.handler.HandleEvent(event)
 	}

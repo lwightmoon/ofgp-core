@@ -40,6 +40,7 @@ type DB struct {
 	BchDBPath     string `mapstructure:"bch_db_path"`
 	EwNonceDBPath string `mapstructure:"ew_nonce_db_path"`
 	P2PDBPath     string `mapstructure:"p2p_db_path"`
+	MintDBPath    string `mapstructure:"mint_db_path"`
 }
 
 func checkDB(db *DB) {

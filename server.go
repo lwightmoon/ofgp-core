@@ -12,6 +12,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ofgp/ofgp-core/business"
+	"github.com/ofgp/ofgp-core/business/mint"
 	"github.com/ofgp/ofgp-core/business/p2p"
 	"github.com/ofgp/ofgp-core/config"
 	sg "github.com/ofgp/ofgp-core/util/signal"
@@ -166,8 +168,14 @@ func run(ctx *cli.Context) {
 	//创建
 	p2pDBPath := conf.DB.P2PDBPath
 	p2pBusiness := p2p.NewP2P(node, p2pDBPath)
+
+	mintDBPath := conf.DB.MintDBPath
+	srv := business.NewService(node)
+	minter := mint.NewProcesser(srv, mintDBPath)
 	//run business
 	p2pBusiness.Run()
+	// run minter
+	minter.Run()
 	//run node
 	node.Run()
 
