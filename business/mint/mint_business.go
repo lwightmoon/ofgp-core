@@ -94,7 +94,8 @@ func (handler *watchedHandler) HandleEvent(event node.BusinessEvent) {
 
 		txReq, err := makeCreateTxReq(mintInfo)
 		if err != nil {
-
+			mintLogger.Error("carete txReq err", "err", err, "scTxID", watchedEvent.GetTxID())
+			return
 		}
 		signReq := makeSignMsg(mintInfo)
 
@@ -171,6 +172,8 @@ func getRecharge(info *MintInfo) []byte {
 			Proposal: event.GetTxID(),
 		}
 		data, _ = proto.Marshal(recharge)
+	default:
+		mintLogger.Error("getrecharge type err")
 	}
 	return data
 }
