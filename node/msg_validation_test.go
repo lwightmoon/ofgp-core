@@ -30,7 +30,7 @@ func TestValidateSignReq(t *testing.T) {
 		Data:      []byte("test"),
 	}
 	newTx := &pb.NewlyTx{}
-	req, err := pb.MakeSignReqMsg(0, 0, event, newTx, "", signer)
+	req, err := pb.MakeSignReqMsg(0, 0, event, newTx, "", signer, nil, 1)
 	if err != nil {
 		t.Errorf("create signreq err:%v", err)
 	}

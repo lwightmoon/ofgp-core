@@ -129,7 +129,7 @@ func openDbOrDie(dbPath string) (db *dgwdb.LDBDatabase, newlyCreated bool) {
 	return
 }
 
-func createIndex(db *dgwdb.LDBDatabase, txs []*pb.Transaction, height int64) {
+func createIndex(db *dgwdb.LDBDatabase, txs []*pb.TransactionOld, height int64) {
 	for i, tx := range txs {
 		entry := &pb.TxLookupEntry{
 			Height: height,
@@ -157,13 +157,13 @@ func createBlockData(db *dgwdb.LDBDatabase, blockStore *primitives.BlockStore, f
 		TokenFrom: 1,
 		TokenTo:   1,
 	}
-	tx1 := &pb.Transaction{
+	tx1 := &pb.TransactionOld{
 		WatchedTx: watchedInfo,
 		NewlyTxId: toTxid,
 		Time:      time.Now().Unix(),
 	}
-	tx1.UpdateId() //网关txid
-	txs := []*pb.Transaction{
+	tx1.UpdateId()
+	txs := []*pb.TransactionOld{
 		tx1,
 	}
 	var preId *crypto.Digest256
@@ -176,7 +176,7 @@ func createBlockData(db *dgwdb.LDBDatabase, blockStore *primitives.BlockStore, f
 		TimestampMs:    util.NowMs(),
 		PrevBlockId:    preId,
 		Type:           pb.Block_TXS,
-		Txs:            txs,
+		TxOlds:         txs,
 		BchBlockHeader: &pb.BchBlockHeader{},
 		Reconfig:       &pb.Reconfig{},
 		Id:             nil,
@@ -239,15 +239,15 @@ func TestSize(t *testing.T) {
 		TokenFrom: 1,
 		TokenTo:   1,
 	}
-	tx1 := &pb.Transaction{
+	tx1 := &pb.TransactionOld{
 		WatchedTx: watchedInfo,
 		NewlyTxId: "",
 	}
-	tx1.UpdateId() //网关txid
+	// tx1.UpdateId() //网关txid todo
 	block := &pb.Block{
 		TimestampMs: util.NowMs(),
 		Type:        pb.Block_TXS,
-		Txs: []*pb.Transaction{
+		TxOlds: []*pb.TransactionOld{
 			tx1,
 		},
 		BchBlockHeader: &pb.BchBlockHeader{},
@@ -314,7 +314,7 @@ func TestGetTxByTxID(t *testing.T) {
 		t.Error("current tx is nil")
 	}
 	tx := block.Txs[0]
-	var txid = tx.ToTxHash
+	var txid = tx.TxID
 	req, _ := http.NewRequest("GET", "/transaciton/"+txid, nil)
 	w := httptest.NewRecorder()
 	router := httprouter.New()

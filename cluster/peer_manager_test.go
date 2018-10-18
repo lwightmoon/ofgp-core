@@ -46,7 +46,7 @@ func TestFetch(t *testing.T) {
 	pm := cluster.NewPeerManager(0, 5, 2)
 	cnt := pm.GetTxConnAvailableCnt(cluster.NodeList)
 	t.Logf("get availble cnt:%d", cnt)
-	pm.NotifySignTx(0, &pb.SignTxRequest{
+	pm.NotifySignRequest(0, &pb.SignRequest{
 		Term: -1,
 	})
 	pm.NotifyCommitMsg(1, &pb.CommitMsg{

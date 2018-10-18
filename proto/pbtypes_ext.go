@@ -34,6 +34,13 @@ func (tx *Transaction) UpdateId() {
 	tx.TxID = hasher.Sum(nil)
 }
 
+// UpdateId 更新Tx的ID
+func (tx *TransactionOld) UpdateId() {
+	hasher := crypto.NewHasher256()
+	feedTxOldTxFields(hasher, "Tx", tx)
+	tx.Id = hasher.Sum(nil)
+}
+
 // EqualTo 比较两个WatchedTxInfo内容是否相等
 func (tx *WatchedTxInfo) EqualTo(other *WatchedTxInfo) bool {
 	if !(tx.Txid == other.Txid && tx.Amount == other.Amount && tx.From == other.From &&
@@ -749,6 +756,27 @@ func feedTxFields(hasher *crypto.Hasher256, fieldName string, msg *Transaction) 
 			txs = msg.Vout
 			feedPubTxFields(hs, "Vout", txs)
 		})
+	})
+}
+
+func feedTxOldTxFields(hasher *crypto.Hasher256, fieldName string, msg *TransactionOld) {
+	util.FeedField(hasher, fieldName, func(hs *crypto.Hasher256) {
+		util.FeedField(hs, "WatchedTx", func(hs *crypto.Hasher256) {
+			tx := msg.WatchedTx
+			util.FeedTextField(hs, "Txid", tx.Txid)
+			util.FeedInt64Field(hs, "Amount", tx.Amount)
+			util.FeedTextField(hs, "From", tx.From)
+			util.FeedTextField(hs, "To", tx.To)
+			if len(tx.RechargeList) > 0 {
+				util.FeedField(hs, "Recharge", func(hs *crypto.Hasher256) {
+					for _, recharge := range tx.RechargeList {
+						util.FeedTextField(hs, "Address", recharge.Address)
+						util.FeedInt64Field(hs, "Amount", recharge.Amount)
+					}
+				})
+			}
+		})
+		util.FeedTextField(hs, "NewlyTxId", msg.NewlyTxId)
 	})
 }
 

@@ -1,14 +1,14 @@
 package node
 
 import (
+	btwatcher "swap/btwatcher"
 	"testing"
 
-	btcwatcher "github.com/ofgp/bitcoinWatcher/mortgagewatcher"
+	"github.com/ofgp/common/defines"
 )
 
 func TestCreate(t *testing.T) {
-	bchWatcher, err := btcwatcher.NewMortgageWatcher("bch", 0,
-		"", nil, 1000)
+	bchWatcher, err := btwatcher.NewWatcher(defines.CHAIN_CODE_BCH)
 	if err != nil {
 		t.Fatalf("create watcher err:%v", err)
 	}

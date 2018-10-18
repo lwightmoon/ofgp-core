@@ -127,7 +127,7 @@ func TestCheckSignTimeout(t *testing.T) {
 	}
 	time.Sleep(time.Second)
 	for _, tx := range ts.GetWaitingSignTxs() {
-		t.Logf("readd watched id:%s", tx.ScTxID)
+		t.Logf("readd watched id:%s", tx.Msg.ScTxID)
 	}
 
 }

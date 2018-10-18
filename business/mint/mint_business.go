@@ -131,7 +131,7 @@ func (hd *signedHandler) HandleEvent(event node.BusinessEvent) {
 			//发送交易
 			err := hd.service.SendTx(signedData)
 			if err != nil {
-				mintLogger.Error("send tx err", "err", err, "scTxID", signedData.ID, "business", signedEvent.Business)
+				mintLogger.Error("send tx err", "err", err, "scTxID", signedData.ID, "business", event.Business)
 			} else {
 				hd.db.setSended(txID)
 			}
