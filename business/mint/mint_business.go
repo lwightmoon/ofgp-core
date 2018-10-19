@@ -24,7 +24,7 @@ type Processer struct {
 }
 
 // NewProcesser 创建铸币熔币处理
-func NewProcesser(srv *business.Service, path string) *Processer {
+func NewProcesser(srv business.IService, path string) *Processer {
 	ldb, _ := business.OpenDbOrDie(path, "mint")
 
 	// mintdb
@@ -62,10 +62,10 @@ func (p *Processer) processEvent() {
 type watchedHandler struct {
 	business.Handler
 	db      *mintDB
-	service *business.Service
+	service business.IService
 }
 
-func newWatchedHandler(db *mintDB, service *business.Service) *watchedHandler {
+func newWatchedHandler(db *mintDB, service business.IService) *watchedHandler {
 	return &watchedHandler{
 		db:      db,
 		service: service,
@@ -120,6 +120,10 @@ func makeSignMsg(info *MintInfo) *message.WaitSignMsg {
 func (handler *watchedHandler) HandleEvent(event node.BusinessEvent) {
 	if val, ok := event.(*node.WatchedEvent); ok {
 		watchedEvent := val.GetData()
+		if watchedEvent == nil {
+			mintLogger.Error("watchedEvent is nil", "business", event.GetBusiness())
+			return
+		}
 		scTxID := watchedEvent.GetTxID()
 		if handler.db.existMintInfo(scTxID) {
 			mintLogger.Warn("already received mint", "scTxID", scTxID)
@@ -157,10 +161,10 @@ func (handler *watchedHandler) HandleEvent(event node.BusinessEvent) {
 type signedHandler struct {
 	business.Handler
 	db      *mintDB
-	service *business.Service
+	service business.IService
 }
 
-func newSignedHandler(db *mintDB, srv *business.Service) *signedHandler {
+func newSignedHandler(db *mintDB, srv business.IService) *signedHandler {
 	return &signedHandler{
 		db:      db,
 		service: srv,
@@ -171,11 +175,11 @@ func (hd *signedHandler) HandleEvent(event node.BusinessEvent) {
 	if val, ok := event.(*node.SignedEvent); ok {
 		signedData := val.GetData()
 		if signedData == nil {
-			mintLogger.Error("signed data is nil")
+			mintLogger.Error("signedData is nil", "business", event.GetBusiness())
 			return
 		}
 		txID := signedData.TxID
-		if !hd.service.IsSignFail(txID) && !hd.db.isSended(txID) && !hd.service.IsDone(txID) {
+		if !hd.db.isSended(txID) && !hd.service.IsDone(txID) {
 			mintLogger.Debug("receive signedData", "scTxID", signedData.ID)
 			//发送交易
 			err := hd.service.SendTx(signedData)
@@ -196,10 +200,10 @@ func (hd *signedHandler) HandleEvent(event node.BusinessEvent) {
 type confirmedHandler struct {
 	db *mintDB
 	business.Handler
-	service *business.Service
+	service business.IService
 }
 
-func newConfirmHandler(db *mintDB, srv *business.Service) *confirmedHandler {
+func newConfirmHandler(db *mintDB, srv business.IService) *confirmedHandler {
 	return &confirmedHandler{
 		db:      db,
 		service: srv,
@@ -263,6 +267,10 @@ func getVout(confirmEvent *pb.WatchedEvent, info *MintInfo) *pb.PublicTx {
 func (hd *confirmedHandler) HandleEvent(event node.BusinessEvent) {
 	if confirmEvent, ok := event.(*node.ConfirmEvent); ok {
 		watchedEvent := confirmEvent.GetData()
+		if watchedEvent == nil {
+			mintLogger.Error("watched Event is nil", "business", event.GetBusiness())
+			return
+		}
 		scTxID := watchedEvent.GetProposal()
 		if scTxID == "" {
 			mintLogger.Error("confirm event has not proposal")
@@ -302,7 +310,7 @@ func (hd *commitedHandler) HandleEvent(event node.BusinessEvent) {
 	if commitedEvent, ok := event.(*node.CommitedEvent); ok {
 		data := commitedEvent.GetData()
 		if data == nil || data.Tx == nil {
-			mintLogger.Error("commit data is nil")
+			mintLogger.Error("commit data is nil", "business", event.GetBusiness())
 			return
 		}
 		var txIDs []string

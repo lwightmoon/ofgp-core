@@ -42,22 +42,6 @@ func initCuster(tmpDir string) {
 	}
 	conf.KeyStore = keyConf
 
-	// viper.Set("DGW.dbpath", tmpDir)
-	// viper.Set("DGW.count", 2)
-	// viper.Set("DGW.local_id", 0)
-	// viper.Set("DGW.bch_height", 100)
-	// viper.Set("DGW.eth_height", 100)
-	// viper.Set("DGW.local_p2p_port", 10000)
-	// viper.Set("DGW.local_http_port", 8080)
-
-	// viper.Set("DGW.host_0", "127.0.0.1:10000")
-	// viper.Set("DGW.status_0", true)
-	// viper.Set("DGW.host_1", "127.0.0.1:10001")
-	// viper.Set("DGW.status_1", true)
-
-	// viper.Set("DGW.eth_confirm_count", 6)
-	// viper.Set("DGW.eth_client_url", "ws://47.98.185.203:8830")
-	// viper.Set("DGW.start_mode", 4)
 	dgw := config.DgateWay{
 		DBPath:        tmpDir,
 		Count:         2,
@@ -91,12 +75,6 @@ func initCuster(tmpDir string) {
 		ConfirmBlockNum:         1,
 		CoinbaseConfirmBlockNum: 100,
 	}
-
-	// viper.Set("BCH.rpc_server", "47.97.167.221:8445")
-	// viper.Set("BCH.rpc_user", "tanshaohua")
-	// viper.Set("BCH.rpc_password", "hahaha")
-	// viper.Set("BCH.confirm_block_num", 1)
-	// viper.Set("BCH.coinbase_confirm_block_num", 100)
 
 	config.SetConf(conf)
 	cluster.Init()
