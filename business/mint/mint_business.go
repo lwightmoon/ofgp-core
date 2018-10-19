@@ -154,7 +154,7 @@ func (handler *watchedHandler) HandleEvent(event node.BusinessEvent) {
 		handler.service.SendToSign(createAndSignMsg)
 
 	} else if handler.Successor != nil {
-		handler.HandleEvent(event)
+		handler.Successor.HandleEvent(event)
 	}
 }
 
@@ -242,6 +242,10 @@ func getVin(info *MintInfo) *pb.PublicTx {
 	event := info.GetEvent()
 	req := info.GetReq()
 	recharge := getRecharge(info)
+	if recharge == nil {
+		mintLogger.Error("getVin getRecharge err", "scTxID", event.GetTxID())
+		return nil
+	}
 	pubTx := &pb.PublicTx{
 		Chain:    event.GetFrom(),
 		TxID:     event.GetTxID(),

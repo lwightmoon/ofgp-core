@@ -68,12 +68,12 @@ func (we *WatchedEvent) GetData() *pb.WatchedEvent {
 
 //SignedData 签名数据
 type SignedData struct {
-	Chain          uint32
-	ID             string //业务id
-	TxID           string
-	Term           int64
-	SignBeforeTxID string      //用于检查是否在链上
-	Tx             interface{} //签名后数据 跟具体的链相关
+	Chain uint32
+	ID    string //业务id
+	TxID  string
+	// Term           int64
+	// SignBeforeTxID string      //用于检查是否在链上
+	Tx interface{} //签名后数据 跟具体的链相关
 }
 type SignedEvent struct {
 	BaseBusinessEvent
