@@ -2,7 +2,6 @@ package p2p
 
 import (
 	"encoding/hex"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"sync"
@@ -243,8 +242,7 @@ func TestCreateDgw(t *testing.T) {
 		confirmInfo,
 	}
 	innerTx := createDGWTx("test", infos, confirmInfos)
-	fmt.Printf("preInit:%s,preMatch:%s", innerTx.Vin[0].TxID, innerTx.Vin[1].TxID)
-	fmt.Printf("nowInit:%s,nowMatch:%s", innerTx.Vout[0].TxID, innerTx.Vout[1].TxID)
+	t.Logf("%v", innerTx)
 }
 
 func TestIndex(t *testing.T) {
@@ -292,77 +290,4 @@ func TestIndex(t *testing.T) {
 	p2pInfo.Index = 1
 	index.Del(p2pInfo)
 	t.Logf("del res:%v", index.root.Childs)
-}
-
-func TestSignTimeout(t *testing.T) {
-	service := newService(checkNode)
-	sh := newSignedHandler(p2pDB, service, 1, 1)
-
-	p2pDB.setWaitConfirm("init", &WaitConfirmMsg{
-		ScTxId:   "1",
-		Opration: confirmed,
-		Chain:    10,
-		Time:     time.Now().Unix(),
-	})
-	// sh.checkSignTimeout()
-	// sh.runCheck()
-	time.Sleep(2 * time.Second)
-	go func() {
-		for {
-			se := &node.SignedEvent{}
-			se.Data = &node.SignedData{
-				Chain:          10,
-				ID:             "1",
-				TxID:           "1",
-				SignBeforeTxID: "2",
-			}
-			sh.HandleEvent(se)
-			time.Sleep(time.Second)
-		}
-	}()
-
-	time.Sleep(5 * time.Second)
-}
-
-func TestConfirmTimeout(t *testing.T) {
-	// service := newService(checkNode)
-	// ch := newConfirmHandler(p2pDB, 1, service, 1)
-
-	temp := getBytes(32)
-	temp[0] = byte(2)
-	txidMatch := hex.EncodeToString(temp)
-	p2pDB.setSendedInfo(&SendedInfo{
-		TxId:           txidMatch,
-		SignTerm:       1,
-		Chain:          10,
-		SignBeforeTxId: "2",
-		Time:           time.Now().Unix(),
-	})
-
-	// ch.runCheck()
-	time.Sleep(10 * time.Second)
-	// matchEvent := &node.ConfirmEvent{}
-	// matchEvent.Business = "p2p"
-	// matchData := &p2pMsg{
-	// 	SendAddr:    getBytes(20),
-	// 	ReceiveAddr: getBytes(20),
-	// 	Chain:       2,
-	// 	TokenID:     2,
-	// 	Amount:      46,
-	// 	Fee:         1,
-	// 	ExpiredTime: uint32(time.Now().Unix()),
-	// 	RequireAddr: getBytes(20),
-	// }
-
-	// matchEvent.Data = &pb.WatchedEvent{
-	// 	Business: "p2p",
-	// 	TxID:     txidMatch,
-	// 	From:     1,
-	// 	Amount:   64,
-	// 	Data:     matchData.Encode(),
-	// }
-
-	// ch.HandleEvent(matchEvent)
-	ids := []string{"1", "2"}
-	p2pLogger.Debug("test", "ids", ids)
 }

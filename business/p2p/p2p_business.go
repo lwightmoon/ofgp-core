@@ -342,104 +342,6 @@ func newSignedHandler(db *p2pdb, service *service, signTimeout int64, interval t
 	}
 }
 
-func (sh *signedHandler) addSignFailed(wait *WaitConfirmMsg) {
-	sh.signFailTxs[wait.ScTxId] = wait
-}
-func (sh *signedHandler) isInSignFailed(scTxID string) bool {
-	_, ok := sh.signFailTxs[scTxID]
-	return ok
-}
-func (sh *signedHandler) isSignTimeout(wait *WaitConfirmMsg) bool {
-	return time.Now().Unix()-wait.Time > sh.signTimeout
-}
-
-func (sh *signedHandler) delSignFailed(scTxID string) {
-	delete(sh.signFailTxs, scTxID)
-}
-
-/*
-func (sh *signedHandler) retryFailed() {
-	for _, waitConfirmTx := range sh.signFailTxs {
-		scTxID := waitConfirmTx.ScTxId
-		if sh.service.isSignFail(scTxID) { //本term失败
-			continue
-		} else {
-			sh.Lock()
-			if sh.db.existSendedInfo(scTxID) {
-				sh.delSignFailed(scTxID)
-				p2pLogger.Warn("already signed", "scTxID", scTxID)
-				sh.Unlock()
-				continue
-			}
-			if sh.service.isDone(scTxID) {
-				p2pLogger.Warn("already finished", "scTxID", scTxID)
-				sh.delSignFailed(scTxID)
-				sh.db.clear(scTxID)
-				sh.Unlock()
-				continue
-			}
-			p2pInfo := sh.db.getP2PInfo(scTxID)
-			if p2pInfo == nil {
-				p2pLogger.Error("check confirm timeout p2pInfo is nil", "scTxID", scTxID)
-				sh.delSignFailed(scTxID)
-				sh.db.clear(scTxID)
-				sh.Unlock()
-				continue
-			}
-			p2pLogger.Debug("sign fail retry", "scTxID", p2pInfo.Event.GetTxID())
-			req, err := sh.service.makeCreateTxReq(uint8(waitConfirmTx.Opration), p2pInfo)
-			if err != nil {
-				p2pLogger.Error("create tx err", "err", err, "scTxID", p2pInfo.Event.GetTxID())
-			}
-			if req != nil {
-				waitToSign := newWaitToSign(p2pInfo)
-				createSign := &message.CreateAndSignMsg{
-					req,
-					waitToSign,
-					time.Now().Unix(),
-				}
-				sh.service.sendtoSign(createSign)
-			}
-			sh.delSignFailed(scTxID)
-			waitConfirmTx.Time = time.Now().Unix()
-			sh.db.setWaitConfirm(scTxID, waitConfirmTx)
-			sh.Unlock()
-		}
-	}
-}
-*/
-/*
-func (sh *signedHandler) runCheck() {
-	ticker := time.NewTicker(sh.interval * time.Second).C
-	go func() {
-		for {
-			<-ticker
-			sh.checkSignTimeout()
-		}
-	}()
-}
-*/
-/*
-func (sh *signedHandler) checkSignTimeout() {
-	waitTxs := sh.db.getAllWaitConfirm()
-	sh.retryFailed()
-	for _, waitTx := range waitTxs {
-		scTxID := waitTx.ScTxId
-		if sh.isInSignFailed(scTxID) {
-			continue
-		}
-		//sign timeout
-		sh.Lock()
-		if sh.isSignTimeout(waitTx) && !sh.db.existSendedInfo(scTxID) {
-			p2pLogger.Debug("sign timeout", "scTxID", scTxID)
-			sh.service.markSignFail(scTxID)
-			sh.addSignFailed(waitTx) //下一个term重试
-			sh.service.accuse()
-		}
-		sh.Unlock()
-	}
-}
-*/
 func (sh *signedHandler) HandleEvent(event node.BusinessEvent) {
 	if signedEvent, ok := event.(*node.SignedEvent); ok {
 		p2pLogger.Info("handle signed")
@@ -458,10 +360,10 @@ func (sh *signedHandler) HandleEvent(event node.BusinessEvent) {
 				p2pLogger.Error("send tx err", "err", err, "scTxID", signedData.ID, "business", signedEvent.Business)
 			} else {
 				sh.db.setSendedInfo(&SendedInfo{
-					TxId:           signedData.TxID,
-					SignTerm:       signedData.Term,
-					Chain:          signedData.Chain,
-					SignBeforeTxId: signedData.SignBeforeTxID,
+					TxId: signedData.TxID,
+					// SignTerm:       signedData.Term,
+					Chain: signedData.Chain,
+					// SignBeforeTxId: signedData.SignBeforeTxID,
 				})
 			}
 		} else {
