@@ -243,7 +243,7 @@ func TestSize(t *testing.T) {
 		WatchedTx: watchedInfo,
 		NewlyTxId: "",
 	}
-	// tx1.UpdateId() //网关txid todo
+	tx1.UpdateId() //网关txid
 	block := &pb.Block{
 		TimestampMs: util.NowMs(),
 		Type:        pb.Block_TXS,
