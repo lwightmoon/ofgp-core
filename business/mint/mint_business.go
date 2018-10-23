@@ -132,6 +132,7 @@ func (handler *watchedHandler) HandleEvent(event node.BusinessEvent) {
 
 		mintReq := &MintRequire{}
 		mintReq.decode(watchedEvent.GetData())
+		//todo veryfy appInfo
 
 		mintInfo := &MintInfo{
 			Event: watchedEvent,
