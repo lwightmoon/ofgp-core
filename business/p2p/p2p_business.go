@@ -23,20 +23,19 @@ var p2pLogger = log.New("DEBUG", "node")
 // P2P 点对点交换
 type P2P struct {
 	ch      chan node.BusinessEvent
-	node    *node.BraftNode
 	handler business.IHandler
 }
 
 // NewP2P create p2p
-func NewP2P(braftNode *node.BraftNode, path string) *P2P {
+func NewP2P(srv *business.Service, path string) *P2P {
 	p2p := &P2P{
-		node: braftNode,
+		// node: braftNode,
 	}
 	ldb, _ := node.OpenDbOrDie(path, "p2pdb")
 
 	db := newP2PDB(ldb)
 	//向node订阅业务相关事件
-	ch := braftNode.SubScribe(defines.BUSINESS_P2P_SWAP_NAME)
+	ch := srv.SubScribe(defines.BUSINESS_P2P_SWAP_NAME)
 	p2p.ch = ch
 
 	//创建交易匹配索引
@@ -44,20 +43,18 @@ func NewP2P(braftNode *node.BraftNode, path string) *P2P {
 	index := newTxIndex()
 
 	index.AddInfos(p2pInfos)
-	service := newService(braftNode)
 	wh := &watchedHandler{
 		db:                 db,
-		node:               braftNode,
 		index:              index,
 		checkMatchInterval: time.Duration(1) * time.Second,
-		service:            service,
+		service:            srv,
 	}
 	// check匹配超时
 	wh.runCheckMatchTimeout()
 
-	sh := newSignedHandler(db, service, 15, 10)
+	sh := newSignedHandler(db, srv, 15, 10)
 	// sh.runCheck()
-	confirmH := newConfirmHandler(db, 180, service, 10)
+	confirmH := newConfirmHandler(db, 180, srv, 10)
 	// confirmH.runCheck()
 	commitH := &commitHandler{
 		db: db,
@@ -80,7 +77,7 @@ func (p2p *P2P) processEvent() {
 }
 
 type watchedHandler struct {
-	service *service
+	service *business.Service
 	sync.Mutex
 	db    *p2pdb
 	index *txIndex
@@ -153,14 +150,15 @@ func (wh *watchedHandler) checkP2PInfo(info *P2PInfo) bool {
 func (wh *watchedHandler) sendBackTx(info *P2PInfo) {
 	//创建并发送回退交易
 	wh.db.setMatchedOne(info.GetScTxID(), "")
-	req, err := wh.service.makeCreateTxReq(back, info)
+	req, err := makeCreateTxReq(back, info)
 	if req != nil && err == nil {
 		signMsg := newWaitToSign(back, info)
 		createAndSignMsg := &message.CreateAndSignMsg{
 			Req: req,
 			Msg: signMsg,
 		}
-		wh.service.sendtoSign(createAndSignMsg)
+		p2pLogger.Debug("send to sign ", "scTxID", signMsg.ScTxID, "business", signMsg.Business)
+		wh.service.SendToSign(createAndSignMsg)
 	} else {
 		p2pLogger.Error("create tx err", "err", err, "scTxID", info.Event.GetTxID())
 	}
@@ -297,14 +295,14 @@ func (wh *watchedHandler) HandleEvent(event node.BusinessEvent) {
 				infos := []*P2PInfo{info, matchedInfo}
 				//创建交易发送签名
 				for _, info := range infos {
-					req, err := wh.service.makeCreateTxReq(confirmed, info)
+					req, err := makeCreateTxReq(confirmed, info)
 					if req != nil && err == nil {
 						signMsg := newWaitToSign(confirmed, info)
 						createAndSignMsg := &message.CreateAndSignMsg{
 							Req: req,
 							Msg: signMsg,
 						}
-						wh.service.sendtoSign(createAndSignMsg)
+						wh.service.SendToSign(createAndSignMsg)
 					}
 					//设置等待确认
 					setWaitConfirm(wh.db, uint32(confirmed), info.Event.GetTo(), info.GetScTxID())
@@ -325,14 +323,14 @@ func (wh *watchedHandler) HandleEvent(event node.BusinessEvent) {
 type signedHandler struct {
 	business.Handler
 	db          *p2pdb
-	service     *service
+	service     *business.Service
 	signFailTxs map[string]*WaitConfirmMsg //签名失败
 	signTimeout int64
 	sync.Mutex
 	interval time.Duration
 }
 
-func newSignedHandler(db *p2pdb, service *service, signTimeout int64, interval time.Duration) *signedHandler {
+func newSignedHandler(db *p2pdb, service *business.Service, signTimeout int64, interval time.Duration) *signedHandler {
 	return &signedHandler{
 		db:          db,
 		service:     service,
@@ -352,10 +350,10 @@ func (sh *signedHandler) HandleEvent(event node.BusinessEvent) {
 		}
 		txID := signedData.TxID
 		sh.Lock()
-		if !sh.service.isSignFail(txID) && !sh.db.existSendedInfo(txID) && !sh.service.isDone(txID) {
+		if !sh.db.existSendedInfo(txID) && !sh.service.IsDone(txID) {
 			p2pLogger.Debug("receive signedData", "scTxID", signedData.ID)
 			//发送交易
-			err := sh.service.sendTx(signedData)
+			err := sh.service.SendTx(signedData)
 			if err != nil {
 				p2pLogger.Error("send tx err", "err", err, "scTxID", signedData.ID, "business", signedEvent.Business)
 			} else {
@@ -380,11 +378,11 @@ type confirmHandler struct {
 	db *p2pdb
 	business.Handler
 	confirmTolerance int64
-	service          *service
+	service          *business.Service
 	interval         time.Duration
 }
 
-func newConfirmHandler(db *p2pdb, confirmTolerance int64, service *service, interval time.Duration) *confirmHandler {
+func newConfirmHandler(db *p2pdb, confirmTolerance int64, service *business.Service, interval time.Duration) *confirmHandler {
 	return &confirmHandler{
 		db:               db,
 		confirmTolerance: confirmTolerance,
@@ -504,7 +502,7 @@ func (handler *confirmHandler) commitTx(business string, infos []*P2PInfo, confi
 	dgwTx := createDGWTx(business, infos, confirmInfos)
 	txJSON, _ := json.Marshal(dgwTx)
 	p2pLogger.Debug("commit data", "data", string(txJSON))
-	handler.service.commitTx(dgwTx)
+	handler.service.CommitTx(dgwTx)
 }
 
 func getP2PConfirmInfo(event *pb.WatchedEvent) *P2PConfirmInfo {
@@ -598,7 +596,7 @@ func (handler *confirmHandler) HandleEvent(event node.BusinessEvent) {
 				dgwTx.UpdateId()
 				txJSON, _ := json.Marshal(dgwTx)
 				p2pLogger.Debug("commit data", "data", string(txJSON))
-				handler.service.commitTx(dgwTx)
+				handler.service.CommitTx(dgwTx)
 			} else {
 				p2pLogger.Info("wait another tx confirm", "scTxID", oldTxID)
 			}
@@ -620,7 +618,7 @@ func (handler *confirmHandler) HandleEvent(event node.BusinessEvent) {
 			dgwTx.UpdateId()
 			txJSON, _ := json.Marshal(dgwTx)
 			p2pLogger.Debug("commit data", "data", string(txJSON))
-			handler.service.commitTx(dgwTx)
+			handler.service.CommitTx(dgwTx)
 
 		} else {
 			p2pLogger.Error("oprationtype wrong", "opration", waitConfirm.Opration)

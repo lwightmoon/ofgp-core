@@ -19,7 +19,7 @@ func newService(node *node.BraftNode) *service {
 	}
 }
 
-func (s *service) makeCreateTxReq(op uint8, info *P2PInfo) (message.CreateReq, error) {
+func makeCreateTxReq(op uint8, info *P2PInfo) (message.CreateReq, error) {
 	var addr []byte
 	var chain uint8
 	var token uint32

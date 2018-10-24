@@ -167,10 +167,11 @@ func run(ctx *cli.Context) {
 	}
 	//创建
 	p2pDBPath := conf.DB.P2PDBPath
-	p2pBusiness := p2p.NewP2P(node, p2pDBPath)
-
 	mintDBPath := conf.DB.MintDBPath
+
 	srv := business.NewService(node)
+
+	p2pBusiness := p2p.NewP2P(srv, p2pDBPath)
 	minter := mint.NewProcesser(srv, mintDBPath)
 	//run business
 	p2pBusiness.Run()
