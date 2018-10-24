@@ -39,6 +39,7 @@ type BaseCreateReq struct {
 	ID     string
 	Addr   []byte
 	Amount uint64
+	From   uint8 //require tx所在链
 }
 
 // GetChain 创建交易类型
@@ -59,6 +60,11 @@ func (req *BaseCreateReq) GetAddr() []byte {
 // GetAmount 获取发送金额
 func (req *BaseCreateReq) GetAmount() uint64 {
 	return req.Amount
+}
+
+// GetFrom 获取from chain
+func (req *BaseCreateReq) GetFrom() uint8 {
+	return req.From
 }
 
 // EthCreateReq eth createTx

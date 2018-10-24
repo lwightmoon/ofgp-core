@@ -77,7 +77,7 @@ func makeCreateTxReq(info *MintInfo) (message.CreateReq, error) {
 	require := info.GetReq()
 
 	chain := uint8(event.GetTo())
-
+	fromChain := uint8(event.GetFrom())
 	var txReq message.CreateReq
 	switch chain {
 	case defines.CHAIN_CODE_BCH:
@@ -88,6 +88,7 @@ func makeCreateTxReq(info *MintInfo) (message.CreateReq, error) {
 			ID:     event.GetTxID(),
 			Addr:   require.Receiver,
 			Amount: event.GetAmount(),
+			From:   fromChain,
 		}
 	case defines.CHAIN_CODE_ETH:
 		ethReq := &node.EthCreateReq{}
@@ -96,6 +97,7 @@ func makeCreateTxReq(info *MintInfo) (message.CreateReq, error) {
 		ethReq.Addr = require.Receiver
 		ethReq.Amount = event.GetAmount()
 		ethReq.TokenTo = require.TokenTo
+		ethReq.From = fromChain
 		txReq = ethReq
 	default:
 		mintLogger.Error("chain type err")

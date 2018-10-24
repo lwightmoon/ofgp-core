@@ -17,9 +17,10 @@ type WaitSignMsg struct {
 // CreateReq 创建交易接口
 type CreateReq interface {
 	GetChain() uint32
-	GetID() string
+	GetID() string //创建交易proposal参数
 	GetAddr() []byte
 	GetAmount() uint64
+	GetFrom() uint8
 }
 
 //CreateAndSignMsg 创建并签名数据

@@ -8,6 +8,7 @@ message mintRequire{
     uint32 token_from = 1;
     uint32 token_to = 2;
     bytes  receiver = 3;
+    uint32 op_type = 4; //铸币熔币标识
 }
 
 message mintInfo {
