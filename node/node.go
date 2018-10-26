@@ -667,7 +667,7 @@ func (bn *BraftNode) watchNewTx(ctx context.Context) {
 			if bn.pubsub.hasTopic(event.GetBusiness()) && !bn.txStore.HasTxInDB(event.GetTxID()) {
 				watchedEvent := newWatchedEvent(event)
 				//校验只需require类型的tx
-				if event.GetEventType() == defines.EVENT_P2P_SWAP_REQUIRE {
+				if event.GetEventType() == defines.EVENT_P2P_SWAP_REQUIRE || event.GetEventType() == defines.EVENT_COIN_MINT_REQUIRE {
 					nodeLogger.Debug("receive require event", "scTxID", event.GetTxID(), "chain", event.GetFrom(), "type", event.GetEventType(), "business", event.GetBusiness(), "to", event.GetTo())
 					if !bn.txStore.IsWatched(event.GetTxID()) {
 						bn.txStore.AddWatchedEvent(watchedEvent)
@@ -676,7 +676,7 @@ func (bn *BraftNode) watchNewTx(ctx context.Context) {
 				}
 
 				//删除已签名标记 停止confirmTimeout check
-				if event.GetEventType() == defines.EVENT_P2P_SWAP_CONFIRM {
+				if event.GetEventType() == defines.EVENT_P2P_SWAP_CONFIRM || event.GetEventType() == defines.EVENT_COIN_MINT_CONFIRM {
 					nodeLogger.Debug("receive confirm event", "scTxID", event.GetTxID(), "chain", event.GetFrom(), "type", event.GetEventType(), "business", event.GetBusiness(), "to", event.GetTo())
 					bn.pubWatcherEvent(watchedEvent)
 					scTxID := event.GetProposal()
