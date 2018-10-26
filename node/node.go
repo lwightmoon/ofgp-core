@@ -11,9 +11,12 @@ import (
 	"net"
 	"os"
 	"path"
+	btwatcher "swap/btwatcher"
+	ew "swap/ethwatcher" // ew "github.com/ofgp/ethwatcher"
 	"sync"
 	"time"
 
+	"github.com/antimoth/btclient"
 	"github.com/ofgp/common/defines"
 	"github.com/ofgp/ofgp-core/accuser"
 	"github.com/ofgp/ofgp-core/cluster"
@@ -26,11 +29,6 @@ import (
 	pb "github.com/ofgp/ofgp-core/proto"
 	"github.com/ofgp/ofgp-core/util"
 	"github.com/ofgp/ofgp-core/util/assert"
-
-	btwatcher "swap/btwatcher"
-	ew "swap/ethwatcher"
-	// ew "github.com/ofgp/ethwatcher"
-
 	"github.com/spf13/viper"
 	"google.golang.org/grpc"
 )
@@ -115,9 +113,10 @@ type BraftNode struct {
 func getFederationAddress() cluster.MultiSigInfo {
 	var err error
 	pubkeyList := cluster.GetPubkeyList()
-	btcFedAddress, btcRedeem, err := btwatcher.GetMultiSigAddress(pubkeyList, cluster.QuorumN, "btc")
+	netParam := btclient.GetNetParams()
+	btcFedAddress, btcRedeem, err := btclient.GetMultiSigAddress(pubkeyList, cluster.QuorumN, defines.CHAIN_CODE_BTC, netParam)
 	assert.ErrorIsNil(err)
-	bchFedAddress, bchRedeem, err := btwatcher.GetMultiSigAddress(pubkeyList, cluster.QuorumN, "bch")
+	bchFedAddress, bchRedeem, err := btclient.GetMultiSigAddress(pubkeyList, cluster.QuorumN, defines.CHAIN_CODE_BCH, netParam)
 	assert.ErrorIsNil(err)
 	multiSig := cluster.MultiSigInfo{
 		BtcAddress:      btcFedAddress,
@@ -662,7 +661,7 @@ func (bn *BraftNode) watchNewTx(ctx context.Context) {
 	nodeLogger.Debug("eth watch info", "height", ethHeight, "index", ethIndex)
 	bn.ethWatcher.StartWatch(*big.NewInt(ethHeight), int(ethIndex), eventCh)
 	for event := range eventCh {
-		if event != nil && event.GetBusiness() != "" && (event.GetEventType() == defines.EVENT_P2P_SWAP_REQUIRE || event.GetEventType() == defines.EVENT_P2P_SWAP_CONFIRM) {
+		if event != nil && event.GetBusiness() != 0 && (event.GetEventType() == defines.EVENT_P2P_SWAP_REQUIRE || event.GetEventType() == defines.EVENT_P2P_SWAP_CONFIRM) {
 
 			// 防止重复发布事件
 			if bn.pubsub.hasTopic(event.GetBusiness()) && !bn.txStore.HasTxInDB(event.GetTxID()) {
@@ -972,9 +971,11 @@ func getRemoteClusterNodes(host string) *pb.NodeList {
 
 // getFederationAddressUsePubkeys 根据pubkey获取多签地址
 func getFederationAddressUsePubkeys(pubKeys []string, quorumN int) cluster.MultiSigInfo {
-	btcFedAddress, btcRedeem, err := btwatcher.GetMultiSigAddress(pubKeys, quorumN, "btc")
+	netParam := btclient.GetNetParams()
+	btclient.GetMultiSigAddress(pubKeys, quorumN, defines.CHAIN_CODE_BTC, netParam)
+	btcFedAddress, btcRedeem, err := btclient.GetMultiSigAddress(pubKeys, quorumN, defines.CHAIN_CODE_BTC, netParam)
 	assert.ErrorIsNil(err)
-	bchFedAddress, bchRedeem, err := btwatcher.GetMultiSigAddress(pubKeys, quorumN, "bch")
+	bchFedAddress, bchRedeem, err := btclient.GetMultiSigAddress(pubKeys, quorumN, defines.CHAIN_CODE_BCH, netParam)
 	assert.ErrorIsNil(err)
 	multiSig := cluster.MultiSigInfo{
 		BtcAddress:      btcFedAddress,
@@ -1251,7 +1252,7 @@ func (bn *BraftNode) changeFederationAddrs(latest cluster.MultiSigInfo, multiSig
 }
 
 // SubScribe 订阅business
-func (bn *BraftNode) SubScribe(business string) chan BusinessEvent {
+func (bn *BraftNode) SubScribe(business uint32) chan BusinessEvent {
 	ch := bn.pubsub.subScribe(business)
 	return ch
 }

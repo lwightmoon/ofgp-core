@@ -2,7 +2,6 @@ package business
 
 import (
 	"github.com/ofgp/ofgp-core/log"
-
 	"github.com/ofgp/ofgp-core/message"
 	"github.com/ofgp/ofgp-core/node"
 	pb "github.com/ofgp/ofgp-core/proto"
@@ -60,7 +59,7 @@ func (s *Service) CommitTx(tx *pb.Transaction) {
 }
 
 // SubScribe 订阅相关业务的Event
-func (s *Service) SubScribe(business string) chan node.BusinessEvent {
+func (s *Service) SubScribe(business uint32) chan node.BusinessEvent {
 	ch := s.node.SubScribe(business)
 	return ch
 }

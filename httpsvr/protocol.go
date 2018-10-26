@@ -74,7 +74,7 @@ func toBlockInfo(block *pb.BlockInfo) *BlockInfo {
 }
 
 type createTxRequest struct {
-	Business  string `json:"business"`
+	Business  uint32 `json:"business"`
 	EventType uint32 `json:"event_type"`
 	TxID      string `json:"tx_id"`
 	From      uint32 `json:"from"`

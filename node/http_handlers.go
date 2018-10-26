@@ -6,18 +6,15 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-
 	ew "swap/ethwatcher"
 
+	log "github.com/inconshreveable/log15"
 	"github.com/ofgp/common/defines"
-	"github.com/ofgp/ofgp-core/primitives"
-	pb "github.com/ofgp/ofgp-core/proto"
-
 	"github.com/ofgp/ofgp-core/cluster"
 	"github.com/ofgp/ofgp-core/crypto"
 	dgwLog "github.com/ofgp/ofgp-core/log"
-
-	log "github.com/inconshreveable/log15"
+	"github.com/ofgp/ofgp-core/primitives"
+	pb "github.com/ofgp/ofgp-core/proto"
 )
 
 var apiLog log.Logger
@@ -97,7 +94,7 @@ type TxViewV1 struct {
 	BlockHeight int64    `json:"block_height"` //所在区块高度
 	DGWFee      int64    `json:"dgw_fee"`      // 网关手续费
 	TxID        string   `json:"tx_id"`
-	Business    string   `json:"business"`
+	Business    uint32   `json:"business"`
 	Vin         []*PubTx `json:"vin"`
 	Vout        []*PubTx `json:"vout"`
 	Time        int64    `json:"time"`
@@ -195,7 +192,7 @@ func (node *BraftNode) createTxView(blockID string, height int64, tx *pb.Transac
 		Block:       blockID,
 		BlockHeight: height,
 		TxID:        getHexString(tx.GetId()),
-		Business:    "mint", //todo 铸币熔币业务name
+		Business:    defines.BUSINESS_COIN_MINT, //todo 铸币熔币业务name
 		Vin: []*PubTx{
 			&PubTx{
 				Chain:  getChain(watchedTx.From),

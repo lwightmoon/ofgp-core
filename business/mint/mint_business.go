@@ -7,10 +7,9 @@ import (
 
 	proto "github.com/golang/protobuf/proto"
 	"github.com/ofgp/common/defines"
+	"github.com/ofgp/ofgp-core/business"
 	"github.com/ofgp/ofgp-core/log"
 	"github.com/ofgp/ofgp-core/message"
-
-	"github.com/ofgp/ofgp-core/business"
 	"github.com/ofgp/ofgp-core/node"
 	pb "github.com/ofgp/ofgp-core/proto"
 )
@@ -30,7 +29,7 @@ func NewProcesser(srv business.IService, path string) *Processer {
 	// mintdb
 	db := newMintDB(ldb)
 	// eventchannel todo
-	eventCh := srv.SubScribe("")
+	eventCh := srv.SubScribe(defines.BUSINESS_COIN_MINT)
 
 	watchedHd := newWatchedHandler(db, srv)
 	signedHd := newSignedHandler(db, srv)
@@ -84,14 +83,16 @@ func makeCreateTxReq(info *MintInfo) (message.CreateReq, error) {
 		fallthrough
 	case defines.CHAIN_CODE_BTC:
 		txReq = &node.BaseCreateReq{
-			Chain:  uint32(chain),
-			ID:     event.GetTxID(),
-			Addr:   require.Receiver,
-			Amount: event.GetAmount(),
-			From:   fromChain,
+			Business: event.GetBusiness(),
+			Chain:    uint32(chain),
+			ID:       event.GetTxID(),
+			Addr:     require.Receiver,
+			Amount:   event.GetAmount(),
+			From:     fromChain,
 		}
 	case defines.CHAIN_CODE_ETH:
 		ethReq := &node.EthCreateReq{}
+		ethReq.Business = event.GetBusiness()
 		ethReq.Chain = uint32(chain)
 		ethReq.ID = event.GetTxID()
 		ethReq.Addr = require.Receiver

@@ -6,11 +6,11 @@ import (
 
 type pubServer struct {
 	sync.RWMutex
-	reg      map[string]chan BusinessEvent
+	reg      map[uint32]chan BusinessEvent
 	capicity int
 }
 
-func (ps *pubServer) hasTopic(topic string) bool {
+func (ps *pubServer) hasTopic(topic uint32) bool {
 	ps.RLock()
 	_, ok := ps.reg[topic]
 	ps.RUnlock()
@@ -19,13 +19,13 @@ func (ps *pubServer) hasTopic(topic string) bool {
 
 func newPubServer(capicity int) *pubServer {
 	server := &pubServer{
-		reg:      make(map[string]chan BusinessEvent),
+		reg:      make(map[uint32]chan BusinessEvent),
 		capicity: capicity,
 	}
 	return server
 }
 
-func (ps *pubServer) subScribe(business string) chan BusinessEvent {
+func (ps *pubServer) subScribe(business uint32) chan BusinessEvent {
 	ps.Lock()
 	defer ps.Unlock()
 	if ch, ok := ps.reg[business]; ok {
@@ -36,11 +36,11 @@ func (ps *pubServer) subScribe(business string) chan BusinessEvent {
 	return ch
 }
 
-func (ps *pubServer) pub(topic string, event BusinessEvent) {
+func (ps *pubServer) pub(topic uint32, event BusinessEvent) {
 	ps.send(topic, event)
 }
 
-func (ps *pubServer) send(topic string, event BusinessEvent) {
+func (ps *pubServer) send(topic uint32, event BusinessEvent) {
 	ps.RLock()
 	ch, ok := ps.reg[topic]
 	ps.RUnlock()

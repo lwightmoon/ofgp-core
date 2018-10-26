@@ -35,13 +35,23 @@ func (node *BraftNode) IsDone(scTxID string) bool {
 	return inMem || indb
 }
 
-// GetTxByHash TODO 根据签名前交易查询是否链上存在
+// GetTxByHash  根据签名前交易查询是否链上存在
 func (node *BraftNode) GetTxByHash(txid string, chain uint8) defines.PushEvent {
 	switch chain {
 	case defines.CHAIN_CODE_BCH:
-		return node.bchWatcher.GetTxByHash(txid)
+		event, err := node.bchWatcher.GetTxByHash(txid)
+		if err != nil {
+			nodeLogger.Error("get bch tx err", "err", err, "txid", txid)
+			return nil
+		}
+		return event
 	case defines.CHAIN_CODE_BTC:
-		return node.btcWatcher.GetTxByHash(txid)
+		event, err := node.btcWatcher.GetTxByHash(txid)
+		if err != nil {
+			nodeLogger.Error("get bch tx err", "err", err, "txid", txid)
+			return nil
+		}
+		return event
 	case defines.CHAIN_CODE_ETH:
 		event, _ := node.ethWatcher.GetEventByHash(txid)
 		return event

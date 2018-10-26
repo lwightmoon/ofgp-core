@@ -38,5 +38,5 @@ type IService interface {
 
 	CommitTx(tx *pb.Transaction)
 
-	SubScribe(business string) chan node.BusinessEvent
+	SubScribe(business uint32) chan node.BusinessEvent
 }

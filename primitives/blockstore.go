@@ -7,10 +7,15 @@ import (
 	"math/big"
 	"strconv"
 	"strings"
+	btwatcher "swap/btwatcher"
+	ew "swap/ethwatcher"
 	"sync"
 	"time"
 
 	"github.com/antimoth/addrutils"
+	"github.com/btcsuite/btcd/wire"
+	"github.com/golang/protobuf/proto"
+	"github.com/ofgp/common/defines"
 	"github.com/ofgp/ofgp-core/cluster"
 	"github.com/ofgp/ofgp-core/crypto"
 	"github.com/ofgp/ofgp-core/dgwdb"
@@ -19,15 +24,6 @@ import (
 	"github.com/ofgp/ofgp-core/util"
 	"github.com/ofgp/ofgp-core/util/assert"
 	"github.com/ofgp/ofgp-core/util/task"
-
-	btwatcher "swap/btwatcher"
-
-	ew "swap/ethwatcher"
-
-	"github.com/btcsuite/btcd/wire"
-	"github.com/golang/protobuf/proto"
-
-	"github.com/ofgp/common/defines"
 )
 
 var (
@@ -725,7 +721,7 @@ func (bs *BlockStore) handleSignReq(tasks *task.Queue, msg *pb.SignRequest) {
 			_, err := bs.ethWatcher.SendTranxByInput(bs.signer.PubKeyHex, bs.signer.PubkeyHash, msg.NewlyTx.Data)
 			if err != nil {
 				bsLogger.Error("sign eth err", "err", err, "scTxID", scTxID)
-				signRes, err := pb.MakeSignResult("", pb.CodeType_REJECT, bs.localNodeId, scTxID, nil, targetChain, nodeTerm, bs.signer)
+				signRes, err := pb.MakeSignResult(business, pb.CodeType_REJECT, bs.localNodeId, scTxID, nil, targetChain, nodeTerm, bs.signer)
 				if err != nil {
 					bsLogger.Debug("sign suc make signedResult err", "err", err, "scTxID", scTxID)
 					return
@@ -1002,17 +998,18 @@ func (bs *BlockStore) validateTxs(blockPack *pb.BlockPack) int {
 					chain := uint8(pubtx.Chain)
 					switch chain {
 					case defines.CHAIN_CODE_BCH:
-						chainTx := bs.bchWatcher.GetTxByHash(pubtx.TxID)
-						if chainTx == nil {
-							bsLogger.Error("bch getTxByHash nil", "scTxID", pubtx.TxID)
+						// todo error 处理
+						chainTx, err := bs.bchWatcher.GetTxByHash(pubtx.TxID)
+						if err != nil || chainTx == nil {
+							bsLogger.Error("bch getTxByHash err", "scTxID", pubtx.TxID, "err", err)
 							resultChan <- Invalid
 						} else {
 							resultChan <- Valid
 						}
 					case defines.CHAIN_CODE_BTC:
-						chainTx := bs.btcWatcher.GetTxByHash(pubtx.TxID)
-						if chainTx == nil {
-							bsLogger.Error("btc getTxByHash nil", "scTxID", pubtx.TxID)
+						chainTx, err := bs.btcWatcher.GetTxByHash(pubtx.TxID)
+						if err != nil || chainTx == nil {
+							bsLogger.Error("btc getTxByHash err", "scTxID", pubtx.TxID, "err", err)
 							resultChan <- Invalid
 						} else {
 							resultChan <- Valid
@@ -1264,24 +1261,33 @@ func (bs *BlockStore) validateBtcSignReq(req *pb.SignRequest, newlyTx *wire.MsgT
 		bsLogger.Warn("recharge txoutCnt check err", "newTxCount", len(newlyTx.TxOut))
 		return wrongInputOutput
 	}
-	txOut := newlyTx.TxOut[0]
 	coinType := uint8(req.GetSendTo())
-	rechargeAddr, err := btwatcher.DecodeCheckBytesAddr(recharge.Addr, coinType)
+	rechargeAddr, err := addrutils.CheckBytesToStr(recharge.Addr, coinType)
 	scTxID := req.GetWatchedEvent().GetTxID()
 	if err != nil {
 		bsLogger.Error("decode addr err", "err", err, "scTxID", scTxID)
 		return wrongInputOutput
 	}
-	realAddr := btwatcher.ExtractPkScriptAddr(txOut.PkScript, coinType)
-	if rechargeAddr == nil {
-		bsLogger.Error("get addr from vout err", "scTxID", scTxID)
+	txOutCnt := len(newlyTx.TxOut)
+	if txOutCnt < 2 {
+		bsLogger.Error("vout cnt err", "cnt", len(newlyTx.TxOut), "scTxID", scTxID)
 		return wrongInputOutput
 	}
-	bsLogger.Debug("addr compare", "toString", rechargeAddr.String(), "encodeString",
-		rechargeAddr.EncodeAddress(), "realAddr", realAddr)
+	txOut := newlyTx.TxOut[txOutCnt-2]
+	var watcher *btwatcher.Watcher
+	if coinType == defines.CHAIN_CODE_BCH {
+		watcher = bs.bchWatcher
+	} else if coinType == defines.CHAIN_CODE_BTC {
+		watcher = bs.btcWatcher
+	}
+	realAddr, err := watcher.VoutSendTo(txOut)
+	if err != nil {
+		bsLogger.Error("get realAddr err", "err", err, "scTxID", scTxID)
+		return wrongInputOutput
+	}
 
-	if rechargeAddr.String() != realAddr {
-		bsLogger.Error("addr is  not equal", "scTxID", scTxID)
+	if rechargeAddr != realAddr {
+		bsLogger.Error("addr is  not equal", "scTxID", scTxID, "recharegeAddr", rechargeAddr, "realAddr", realAddr)
 		return wrongInputOutput
 	}
 	if txOut.Value != int64(recharge.Amount) {
@@ -1313,8 +1319,12 @@ func (bs *BlockStore) validateTransferSignReq(req *pb.SignRequest, newlyTx *wire
 			return wrongInputOutput
 		}
 	}
-
-	outAddress := btwatcher.ExtractPkScriptAddr(newlyTx.TxOut[0].PkScript, uint8(to))
+	// outAddress := btwatcher.ExtractPkScriptAddr(newlyTx.TxOut[0].PkScript, uint8(to))
+	outAddress, err := watcher.VoutSendTo(newlyTx.TxOut[0])
+	if err != nil {
+		bsLogger.Error("get sendtoAddr err", "err", err)
+		return wrongInputOutput
+	}
 	if toCompare == defines.CHAIN_CODE_BTC {
 		if outAddress == cluster.CurrMultiSig.BtcAddress {
 			return validatePass
@@ -1352,7 +1362,7 @@ func (bs *BlockStore) baseCheckSignReq(req *pb.SignRequest) int {
 }
 
 func isEuqal(event *pb.WatchedEvent, pushEvent defines.PushEvent) bool {
-	return event.GetBusiness() == pushEvent.GetBusiness() &&
+	return event.GetBusiness() == uint32(pushEvent.GetBusiness()) &&
 		event.GetEventType() == pushEvent.GetEventType() &&
 		bytes.Equal(event.GetData(), pushEvent.GetData()) &&
 		event.GetFrom() == uint32(pushEvent.GetFrom()) &&
@@ -1362,7 +1372,7 @@ func isEuqal(event *pb.WatchedEvent, pushEvent defines.PushEvent) bool {
 
 func newWatchedEvent(event defines.PushEvent) *pb.WatchedEvent {
 	return &pb.WatchedEvent{
-		Business:  event.GetBusiness(),
+		Business:  uint32(event.GetBusiness()),
 		EventType: event.GetEventType(),
 		TxID:      event.GetTxID(),
 		Amount:    event.GetAmount(),
@@ -1377,6 +1387,7 @@ func newWatchedEvent(event defines.PushEvent) *pb.WatchedEvent {
 // validateWatchedEvent 校验监听到的event 代替validateWatchedTx
 func (bs *BlockStore) validateWatchedEvent(event *pb.WatchedEvent) bool {
 	var newEvent defines.PushEvent
+	var err error
 	validateRes := bs.ts.ValidateWatchedEvent(event)
 
 	switch validateRes {
@@ -1388,17 +1399,17 @@ func (bs *BlockStore) validateWatchedEvent(event *pb.WatchedEvent) bool {
 		chain := uint8(event.GetFrom())
 		switch chain {
 		case defines.CHAIN_CODE_BTC:
-			newEvent = bs.btcWatcher.GetTxByHash(event.GetTxID())
-			if newEvent == nil {
-				bsLogger.Debug("valite btc sign not found", "scTxID", event.GetTxID())
+			newEvent, err = bs.btcWatcher.GetTxByHash(event.GetTxID())
+			if newEvent == nil || err != nil {
+				bsLogger.Debug("valite btc sign not found", "scTxID", event.GetTxID(), "err", err)
 				return false
 			}
 			pbEvent := newWatchedEvent(newEvent)
 			bs.ts.AddWatchedEvent(pbEvent)
 		case defines.CHAIN_CODE_BCH:
-			bsLogger.Debug("valite bch sign not found", "scTxID", event.GetTxID())
-			newEvent = bs.bchWatcher.GetTxByHash(event.GetTxID())
-			if newEvent == nil {
+			newEvent, err = bs.bchWatcher.GetTxByHash(event.GetTxID())
+			if newEvent == nil || err != nil {
+				bsLogger.Debug("valite bch sign not found", "scTxID", event.GetTxID(), "err", err)
 				return false
 			}
 			pbEvent := newWatchedEvent(newEvent)

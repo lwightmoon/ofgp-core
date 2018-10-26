@@ -6,7 +6,7 @@ import (
 
 // WaitSignMsg 待签名数据
 type WaitSignMsg struct {
-	Business string //业务
+	Business uint32 //业务
 	ID       string //标识
 	ScTxID   string //源链txid
 	Event    *pb.WatchedEvent
@@ -16,6 +16,7 @@ type WaitSignMsg struct {
 
 // CreateReq 创建交易接口
 type CreateReq interface {
+	GetBusiness() uint32
 	GetChain() uint32
 	GetID() string //创建交易proposal参数
 	GetAddr() []byte

@@ -3,17 +3,15 @@ package p2p
 import (
 	"encoding/hex"
 	"encoding/json"
+	ew "swap/ethwatcher"
 	"sync"
 	"time"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/ofgp/common/defines"
+	"github.com/ofgp/ofgp-core/business"
 	"github.com/ofgp/ofgp-core/log"
 	"github.com/ofgp/ofgp-core/message"
-
-	ew "swap/ethwatcher"
-
-	"github.com/golang/protobuf/proto"
-	"github.com/ofgp/ofgp-core/business"
 	"github.com/ofgp/ofgp-core/node"
 	pb "github.com/ofgp/ofgp-core/proto"
 )
@@ -35,7 +33,7 @@ func NewP2P(srv *business.Service, path string) *P2P {
 
 	db := newP2PDB(ldb)
 	//向node订阅业务相关事件
-	ch := srv.SubScribe(defines.BUSINESS_P2P_SWAP_NAME)
+	ch := srv.SubScribe(defines.BUSINESS_P2P_SWAP)
 	p2p.ch = ch
 
 	//创建交易匹配索引
@@ -485,7 +483,7 @@ func getVout(infos []*P2PConfirmInfo) []*pb.PublicTx {
 }
 
 // createDGWTx 创建网关交易
-func createDGWTx(business string, infos []*P2PInfo, confirmInfos []*P2PConfirmInfo) *pb.Transaction {
+func createDGWTx(business uint32, infos []*P2PInfo, confirmInfos []*P2PConfirmInfo) *pb.Transaction {
 	tx := &pb.Transaction{
 		Business: business,
 		Vin:      getVin(infos),
@@ -497,7 +495,7 @@ func createDGWTx(business string, infos []*P2PInfo, confirmInfos []*P2PConfirmIn
 }
 
 // commitTx commit点对点交易
-func (handler *confirmHandler) commitTx(business string, infos []*P2PInfo, confirmInfos []*P2PConfirmInfo) {
+func (handler *confirmHandler) commitTx(business uint32, infos []*P2PInfo, confirmInfos []*P2PConfirmInfo) {
 	p2pLogger.Debug("commit dgw tx", "business", business)
 	dgwTx := createDGWTx(business, infos, confirmInfos)
 	txJSON, _ := json.Marshal(dgwTx)

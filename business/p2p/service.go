@@ -45,18 +45,22 @@ func makeCreateTxReq(op uint8, info *P2PInfo) (message.CreateReq, error) {
 		fallthrough
 	case defines.CHAIN_CODE_BTC:
 		req = &node.BaseCreateReq{
-			Chain:  uint32(chain),
-			ID:     event.GetTxID(),
-			Addr:   addr,
-			Amount: msg.Amount,
+			Business: event.GetBusiness(),
+			Chain:    uint32(chain),
+			ID:       event.GetTxID(),
+			Addr:     addr,
+			Amount:   msg.Amount,
+			From:     uint8(event.GetFrom()),
 		}
 	case defines.CHAIN_CODE_ETH:
 		ethReq := &node.EthCreateReq{}
+		ethReq.Business = event.GetBusiness()
 		ethReq.Chain = uint32(chain)
 		ethReq.ID = event.GetTxID()
 		ethReq.Addr = addr
 		ethReq.Amount = msg.Amount
 		ethReq.TokenTo = token
+		ethReq.From = uint8(event.GetFrom())
 		req = ethReq
 	default:
 		p2pLogger.Error("chain type err")

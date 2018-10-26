@@ -4,11 +4,9 @@ import (
 	"bytes"
 	"encoding/hex"
 	"errors"
-	"time"
-
 	btwatcher "swap/btwatcher"
-
 	ew "swap/ethwatcher"
+	"time"
 
 	"github.com/antimoth/addrutils"
 	"github.com/btcsuite/btcd/wire"
@@ -35,11 +33,17 @@ type AddrInfo struct {
 
 // BaseCreateReq createTx
 type BaseCreateReq struct {
-	Chain  uint32
-	ID     string
-	Addr   []byte
-	Amount uint64
-	From   uint8 //require tx所在链
+	Business uint32
+	Chain    uint32
+	ID       string
+	Addr     []byte
+	Amount   uint64
+	From     uint8 //require tx所在链
+}
+
+// GetBusiness 获取所属业务
+func (req *BaseCreateReq) GetBusiness() uint32 {
+	return req.Business
 }
 
 // GetChain 创建交易类型
@@ -189,9 +193,7 @@ func sendCointTx(watcher *btwatcher.Watcher, req ISendReq, chain string) error {
 	var err error
 	var txHash string
 	if newlyTx, ok := tx.(*wire.MsgTx); ok {
-		scTxID := req.GetID()
-		txHash, err = watcher.SendTx(newlyTx, scTxID)
-
+		txHash, err = watcher.SendTx(newlyTx)
 		end := time.Now().UnixNano()
 		leaderLogger.Debug("sendCointime", "time", (end-start)/1e6, "chian", chain)
 		if err != nil {
@@ -217,7 +219,8 @@ func newBtcOprator(watcher *btwatcher.Watcher) *btcOprator {
 
 func (btcOP *btcOprator) CreateTx(req message.CreateReq) (*pb.NewlyTx, error) {
 	nodeLogger.Debug("create btc tx", "scTxID", req.GetID())
-	btTx, errCode := btcOP.btcWatcher.CreateCoinTx(req.GetAddr(), req.GetAmount(), cluster.ClusterSize)
+	btTx, errCode := btcOP.btcWatcher.CreateCoinTx(req.GetAddr(), req.GetAmount(), cluster.ClusterSize,
+		req.GetID(), req.GetFrom(), req.GetBusiness())
 	if errCode != 0 {
 		nodeLogger.Error("create tx fail", "scTxID", req.GetID(), "errCode", errCode)
 		return nil, errors.New("create tx err")
@@ -252,7 +255,8 @@ func newBchOprator(watcher *btwatcher.Watcher) *bchOprator {
 func (bchOP *bchOprator) CreateTx(req message.CreateReq) (*pb.NewlyTx, error) {
 	addr := hex.EncodeToString(req.GetAddr())
 	nodeLogger.Debug("create bch tx", "scTxID", req.GetID(), "adrr", addr, "amount", req.GetAmount(), "clusterSize", cluster.ClusterSize)
-	btTx, errCode := bchOP.bchWatcher.CreateCoinTx(req.GetAddr(), req.GetAmount(), cluster.ClusterSize)
+	btTx, errCode := bchOP.bchWatcher.CreateCoinTx(req.GetAddr(), req.GetAmount(), cluster.ClusterSize,
+		req.GetID(), req.GetFrom(), req.GetBusiness())
 	if errCode != 0 {
 		nodeLogger.Error("create tx fail", "scTxID", req.GetID(), "errCode", errCode)
 		return nil, errors.New("create tx err")

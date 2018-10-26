@@ -8,12 +8,10 @@ import (
 	"net/http"
 	"strconv"
 
-	pb "github.com/ofgp/ofgp-core/proto"
-
+	"github.com/julienschmidt/httprouter"
 	"github.com/ofgp/ofgp-core/crypto"
 	"github.com/ofgp/ofgp-core/node"
-
-	"github.com/julienschmidt/httprouter"
+	pb "github.com/ofgp/ofgp-core/proto"
 )
 
 type httpHandlerFunc func()
@@ -292,7 +290,7 @@ func (hd *HTTPHandler) AddTx(w http.ResponseWriter, req *http.Request, _ httprou
 		fmt.Fprintf(w, "%s", newData(paramErrCode, err.Error(), nil))
 		return
 	}
-	if tx.Business == "" || tx.From < 0 || tx.To < 0 {
+	if tx.Business == 0 || tx.From < 0 || tx.To < 0 {
 		fmt.Fprintf(w, "%s", newData(paramErrCode, "tx param err", nil))
 		return
 	}

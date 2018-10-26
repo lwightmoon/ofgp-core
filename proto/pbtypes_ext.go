@@ -4,20 +4,14 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/ofgp/ofgp-core/crypto"
 	"github.com/ofgp/ofgp-core/util"
 	"github.com/ofgp/ofgp-core/util/assert"
 	"github.com/ofgp/ofgp-core/util/sort"
-
-	btcwatcher "swap/btwatcher"
-
-	"swap/ethwatcher"
-
-	"github.com/golang/protobuf/proto"
 )
 
 // EqualTo 会更新两个ID，再进行比较。比较函数里面进行更新不是很合理的说
@@ -748,7 +742,7 @@ func feedPubTxFields(hs *crypto.Hasher256, fileName string, txs []*PublicTx) {
 // feedTxFields
 func feedTxFields(hasher *crypto.Hasher256, fieldName string, msg *Transaction) {
 	util.FeedField(hasher, fieldName, func(hs *crypto.Hasher256) {
-		util.FeedTextField(hs, "Business", msg.Business)
+		util.FeedInt32Field(hs, "Business", int32(msg.Business))
 		util.FeedBinField(hs, "data", msg.Data)
 		util.FeedField(hs, "txs", func(hs *crypto.Hasher256) {
 			txs := msg.Vin
@@ -787,7 +781,7 @@ func feedSignMsgFields(hasher *crypto.Hasher256, fieldName string, msg *SignRequ
 		util.FeedTextField(hs, "MultisigAddress", msg.MultisigAddress)
 		util.FeedField(hs, "WatchedEvent", func(hs *crypto.Hasher256) {
 			event := msg.WatchedEvent
-			util.FeedTextField(hs, "Business", event.Business)
+			util.FeedInt32Field(hs, "Business", int32(event.Business))
 			util.FeedInt32Field(hs, "EventType", int32(event.EventType))
 			util.FeedTextField(hs, "TxID", event.TxID)
 			util.FeedInt32Field(hs, "From", int32(event.From))
@@ -800,7 +794,7 @@ func feedSignMsgFields(hasher *crypto.Hasher256, fieldName string, msg *SignRequ
 
 func feedSignResultFields(hasher *crypto.Hasher256, fieldName string, msg *SignResult) {
 	util.FeedField(hasher, fieldName, func(hs *crypto.Hasher256) {
-		util.FeedTextField(hs, "BUsiness", msg.Business)
+		util.FeedInt32Field(hs, "BUsiness", int32(msg.Business))
 		util.FeedInt32Field(hs, "Code", int32(msg.Code))
 		util.FeedInt32Field(hs, "NodeId", msg.NodeID)
 		util.FeedTextField(hs, "TxId", msg.ScTxID)
@@ -861,7 +855,7 @@ func (msg *SignResult) Id() *crypto.Digest256 {
 	return hasher.Sum(nil)
 }
 
-func MakeSignResult(business string, code CodeType, nodeId int32,
+func MakeSignResult(business uint32, code CodeType, nodeId int32,
 	txID string, data [][]byte, to uint32,
 	term int64, signer *crypto.SecureSigner) (*SignResult, error) {
 	msg := &SignResult{
@@ -900,6 +894,7 @@ func UnmarshalSignedStatistic(bytes []byte) *SignedStatistic {
 // BtcToPbTx BCH链监听的交易结构转成pb结构
 // 会统一在这边做金额校验，如果输出金额比输入金额大，则按地址顺序修正金额，最后为0的输出地址被忽略
 // 做金额修正主要是为了防止金额作弊的情况
+/*
 func BtcToPbTx(tx *btcwatcher.SubTransaction) *WatchedTxInfo {
 	if tx.Amount <= 0 {
 		return nil
@@ -937,8 +932,9 @@ func BtcToPbTx(tx *btcwatcher.SubTransaction) *WatchedTxInfo {
 	}
 	return watchedTx
 }
-
+*/
 // EthToPbTx ETH链监听到的交易转pb结构。
+/*
 func EthToPbTx(tx *ethwatcher.ExtraBurnData) *WatchedTxInfo {
 	if tx.Amount <= 0 {
 		log.Printf("tx amount fee is not right tx:%s", tx.ScTxid)
@@ -977,6 +973,7 @@ func EthToPbTx(tx *ethwatcher.ExtraBurnData) *WatchedTxInfo {
 	}
 	return watchedTx
 }
+*/
 
 // IsTransferTx 判断WatchedTxInfo是否是一个多签地址的资产转移的交易
 func (tx *WatchedTxInfo) IsTransferTx() bool {

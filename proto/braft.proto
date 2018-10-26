@@ -72,7 +72,7 @@ message AddressInfo {
 
 // watcher监听到的event
 message WatchedEvent{
-    string business = 1;
+    uint32 business = 1;
     uint32 event_type = 2;
     string tx_i_d = 3;
     fixed64 amount = 4;
@@ -115,7 +115,7 @@ message PublicTx{
 
 message Transaction {
     crypto.Digest256 tx_i_d = 1;
-    string business =2;
+    uint32 business =2;
     repeated PublicTx vin = 3;
     repeated PublicTx vout = 4;
     int64 time = 5;
@@ -262,7 +262,7 @@ message SignRequest{
 
 // 签名结果
 message SignResult{
-    string business = 1;
+    uint32 business = 1;
     CodeType code = 2;
     int32 node_i_d = 3;
     string sc_tx_i_d = 4;

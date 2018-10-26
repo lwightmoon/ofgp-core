@@ -6,7 +6,7 @@ import (
 
 //watcher交互event
 type PushEvent interface {
-	GetBusiness() string
+	GetBusiness() uint32
 	GetEventType() uint32 //0 初始监听到 1 被确认
 	GetTxID() string
 	GetAmount() uint64 //金额
@@ -18,16 +18,16 @@ type PushEvent interface {
 
 // BusinessEvent 业务交互event
 type BusinessEvent interface {
-	GetBusiness() string
+	GetBusiness() uint32
 	GetErr() error
 }
 
 type BaseBusinessEvent struct {
-	Business string
+	Business uint32
 	Err      error
 }
 
-func (e *BaseBusinessEvent) GetBusiness() string {
+func (e *BaseBusinessEvent) GetBusiness() uint32 {
 	return e.Business
 }
 func (e *BaseBusinessEvent) GetErr() error {
@@ -80,7 +80,7 @@ type SignedEvent struct {
 	Data *SignedData
 }
 
-func newSignedEvent(business string, data *SignedData, err error) *SignedEvent {
+func newSignedEvent(business uint32, data *SignedData, err error) *SignedEvent {
 	res := &SignedEvent{}
 	res.Business = business
 	res.Data = data
@@ -121,7 +121,7 @@ type CommitedEvent struct {
 	Data *CommitedData
 }
 
-func newCommitedEvent(business string, data *CommitedData, err error) *CommitedEvent {
+func newCommitedEvent(business uint32, data *CommitedData, err error) *CommitedEvent {
 	res := &CommitedEvent{}
 	res.Business = business
 	res.Data = data
