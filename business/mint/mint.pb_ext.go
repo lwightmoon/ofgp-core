@@ -13,6 +13,7 @@ func (mintReq *MintRequire) decode(data []byte) {
 	business.ReadInt(r, &mintReq.TokenTo)
 	receiver := business.Read(r, 25)
 	mintReq.Receiver = receiver
+	business.ReadInt(r, &mintReq.OpType)
 }
 
 func (mintReq *MintRequire) encode() []byte {

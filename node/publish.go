@@ -37,8 +37,12 @@ func (bn *BraftNode) pubSigned(msg *pb.SignResult, chain uint32,
 func (bn *BraftNode) pubWatcherEvent(watchedEvent *pb.WatchedEvent) {
 	var event BusinessEvent
 	switch watchedEvent.GetEventType() {
+	case defines.EVENT_COIN_MINT_REQUIRE:
+		fallthrough
 	case defines.EVENT_P2P_SWAP_REQUIRE: //初始监听到
 		event = newBusinessWatchedEvent(watchedEvent)
+	case defines.EVENT_COIN_MINT_CONFIRM:
+		fallthrough
 	case defines.EVENT_P2P_SWAP_CONFIRM: //确认
 		event = newConfirmEvent(watchedEvent)
 	default:

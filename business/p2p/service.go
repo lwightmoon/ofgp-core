@@ -2,6 +2,7 @@ package p2p
 
 import (
 	"errors"
+	ew "swap/ethwatcher"
 
 	"github.com/ofgp/common/defines"
 	"github.com/ofgp/ofgp-core/message"
@@ -59,6 +60,7 @@ func makeCreateTxReq(op uint8, info *P2PInfo) (message.CreateReq, error) {
 		ethReq.ID = event.GetTxID()
 		ethReq.Addr = addr
 		ethReq.Amount = msg.Amount
+		ethReq.Method = ew.VOTE_METHOD_MATCHSWAP
 		ethReq.TokenTo = token
 		ethReq.From = uint8(event.GetFrom())
 		req = ethReq

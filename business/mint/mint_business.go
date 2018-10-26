@@ -3,6 +3,7 @@ package mint
 import (
 	"encoding/json"
 	"errors"
+	ew "swap/ethwatcher"
 	"time"
 
 	proto "github.com/golang/protobuf/proto"
@@ -97,6 +98,7 @@ func makeCreateTxReq(info *MintInfo) (message.CreateReq, error) {
 		ethReq.ID = event.GetTxID()
 		ethReq.Addr = require.Receiver
 		ethReq.Amount = event.GetAmount()
+		ethReq.Method = ew.VOTE_METHOD_MINT
 		ethReq.TokenTo = require.TokenTo
 		ethReq.From = fromChain
 		txReq = ethReq
@@ -233,7 +235,7 @@ func getRecharge(info *MintInfo) []byte {
 			Addr:     req.GetReceiver(),
 			Amount:   event.GetAmount(),
 			TokenTo:  req.TokenTo,
-			Method:   "",
+			Method:   ew.VOTE_METHOD_MINT,
 			Proposal: event.GetTxID(),
 		}
 		data, _ = proto.Marshal(recharge)

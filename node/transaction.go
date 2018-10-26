@@ -131,7 +131,8 @@ func (eop *ethOperator) CreateTx(req message.CreateReq) (*pb.NewlyTx, error) {
 			return nil, err
 		}
 		addr := ew.HexToAddress(addrStr)
-		input, err := eop.cli.EncodeInput(ew.VOTE_METHOD_MATCHSWAP, ereq.TokenTo, addr, ereq.GetAmount(), req.GetID())
+		nodeLogger.Debug("create eth tx param", "method", ereq.Method, "appCode", ereq.TokenTo, "addr", addrStr, "amount", ereq.GetAmount(), "proposal", req.GetID(), "from", ereq.GetFrom())
+		input, err := eop.cli.EncodeInput(ereq.Method, ereq.TokenTo, ereq.GetAmount(), addr, req.GetID(), ereq.GetFrom())
 		if err != nil {
 			leaderLogger.Error("create eth input failed", "err", err, "sctxid", req.GetID())
 			return nil, err

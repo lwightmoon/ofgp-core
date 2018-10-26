@@ -661,8 +661,7 @@ func (bn *BraftNode) watchNewTx(ctx context.Context) {
 	nodeLogger.Debug("eth watch info", "height", ethHeight, "index", ethIndex)
 	bn.ethWatcher.StartWatch(*big.NewInt(ethHeight), int(ethIndex), eventCh)
 	for event := range eventCh {
-		if event != nil && event.GetBusiness() != 0 && (event.GetEventType() == defines.EVENT_P2P_SWAP_REQUIRE || event.GetEventType() == defines.EVENT_P2P_SWAP_CONFIRM) {
-
+		if event != nil && event.GetBusiness() != 0 {
 			// 防止重复发布事件
 			if bn.pubsub.hasTopic(event.GetBusiness()) && !bn.txStore.HasTxInDB(event.GetTxID()) {
 				watchedEvent := newWatchedEvent(event)
