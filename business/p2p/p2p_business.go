@@ -44,7 +44,7 @@ func NewP2P(srv *business.Service, path string) *P2P {
 	wh := &watchedHandler{
 		db:                 db,
 		index:              index,
-		checkMatchInterval: time.Duration(1) * time.Second,
+		checkMatchInterval: time.Duration(10) * time.Second,
 		service:            srv,
 	}
 	// check匹配超时
@@ -171,7 +171,7 @@ func (wh *watchedHandler) checkMatchTimeout() {
 	for _, info := range infos {
 		// match 超时
 		scTxID := info.GetScTxID()
-		if !isMatching(wh.db, info.GetScTxID()) && !wh.node.IsDone(scTxID) && info.IsExpired() {
+		if !isMatching(wh.db, info.GetScTxID()) && !wh.service.IsDone(scTxID) && info.IsExpired() {
 			//创建并发送回退交易
 			p2pLogger.Debug("match timeout", "scTxID", info.GetScTxID())
 			wh.sendBackTx(info)
