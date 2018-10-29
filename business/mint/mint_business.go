@@ -129,6 +129,7 @@ func (handler *watchedHandler) HandleEvent(event node.BusinessEvent) {
 			mintLogger.Error("watchedEvent is nil", "business", event.GetBusiness())
 			return
 		}
+
 		scTxID := watchedEvent.GetTxID()
 		if handler.db.existMintInfo(scTxID) {
 			mintLogger.Warn("already received mint", "scTxID", scTxID)
@@ -137,7 +138,12 @@ func (handler *watchedHandler) HandleEvent(event node.BusinessEvent) {
 
 		mintReq := &MintRequire{}
 		mintReq.decode(watchedEvent.GetData())
-		//todo veryfy appInfo
+		fromChain := uint8(watchedEvent.From)
+
+		if !handler.service.VerifyAppInfo(fromChain, mintReq.TokenFrom, mintReq.TokenTo) {
+			mintLogger.Warn("verify app info not passed", "scTxid", scTxID)
+			return
+		}
 
 		mintInfo := &MintInfo{
 			Event: watchedEvent,

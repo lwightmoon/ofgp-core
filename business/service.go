@@ -65,6 +65,6 @@ func (s *Service) SubScribe(business uint32) chan node.BusinessEvent {
 }
 
 // VerifyAppInfo 验证铸币消息跟锁存储到的app消息是否一致
-func (s *Service) VerifyAppInfo(sChain string, tokenCode, appCode uint32) bool {
+func (s *Service) VerifyAppInfo(sChain uint8, tokenCode, appCode uint32) bool {
 	return s.node.VerifyAppInfo(sChain, tokenCode, appCode)
 }

@@ -99,6 +99,6 @@ func (node *BraftNode) IsSignFailed(scTxID string) bool {
 }
 
 // VerifyAppInfo 验证铸币消息
-func (node *BraftNode) VerifyAppInfo(sChain string, tokenCode uint32, appCode uint32) bool {
+func (node *BraftNode) VerifyAppInfo(sChain uint8, tokenCode uint32, appCode uint32) bool {
 	return node.ethWatcher.VerifyAppInfo(sChain, tokenCode, appCode)
 }

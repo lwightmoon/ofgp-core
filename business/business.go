@@ -39,4 +39,6 @@ type IService interface {
 	CommitTx(tx *pb.Transaction)
 
 	SubScribe(business uint32) chan node.BusinessEvent
+
+	VerifyAppInfo(sChain uint8, tokenCode, appCode uint32) bool
 }
