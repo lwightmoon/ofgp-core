@@ -1258,7 +1258,7 @@ func (bs *BlockStore) validateBtcSignReq(req *pb.SignRequest, newlyTx *wire.MsgT
 	recharge := &pb.BtcRecharge{}
 	proto.Unmarshal(req.Recharge, recharge)
 
-	if len(newlyTx.TxOut) != 1 && len(newlyTx.TxOut) != 2 {
+	if len(newlyTx.TxOut) != 2 && len(newlyTx.TxOut) != 3 {
 		bsLogger.Warn("recharge txoutCnt check err", "newTxCount", len(newlyTx.TxOut))
 		return wrongInputOutput
 	}

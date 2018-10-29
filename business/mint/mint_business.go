@@ -140,7 +140,7 @@ func (handler *watchedHandler) HandleEvent(event node.BusinessEvent) {
 		mintReq.decode(watchedEvent.GetData())
 		fromChain := uint8(watchedEvent.From)
 
-		if !handler.service.VerifyAppInfo(fromChain, mintReq.TokenFrom, mintReq.TokenTo) {
+		if mintReq.OpType == defines.MINT_TX_FLAG && !handler.service.VerifyAppInfo(fromChain, mintReq.TokenFrom, mintReq.TokenTo) {
 			mintLogger.Warn("verify app info not passed", "scTxid", scTxID)
 			return
 		}
@@ -246,7 +246,7 @@ func getRecharge(info *MintInfo) []byte {
 		}
 		data, _ = proto.Marshal(recharge)
 	default:
-		mintLogger.Error("getrecharge type err")
+		mintLogger.Error("getrecharge type err", "chainTo", chain)
 	}
 	return data
 }
@@ -293,7 +293,15 @@ func (hd *confirmedHandler) HandleEvent(event node.BusinessEvent) {
 			return
 		}
 		mintInfo := hd.db.getMintInfo(scTxID)
+		if mintInfo == nil {
+			mintLogger.Error("mint require nil", "scTxID", scTxID)
+			return
+		}
 		vin := getVin(mintInfo)
+		if vin == nil {
+			mintLogger.Error("get vin message err", "scTxID", scTxID)
+			return
+		}
 		vout := getVout(watchedEvent, mintInfo)
 
 		dgwTx := &pb.Transaction{
