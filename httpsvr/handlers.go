@@ -404,6 +404,10 @@ func (hd *HTTPHandler) addWatchedTx(w http.ResponseWriter, req *http.Request, pa
 		fmt.Fprintf(w, "%s", newData(paramErrCode, "chain or txid is nil", nil))
 		return
 	}
+	if chain != "btc" || chain != "bch" || chain != "eth" {
+		fmt.Fprintf(w, "%s", newData(paramErrCode, "chain err", nil))
+		return
+	}
 	err := hd.node.AddSideTx(txID, chain)
 	if err != nil {
 		fmt.Fprintf(w, "%s", newData(sysErrCode, err.Error(), nil))
