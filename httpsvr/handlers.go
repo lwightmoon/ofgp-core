@@ -469,7 +469,7 @@ func (hd *HTTPHandler) addFreshToTx(w http.ResponseWriter, req *http.Request, pa
 	}
 	err := hd.node.AddSideTxToFresh(txID)
 	if err != nil {
-		fmt.Fprintf(w, "%s", newData(sysErrCode, err.Error, nil))
+		fmt.Fprintf(w, "%s", newData(sysErrCode, err.Error(), nil))
 		return
 	}
 	writeResponse(&w, newOKData(nil))
