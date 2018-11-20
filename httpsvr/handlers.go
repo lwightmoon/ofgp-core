@@ -460,6 +460,21 @@ func (hd *HTTPHandler) addWatchedTx(w http.ResponseWriter, req *http.Request, pa
 	writeResponse(&w, newOKData(nil))
 }
 
+// addFreshToTx 添加tx至待处理
+func (hd *HTTPHandler) addFreshToTx(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
+	txID := params.ByName("txid")
+	if txID == "" {
+		fmt.Fprintf(w, "%s", newData(paramErrCode, "txid is empty", nil))
+		return
+	}
+	err := hd.node.AddSideTxToFresh(txID)
+	if err != nil {
+		fmt.Fprintf(w, "%s", newData(sysErrCode, err.Error, nil))
+		return
+	}
+	writeResponse(&w, newOKData(nil))
+}
+
 func writeResponse(w *http.ResponseWriter, r interface{}) {
 	rst, err := json.Marshal(r)
 	if err != nil {

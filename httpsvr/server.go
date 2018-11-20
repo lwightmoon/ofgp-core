@@ -83,5 +83,6 @@ func StartHTTP(node *node.BraftNode, user, pwd, endpoint string, allowedOrigins 
 	router.POST("/execproposal/:proposal_id", basicAuth(hd.executeProposal, user, pwd))
 
 	router.POST("/sidetx/:chain/:txid", basicAuth(hd.addWatchedTx, user, pwd))
+	router.POST("sidetx/fresh/:txid", basicAuth(hd.addFreshToTx, user, pwd))
 	go http.ListenAndServe(endpoint, c.Handler(router))
 }

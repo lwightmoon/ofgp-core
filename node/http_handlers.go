@@ -550,3 +550,13 @@ func (node *BraftNode) AddSideTx(txID string, chain string) error {
 	err := node.txStore.AddWatchedInfo(watchedTx)
 	return err
 }
+
+//AddSideTxToFresh 添加tx到fresh
+func (node *BraftNode) AddSideTxToFresh(txID string) error {
+	watchedTx := node.txStore.GetWatchedTx(txID)
+	if watchedTx == nil {
+		return errors.New("not found in watchedTxInfo")
+	}
+	node.txStore.AddFreshWatchedTx(watchedTx)
+	return nil
+}

@@ -282,6 +282,17 @@ func (ts *TxStore) AddWatchedInfo(tx *pb.WatchedTxInfo) error {
 	return nil
 }
 
+//GetWatchedTx 根据txid获取 watchedTx
+func (ts *TxStore) GetWatchedTx(txid string) *pb.WatchedTxInfo {
+	ts.RLock()
+	defer ts.RUnlock()
+	tx, exist := ts.watchedTxInfo[txid]
+	if !exist {
+		return nil
+	}
+	return tx.Tx
+}
+
 // AddFreshWatchedTx 增加新监听到的交易到待处理列表
 func (ts *TxStore) AddFreshWatchedTx(tx *pb.WatchedTxInfo) {
 	ts.RLock()
