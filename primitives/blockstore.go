@@ -1181,6 +1181,10 @@ func (bs *BlockStore) validateETHTx(txInfo *ew.PushEvent, scTxInfo *pb.WatchedTx
 }
 
 func (bs *BlockStore) validateBtcSignTx(req *pb.SignTxRequest) int {
+	if req.WatchedTx.To != "bch" && req.WatchedTx.To != "btc" {
+		bsLogger.Error("chain type err", "chain", req.WatchedTx.To, "sctxid", req.WatchedTx.Txid)
+		return wrongInputOutput
+	}
 	buf := bytes.NewBuffer(req.NewlyTx.Data)
 	newlyTx := new(wire.MsgTx)
 	newlyTx.Deserialize(buf)
@@ -1203,44 +1207,27 @@ func (bs *BlockStore) validateBtcSignTx(req *pb.SignTxRequest) int {
 	}
 
 	var (
-		priceInfo *price.PriceInfo
+		priceInfo *price.Price
 		amount    int64
 		ts        int64
-		symbol    string
-		err       error
+		// symbol    string
+		err error
 	)
-	if req.WatchedTx.From == "xin" {
-		local, _ := time.LoadLocation("UTC")
-		ts = req.NewlyTx.Timestamp
-		currTs := time.Now().In(local).Unix()
-		// 避免币价信息过期，设定2分钟的限制
-		if currTs-ts > coinPriceExpire {
-			bsLogger.Error("price timestamp is out of date", "curr", currTs, "reqts", ts, "sctxid", req.WatchedTx.Txid)
-			return wrongInputOutput
-		}
-	}
-	if req.WatchedTx.To == "bch" {
-		symbol = "BCH-USD"
-	} else if req.WatchedTx.To == "btc" {
-		symbol = "BTC-USD"
-	} else {
-		return wrongInputOutput
-	}
 
 	for idx, recharge := range req.WatchedTx.RechargeList {
 		txOut := newlyTx.TxOut[idx]
 		outAddress := btcfunc.ExtractPkScriptAddr(txOut.PkScript, req.WatchedTx.To)
 		if req.WatchedTx.From == "xin" {
 			if priceInfo == nil {
-				priceInfo, err = bs.priceTool.GetPriceByTimestamp(symbol, ts, false)
+				priceInfo, err = bs.priceTool.GetPriceByTxid(req.WatchedTx.Txid)
 				if err != nil {
 					bsLogger.Error("get price info failed", "err", err, "sctxid", req.WatchedTx.Txid)
 					return wrongInputOutput
 				}
-				if len(priceInfo.Err) > 0 {
-					bsLogger.Error("get price info failed", "err", priceInfo.Err, "sctxid", req.WatchedTx.Txid)
-					return wrongInputOutput
-				}
+				// if len(priceInfo.Err) > 0 {
+				// 	bsLogger.Error("get price info failed", "err", priceInfo.Err, "sctxid", req.WatchedTx.Txid)
+				// 	return wrongInputOutput
+				// }
 				bsLogger.Debug("validate btc sign, price info", "price", priceInfo.Price, "ts", ts)
 			}
 			amount = int64(float64(recharge.Amount) * 100000.0 / float64(priceInfo.Price))
@@ -1337,38 +1324,28 @@ func (bs *BlockStore) validateXINSignTx(req *pb.SignTxRequest) int {
 		return wrongInputOutput
 	}
 
-	local, _ := time.LoadLocation("UTC")
-	ts := req.NewlyTx.Timestamp
-	currTs := time.Now().In(local).Unix()
-	if currTs-ts > coinPriceExpire {
-		bsLogger.Error("price timestamp is out of date", "curr", currTs, "reqts", ts, "sctxid", req.WatchedTx.Txid)
-		return wrongInputOutput
-	}
-
-	var symbol string
+	// var symbol string
 	var coinUnit float64
-	if req.WatchedTx.From == "bch" {
-		symbol = "BCH-USD"
+	switch req.WatchedTx.From {
+	case "bch":
 		coinUnit = 100000000.0
-	} else if req.WatchedTx.From == "btc" {
-		symbol = "BTC-USD"
+	case "btc":
 		coinUnit = 100000000.0
-	} else if req.WatchedTx.From == "eos" {
-		symbol = "EOS-USD"
+	case "eos":
 		coinUnit = 10000.0
-	} else {
+	default:
 		bsLogger.Error("From type err", "formtype", req.WatchedTx.From, "sctxid", req.WatchedTx.Txid)
 		return wrongInputOutput
 	}
-	priceInfo, err := bs.priceTool.GetPriceByTimestamp(symbol, ts, true)
+	priceInfo, err := bs.priceTool.GetPriceByTxid(req.WatchedTx.Txid)
 	if err != nil {
 		bsLogger.Error("get price info failed", "err", err, "sctxid", req.WatchedTx.Txid)
 		return wrongInputOutput
 	}
-	if len(priceInfo.Err) > 0 {
-		bsLogger.Error("get price info failed", "err", priceInfo.Err, "sctxid", req.WatchedTx.Txid)
-		return wrongInputOutput
-	}
+	// if len(priceInfo.Err) > 0 {
+	// 	bsLogger.Error("get price info failed", "err", priceInfo.Err, "sctxid", req.WatchedTx.Txid)
+	// 	return wrongInputOutput
+	// }
 	amount := float64(req.WatchedTx.RechargeList[0].Amount) * float64(priceInfo.Price) * 1000 / coinUnit
 
 	actionData := newlyTx.Actions[0].Data.(*eoswatcher.CreateToken)
@@ -1411,27 +1388,20 @@ func (bs *BlockStore) validateEOSSignTx(req *pb.SignTxRequest) int {
 	var addrInAction string
 	var amountInAction int64
 	if fromChain == "xin" {
-		local, _ := time.LoadLocation("UTC")
-		ts := req.NewlyTx.Timestamp
-		currTs := time.Now().In(local).Unix()
-		if currTs-ts > coinPriceExpire {
-			bsLogger.Error("price timestamp is out of date", "curr", currTs, "reqts", ts, "sctxid", req.WatchedTx.Txid)
-			return wrongInputOutput
-		}
-		var symbol string
+		// var symbol string
 		var coinUnit float64
-		symbol = "EOS-USD"
+		// symbol = "EOS-USD"
 		coinUnit = 10000.0
 
-		priceInfo, err := bs.priceTool.GetPriceByTimestamp(symbol, ts, false)
+		priceInfo, err := bs.priceTool.GetPriceByTxid(req.WatchedTx.Txid)
 		if err != nil {
 			bsLogger.Error("get price info failed", "err", err, "sctxid", req.WatchedTx.Txid)
 			return wrongInputOutput
 		}
-		if len(priceInfo.Err) > 0 {
-			bsLogger.Error("get price info failed", "err", priceInfo.Err, "sctxid", req.WatchedTx.Txid)
-			return wrongInputOutput
-		}
+		// if len(priceInfo.Err) > 0 {
+		// 	bsLogger.Error("get price info failed", "err", priceInfo.Err, "sctxid", req.WatchedTx.Txid)
+		// 	return wrongInputOutput
+		// }
 		amount = getEOSAmountFromXin(req.WatchedTx.RechargeList[0].Amount, float32(priceInfo.Price), coinUnit)
 
 		transer := newlyTx.Actions[0].Data.(*token.Transfer)

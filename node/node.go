@@ -362,6 +362,7 @@ func NewBraftNode(localNodeInfo cluster.NodeInfo) *BraftNode {
 		bn.onNewBlockCommitted(newTop)
 		ts.OnNewBlockCommitted(newTop)
 		// ac.OnNewCommitted(newTop)
+		priceTool.OnNewBlockCommitted(newTop)
 	})
 
 	bs.CommittedInLowerTermEvent.Subscribe(func(msg interface{}) {

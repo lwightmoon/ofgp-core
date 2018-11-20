@@ -598,15 +598,17 @@ func (ld *Leader) createXINTx(watchedTx *pb.WatchedTxInfo) *pb.NewlyTx {
 		leaderLogger.Error("create xin tx failed", "from", watchedTx.From)
 		return nil
 	}
-	priceInfo, err := ld.priceTool.GetCurrPrice(symbol, true)
+	// priceInfo, err := ld.priceTool.GetCurrPrice(symbol, true)
+	priceInfo, err := ld.priceTool.GetPriceByTxid(watchedTx.Txid)
 	if err != nil {
 		leaderLogger.Error("get price failed", "err", err, "sctxid", watchedTx.Txid)
 		return nil
 	}
-	if len(priceInfo.Err) > 0 {
-		leaderLogger.Error("get price failed", "err", priceInfo.Err, "sctxid", watchedTx.Txid)
-		return nil
-	}
+	// if len(priceInfo.Err) > 0 {
+	// 	leaderLogger.Error("get price failed", "err", priceInfo.Err, "sctxid", watchedTx.Txid)
+	// 	return nil
+	// }
+
 	if len(watchedTx.RechargeList) == 0 {
 		leaderLogger.Error("recharge list nil", "sctxid", watchedTx.Txid)
 		return nil
@@ -629,7 +631,7 @@ func (ld *Leader) createXINTx(watchedTx *pb.WatchedTxInfo) *pb.NewlyTx {
 		leaderLogger.Error("pack xin tx failed", "err", err, "sctxid", watchedTx.Txid)
 		return nil
 	}
-	return &pb.NewlyTx{Data: pack.PackedTransaction, Timestamp: priceInfo.Timestamp}
+	return &pb.NewlyTx{Data: pack.PackedTransaction}
 }
 
 // getEOSAmountFromXin xin币跟美元比例为 1:1000
