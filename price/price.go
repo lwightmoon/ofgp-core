@@ -5,7 +5,6 @@ import (
 	"container/list"
 	"encoding/json"
 	"io/ioutil"
-	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -14,8 +13,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ofgp/ofgp-core/log"
 	pb "github.com/ofgp/ofgp-core/proto"
+	"github.com/spf13/viper"
 )
+
+var priceLogger = log.New(viper.GetString("loglevel"), "node")
 
 // PriceInfo 币价信息
 type PriceInfo struct {
@@ -123,7 +126,7 @@ func (t *PriceTool) GetPriceByTxid(txid string) (*Price, error) {
 	urlStr := strings.Join([]string{t.endpoint, "pricebyts"}, "/")
 	tmp, err := url.Parse(urlStr)
 	if err != nil {
-		log.Printf("parse url err:%v", err)
+		priceLogger.Error("parse url err", "err", err)
 		return nil, err
 	}
 	params := url.Values{}
@@ -131,7 +134,7 @@ func (t *PriceTool) GetPriceByTxid(txid string) (*Price, error) {
 	tmp.RawQuery = params.Encode()
 	res, err := t.client.Get(tmp.String())
 	if err != nil {
-		log.Printf("get url:%s err:%v", tmp.String(), err)
+		priceLogger.Error("get url err", "err", err, "url", tmp.String())
 		return nil, err
 	}
 	defer res.Body.Close()
@@ -139,7 +142,7 @@ func (t *PriceTool) GetPriceByTxid(txid string) (*Price, error) {
 	price := &Price{}
 	err = json.Unmarshal(body, price)
 	if err != nil {
-		log.Printf("unmarshal price info err:%v", err)
+		priceLogger.Error("unmarshal price info", "err", err, "data", string(body))
 		return nil, err
 	}
 	return price, err
@@ -175,17 +178,20 @@ func (t *PriceTool) noticeConfirm() {
 		time.Sleep(100 * time.Millisecond)
 		return
 	}
+	t.sendList.Remove(element)
 	confirmInfo := element.Value.(*ConfirmInfo)
 	data, _ := json.Marshal(confirmInfo)
 	body := bytes.NewBuffer(data)
 	confirmURL := strings.Join([]string{t.endpoint, "confirm"}, "/")
 	req, err := http.NewRequest("POST", confirmURL, body)
 	if err != nil {
-		log.Printf("create confirm http req err:%v", err)
+		priceLogger.Error("create confirm http req err", "err", err, "sctxid", confirmInfo.Txid)
 		return
 	}
+	priceLogger.Debug("send confirm req", "txid", confirmInfo.Txid)
 	res, err := t.client.Do(req)
 	if err != nil {
+		priceLogger.Error("send confirm req err", "err", err, "txid", confirmInfo.Txid)
 		t.sendList.PushBack(confirmInfo)
 		//发送失败短暂暂停
 		time.Sleep(100 * time.Millisecond)
