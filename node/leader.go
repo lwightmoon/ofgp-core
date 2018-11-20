@@ -583,16 +583,13 @@ func (ld *Leader) createEthInput(watchedTx *pb.WatchedTxInfo) *pb.NewlyTx {
 
 // 暂时没有收取手续费
 func (ld *Leader) createXINTx(watchedTx *pb.WatchedTxInfo) *pb.NewlyTx {
-	var symbol string
+	// var symbol string
 	var coinUnit float64
 	if watchedTx.From == "bch" {
-		symbol = "BCH-USD"
 		coinUnit = 100000000.0
 	} else if watchedTx.From == "btc" {
-		symbol = "BTC-USD"
 		coinUnit = 100000000.0
 	} else if watchedTx.From == "eos" {
-		symbol = "EOS-USD"
 		coinUnit = 10000.0
 	} else {
 		leaderLogger.Error("create xin tx failed", "from", watchedTx.From)
