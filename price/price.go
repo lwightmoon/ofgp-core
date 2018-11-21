@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"container/list"
 	"encoding/json"
+	"errors"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -19,6 +20,12 @@ import (
 )
 
 var priceLogger = log.New(viper.GetString("loglevel"), "node")
+
+type apiData struct {
+	Code int         `json:"code"`
+	Err  string      `json:"err"`
+	Data interface{} `json:"data"`
+}
 
 // PriceInfo 币价信息
 type PriceInfo struct {
@@ -139,8 +146,14 @@ func (t *PriceTool) GetPriceByTxid(txid string) (*Price, error) {
 	}
 	defer res.Body.Close()
 	body, _ := ioutil.ReadAll(res.Body)
-	price := &Price{}
-	err = json.Unmarshal(body, price)
+	data := &apiData{}
+	data.Data = &Price{}
+	err = json.Unmarshal(body, data)
+	price, ok := data.Data.(*Price)
+	if !ok {
+		priceLogger.Debug("get res data err", "data", data.Data)
+		return nil, errors.New("data type err")
+	}
 	if err != nil {
 		priceLogger.Error("unmarshal price info", "err", err, "data", string(body))
 		return nil, err

@@ -1,6 +1,7 @@
 package price_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -52,4 +53,43 @@ func TestSendConfirm(t *testing.T) {
 		})
 	}
 	time.Sleep(2 * time.Second)
+}
+
+type apiData struct {
+	Code int         `json:"code"`
+	Err  string      `json:"err"`
+	Data interface{} `json:"data"`
+}
+
+// Price price
+type Price struct {
+	ID        int     `json:"id"`    //报价id
+	Price     float64 `json:"price"` //报价
+	PriceType string  `json:"type"`  //ask/bid
+}
+
+func TestGetPriceByHash(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		price := &Price{
+			ID:        1,
+			Price:     8848.0,
+			PriceType: "bid",
+		}
+		data := &apiData{
+			Code: 200,
+			Err:  "",
+			Data: price,
+		}
+		databytes, _ := json.Marshal(data)
+		w.Write(databytes)
+	})
+	server := httptest.NewServer(handler)
+	defer server.Close()
+	tool := price.NewPriceTool(server.URL)
+	price, err := tool.GetPriceByTxid("12345")
+	if err != nil {
+		t.Errorf("get price err:%v", err)
+		return
+	}
+	t.Logf("get price:%v", price)
 }
