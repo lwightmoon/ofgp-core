@@ -130,7 +130,7 @@ func (t *PriceTool) GetPriceByTimestamp(symbol string, ts int64, forth bool) (*P
 
 // GetPriceByTxid 根据txid获取币价
 func (t *PriceTool) GetPriceByTxid(txid string) (*Price, error) {
-	urlStr := strings.Join([]string{t.endpoint, "pricebyts"}, "/")
+	urlStr := strings.Join([]string{t.endpoint, "pricebytx"}, "/")
 	tmp, err := url.Parse(urlStr)
 	if err != nil {
 		priceLogger.Error("parse url err", "err", err)
@@ -184,14 +184,15 @@ func (t *PriceTool) OnNewBlockCommitted(pack *pb.BlockPack) {
 //NoticeConfirm 通知交易完成
 func (t *PriceTool) noticeConfirm() {
 	t.listLock.Lock()
-	defer t.listLock.Unlock()
 	element := t.sendList.Front()
 	if element == nil {
+		t.listLock.Unlock()
 		//list is empty sleep for a while
-		time.Sleep(100 * time.Millisecond)
 		return
 	}
 	t.sendList.Remove(element)
+	t.listLock.Unlock()
+
 	confirmInfo := element.Value.(*ConfirmInfo)
 	data, _ := json.Marshal(confirmInfo)
 	body := bytes.NewBuffer(data)
@@ -205,7 +206,11 @@ func (t *PriceTool) noticeConfirm() {
 	res, err := t.client.Do(req)
 	if err != nil {
 		priceLogger.Error("send confirm req err", "err", err, "txid", confirmInfo.Txid)
+
+		t.listLock.Lock()
 		t.sendList.PushBack(confirmInfo)
+		t.listLock.Unlock()
+
 		//发送失败短暂暂停
 		time.Sleep(100 * time.Millisecond)
 		return
@@ -217,6 +222,7 @@ func (t *PriceTool) run() {
 	go func() {
 		for {
 			t.noticeConfirm()
+			time.Sleep(50 * time.Microsecond)
 		}
 	}()
 }
